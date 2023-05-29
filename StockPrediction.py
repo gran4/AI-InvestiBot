@@ -8,8 +8,8 @@ import yfinance as yf
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, LSTM
-import alpha_vantage
-from alpha_vantage.techindicators import TechIndicators
+#import alpha_vantage
+#from alpha_vantage.techindicators import TechIndicators
 
 
 """
@@ -58,7 +58,7 @@ prediction_range = 60
 x_train = []
 y_train = []
 
-for x in range(prediction, len(stock_data)):
+for x in range(prediction_range, len(stock_data)):
     x_train.append(scaled_data[x-prediction_range: x, 0])
     y_train.append(scaled_data[x, 0])
 
@@ -108,7 +108,7 @@ test_start = dt.datetime(2023, 3, 3)
 test_end = dt.datetimenow()
 
 # Use yfinance to fetch the stock data from Yahoo Finance
-test_date = yf.download(stock_symbol, start=start_date, end=end_date)
+test_data = yf.download(stock_symbol, start=start_date, end=end_date)
 
 # Calculate the MACD using pandas' rolling mean functions
 stock_data['12-day EMA'] = stock_data['Close'].ewm(span=12).mean()
@@ -122,15 +122,15 @@ actual_prices = test_data["Close"]
 total_dataset = pd.concat((stock_data["Close"], test_data["Close"]))
 
 model_inputs = total_dataset[len(total_dataset) - len(test_data) - prediction_range:]
-model_inputs = model_inputes.reshape(-1, 1)
+model_inputs = model_inputs.reshape(-1, 1)
 model_inputs = scaler.transform(model_inputs)
 
 
 #MAKE PREDICTIONS
 x_test = []
 
-for x in range(prediction_range, len(model_puts)):
-    x_test.append(model_input[x-prediction_range:x, 0])
+for x in range(prediction_range, len(model_inputs)):
+    x_test.append(model_inputs[x-prediction_range:x, 0])
 
 x_test = np.array(x_test)
 #x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
@@ -140,13 +140,13 @@ predicted_prices = scaler.inverse_transform(predicted_prices)
 
 
 #PLOT TEST PREDICTIONS
-plt.plot(actual_prices, color = "black", label = f"Actual {company} price")
-plt.plot(predicted_prices, color = "green", label = f"Predicted {company} price")
+plt.plot(actual_prices, color = "black", label = f"Actual {stock_symbol} price")
+plt.plot(predicted_prices, color = "green", label = f"Predicted {stock_symbol} price")
 
-plt.title(f"{company} Share Price")
+plt.title(f"{stock_symbol} Share Price")
 
 plt.xlabel("Time")
-plt.ylabel(f"{company} Share Price")
+plt.ylabel(f"{stock_symbol} Share Price")
 
 plt.legend()
 plt.show
