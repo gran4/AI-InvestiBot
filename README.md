@@ -1,3 +1,7 @@
 # Stock-Bot-Predicter-AI
 
-DOES NOT WORK YET
+In dev stages. Stock Bots not completed yet.
+
+Currently working on:
+  - getting info from web(earnings etc)
+  - creating custom code, simulating wallets
