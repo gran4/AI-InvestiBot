@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 # Set the start and end dates for the historical data
 start_date = '2020-01-01'
-end_date = '2023-05-16'
+end_date = '2023-06-09'
 
 # Define the stock symbol you want to retrieve data for
 stock_symbol = 'AAPL'  # Replace with your desired stock symbol
@@ -47,7 +47,7 @@ model.add(Dense(1))
 model.compile(optimizer='adam', loss='mean_squared_error')
 
 # Train the model
-model.fit(X_train, Y_train, batch_size=32, epochs=200)
+model.fit(X_train, Y_train, batch_size=32, epochs=50)
 
 # Make predictions
 train_predictions = model.predict(X_train)
@@ -62,22 +62,23 @@ y_test = scaler.inverse_transform(Y_test.reshape(-1, 1)).flatten()
 print(y_train.shape[0], y_test.shape[0])
 
 y_train_size = y_train.shape[0]
-days = [i for i in range(y_train.shape[0])]
-days2 = [i+y_train_size for i in range(y_test.shape[0])]
+days_test = [i for i in range(y_train.shape[0])]
+days_train = [i+y_train_size for i in range(y_test.shape[0])]
 print(train_size, y_test.shape[0])
-print(len(days), len(days2))
+print(len(days_test), len(days_train))
 
 # Plot the actual and predicted prices
 plt.figure(figsize=(12, 6))
 
-predicted_test = plt.plot(days2, test_predictions, label='Predicted Test')
-actual_test = plt.plot(days2, y_test, label='Actual Test')
+predicted_train = plt.plot(days_test, train_predictions, label='Predicted Train')
+actual_train = plt.plot(days_test, y_train, label='Actual Train')
+
+predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
+actual_test = plt.plot(days_train, y_test, label='Actual Test')
 
 #plt.plot(stock_data.index[num_days:num_days+len(train_predictions)], train_predictions, label='Predicted Train')
 #plt.plot(stock_data.index[-len(test_predictions):], test_predictions, label='Predicted Test')
 
-predicted_train = plt.plot(days, train_predictions, label='Predicted Train')
-actual_train = plt.plot(days, y_train, label='Actual Train')
 
 
 train_rmse = np.sqrt(np.mean((train_predictions - y_train)**2))
