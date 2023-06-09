@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import pandas_datareader as web
+#import pandas_datareader as web
 import datetime as dt
 import yfinance as yf
 
@@ -46,7 +46,7 @@ stock_data['Signal Line'] = stock_data['MACD'].ewm(span=9).mean()
 
 
 scaler = MinMaxScaler(feature_range = (0, 1))
-scaled_data = scaler.fit_transform(stock_data['Close'])
+scaled_data = scaler.fit_transform(stock_data['Close'].values.reshape(-1, 1))
 
 
 
@@ -75,13 +75,10 @@ x_train, y_train = np.array(x_train), np.array(y_train)
 model = Sequential()
 
 #add layers to model
-model.add(LSTM(units = 50, return_sequences = True, input_shape = x_train.shape[1][1]))
+model.add(LSTM(units = 50, return_sequences = True, input_shape = x_train.shape))
 model.add(Dropout(.2))
 
 model.add(LSTM(units = 50, return_sequences = True))
-model.add(Dropout(.2))
-
-model.add(LSTM(units = 50))
 model.add(Dropout(.2))
 
 

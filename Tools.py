@@ -17,7 +17,7 @@ class ResourceManager(object):
 
         self.stock_mapping = {}
 
-    def check(money: float, stock: str):
+    def check(self, money: float, stock: str):
         """
         Returns how much can be used
 
@@ -27,7 +27,7 @@ class ResourceManager(object):
         """
         total = self.money_used+money
         if total > self.max_used:
-            return total-max_used
+            return total-self.max_used
         elif total/self.money > self.max_percent_used:
             percent_acceptable = total/self.money
             percent_acceptable -= self.max_percent_used
