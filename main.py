@@ -46,8 +46,9 @@ model.add(LSTM(50))
 model.add(Dense(1))
 model.compile(optimizer='adam', loss='mean_squared_error')
 
+
 # Train the model
-model.fit(X_train, Y_train, batch_size=32, epochs=50)
+model.fit(X_train, Y_train, batch_size=32, epochs=20)
 
 # Make predictions
 train_predictions = model.predict(X_train)
@@ -59,16 +60,13 @@ y_train = scaler.inverse_transform(Y_train.reshape(-1, 1)).flatten()
 test_predictions = scaler.inverse_transform(test_predictions)
 y_test = scaler.inverse_transform(Y_test.reshape(-1, 1)).flatten()
 
-print(y_train.shape[0], y_test.shape[0])
 
 y_train_size = y_train.shape[0]
 days_test = [i for i in range(y_train.shape[0])]
 days_train = [i+y_train_size for i in range(y_test.shape[0])]
-print(train_size, y_test.shape[0])
-print(len(days_test), len(days_train))
 
 # Plot the actual and predicted prices
-plt.figure(figsize=(12, 6))
+plt.figure(figsize=(18, 6))
 
 predicted_train = plt.plot(days_test, train_predictions, label='Predicted Train')
 actual_train = plt.plot(days_test, y_train, label='Actual Train')

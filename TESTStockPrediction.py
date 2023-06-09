@@ -3,17 +3,20 @@ import numpy as np
 import yfinance as yf
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense
+import matplotlib.pyplot as plt
 
 # Set the start and end dates for the historical data
-start_date = '2010-01-01'
-end_date = '2023-05-16'
+start_date = '2020-01-01'
+end_date = '2023-06-09'
 
 # Define the stock symbol you want to retrieve data for
 stock_symbol = 'AAPL'  # Replace with your desired stock symbol
 
 # Use yfinance to fetch the stock data from Yahoo Finance
 stock_data = yf.download(stock_symbol, start=start_date, end=end_date)
+
+num_days = 60  # Number of previous days' closing prices to consider
 
 # Preprocess the data
 scaler = MinMaxScaler(feature_range=(0, 1))
@@ -25,45 +28,29 @@ train_data = scaled_data[:train_size]
 test_data = scaled_data[train_size:]
 
 # Create the training data sequences and labels
-def create_sequences(data, sequence_length):
+def create_sequences(data, num_days):
     sequences = []
     labels = []
-    for i in range(sequence_length, len(data)):
-        sequences.append(data[i-sequence_length:i, 0])
+    for i in range(num_days, len(data)):
+        sequences.append(data[i - num_days:i, 0])
         labels.append(data[i, 0])
     return np.array(sequences), np.array(labels)
 
-sequence_length = 60  # Number of previous days' closing prices to consider
-X_train, y_train = create_sequences(train_data, sequence_length)
-X_test, y_test = create_sequences(test_data, sequence_length)
+X_train, Y_train = create_sequences(train_data, num_days)
+X_test, Y_test = create_sequences(test_data, num_days)
 
-# Build the LSTM model
-model = Sequential()
-model.add(LSTM(50, return_sequences=True, input_shape=(sequence_length, 1)))
-model.add(Dropout(.2))
+y_train_size = len(Y_train)
+days_train = pd.date_range(start=start_date, periods=Y_train.shape[0])
+days_test = pd.date_range(start=days_train[-1] + pd.DateOffset(1), periods=Y_test.shape[0])
 
-model.add(LSTM(50))
-model.add(Dropout(.2))
+# Plot the actual and predicted prices
+plt.figure(figsize=(18, 6))
 
+actual_train = plt.plot(days_train, Y_train, label='Actual Train')
+actual_test = plt.plot(days_test, Y_test, label='Actual Test')
 
-model.add(Dense(1))
-model.compile(optimizer='adam', loss='mean_squared_error')
-
-# Train the model
-model.fit(X_train, y_train, batch_size=32, epochs=10)
-
-# Make predictions
-train_predictions = model.predict(X_train)
-test_predictions = model.predict(X_test)
-
-# Inverse transform the scaled data to get the actual prices
-train_predictions = scaler.inverse_transform(train_predictions)
-y_train = scaler.inverse_transform([y_train])
-test_predictions = scaler.inverse_transform(test_predictions)
-y_test = scaler.inverse_transform([y_test])
-
-# Evaluate the model
-train_rmse = np.sqrt(np.mean((train_predictions - y_train)**2))
-test_rmse = np.sqrt(np.mean((test_predictions - y_test)**2))
-print('Train RMSE:', train_rmse)
-print('Test RMSE:', test_rmse)
+plt.title(f'{stock_symbol} Stock Price Prediction')
+plt.xlabel('Date')
+plt.ylabel('Price')
+plt.legend([actual_test[0], actual_train[0]], ['Actual Test', 'Actual Train'])
+plt.show()
