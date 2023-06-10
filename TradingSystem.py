@@ -76,5 +76,3 @@ class DayTrader():
         # Save weights to HDF5
         model.save_weights(f"{stock_symbol}/weights.h5")
 
-
-
