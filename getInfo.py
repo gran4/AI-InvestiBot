@@ -2,13 +2,14 @@ import urllib.request
 from bs4 import BeautifulSoup
 import ssl
 
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from datetime import datetime
+import json
+
+company_symbols = ["APPL"]
 
 
-
-
-def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> List[Tuple[str, str, str]]:
+def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> List[List[str]]:
     """
     Gets earning history of a company as a list.
 
@@ -20,7 +21,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         IF YOU GET ERROR:
             urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1002)>
         Go to Python3.6 folder (or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
-        NOTE: ON macOS go to Macintosh HD > Applications > Python3.6(or whatever version of python you're using)
+        NOTE: ON macOS go to Macintosh HD > Applications > Python3.6(or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
 
     Warning:
         YOU are probibly looking to use get_corrected_earnings_history not this
@@ -49,7 +50,8 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
             date = columns[0].text
             actual_eps = columns[4].text
             estimated_eps = columns[6].text
-            earnings_history.append((date, actual_eps, estimated_eps))
+            #list so info can be added
+            earnings_history.append([date, actual_eps, estimated_eps])
 
     return earnings_history
 
@@ -82,18 +84,21 @@ if __name__ == '__main__':
     date_object = datetime.strptime(start_date, "%Y-%m-%d")
     # Convert the datetime object back to a string in the desired format
     converted_date = date_object.strftime("%b %d, %Y")
-    print(converted_date)
     reference_date = datetime.strptime(converted_date, "%b %d, %Y")
 
 
     # Example usage
-    company_ticker = "AAPL"  # Apple Inc.
-    earnings_history = get_earnings_history(company_ticker)
-    for earnings in earnings_history:
-        date, actual_eps, estimated_eps = earnings
-        time_since = date_time_since_ref(date, reference_date) 
-        print(f"Date: {date}, Time Since Last: {time_since}, Actual EPS: {actual_eps}, Estimated EPS: {estimated_eps}")
+    for company_ticker in company_symbols:
+        earnings_history = get_earnings_history(company_ticker)
+        for earnings in earnings_history:
+            date, actual_eps, estimated_eps = earnings
+            time_since = date_time_since_ref(date, reference_date) 
 
-        print(str(reference_date))
-        reference_date = datetime.strptime(date, "%b %d, %Y")
+            reference_date = datetime.strptime(date, "%b %d, %Y")
+            earnings.append(time_since)
+
+        with open(f"{company_ticker}/info.json", "w") as json_file:
+            print(earnings_history, company_ticker)
+            json.dump(earnings_history, json_file)
+
 
