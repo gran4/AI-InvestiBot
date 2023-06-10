@@ -68,4 +68,13 @@ class DayTrader():
         model.fit(X_test, Y_test, batch_size=32, epochs=20)
         model.fit(X_train, Y_train, batch_size=32, epochs=20)
 
+        # Save structure to json
+        jsonversion = model.to_json()
+        with open(f"{stock_symbol}/model.json", "w") as json_file:
+            json_file.write(jsonversion)
+
+        # Save weights to HDF5
+        model.save_weights(f"{stock_symbol}/weights.h5")
+
+
 
