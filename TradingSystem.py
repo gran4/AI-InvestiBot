@@ -33,7 +33,7 @@ class TradingSystem(ABC):
     def create_sequences(data, num_days):
         pass
         
-class DayTrader():
+class DayTradeModel():
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-09",
                  stock_symbol: str = "APPL") -> None:

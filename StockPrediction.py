@@ -43,6 +43,7 @@ stock_data['12-day EMA'] = stock_data['Close'].ewm(span=12).mean()
 stock_data['26-day EMA'] = stock_data['Close'].ewm(span=26).mean()
 stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
 stock_data['Signal Line'] = stock_data['MACD'].ewm(span=9).mean()
+stock_data['200-day EMA'] = stock_data['Close'].ewm(span=200).mean()
 
 
 scaler = MinMaxScaler(feature_range = (0, 1))
