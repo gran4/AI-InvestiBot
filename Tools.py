@@ -40,6 +40,8 @@ class ResourceManager(object):
         return money
 
 
-class DayTrader(object):
+class DayTradeModel(object):
     def __init__(self):
         pass
+
+
