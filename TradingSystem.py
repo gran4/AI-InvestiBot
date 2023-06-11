@@ -1,11 +1,9 @@
 from abc import ABC, abstractmethod
 from threading import Thread
 import yfinance as yf
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
-from Tradingfuncs import create_sequences
+from math import floor
 
+company_symbols = ["APPL"]
 
 class TradingSystem(ABC):
     def __init__(self, api, symbol, time_frame, system_id, system_label):
@@ -33,46 +31,50 @@ class TradingSystem(ABC):
     def create_sequences(data, num_days):
         pass
         
-class DayTradeModel():
+class DayTrader():
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-09",
                  stock_symbol: str = "APPL") -> None:
-        # Use yfinance to fetch the stock data from Yahoo Finance
-        stock_data = yf.download(stock_symbol, start=start_date, end=end_date)
+        pass
 
-        num_days = 60
+"""
+NOTE: Change to use amount of stock not money in stock.
+"""
 
-        # Preprocess the data
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = scaler.fit_transform(stock_data['Close'].values.reshape(-1, 1))
+all_models = {}#???????????? USE?????
+holdings = {}
+def update_all(model, manager):
+    #predicts tommorrows prices and sorts it
+    predictions = {}
+    for company_ticker in company_symbols:
+        prediction = model.predict()####
+        predictions[company_ticker] = prediction
+    predictions = predictions.sort()
 
-        # Split the data into training and testing sets
-        train_size = int(len(scaled_data) * 0.8)
-        train_data = scaled_data[:train_size]
-        test_data = scaled_data[train_size:]
+    #Sell unprofitable ones
+    vals = holdings.values()
+    length = len(vals)
+
+    keys = holdings.values()
+    for holding, amount in vals, keys:
+        money = amount*stock_price
+        #if the index is too low, or the prediction is negative
+        if keys.index(holding) < 5+length or prediction[company_ticker] < 0:
+            manager.sell(amount, money, holding)
+
+    #Buy new more profitable ones
+    for company_ticker in predictions.keys():
+        use = manager.check()
+        #If there is not enough money to use
+        if use <= 5 or prediction[company_ticker] < 0:
+            break
+        elif stock_price > use:
+            continue
+        stocks = floor(use/stock_price)
+        holdings[company_ticker] = stocks
+        manager.buy(stocks, use, company_ticker)
 
 
-        X_total, Y_total = create_sequences(train_data, num_days)
-        X_train, Y_train = create_sequences(train_data, num_days)
-        X_test, Y_test = create_sequences(test_data, num_days)
+        
 
-        # Build the LSTM model
-        model = Sequential()
-        model.add(LSTM(50, return_sequences=True, input_shape=(num_days, 1)))
-        model.add(LSTM(50))
-        model.add(Dense(1))
-        model.compile(optimizer='adam', loss='mean_squared_error')
-
-        # Train the model
-        model.fit(X_total, Y_total, batch_size=32, epochs=20)
-        model.fit(X_test, Y_test, batch_size=32, epochs=20)
-        model.fit(X_train, Y_train, batch_size=32, epochs=20)
-
-        # Save structure to json
-        jsonversion = model.to_json()
-        with open(f"{stock_symbol}/model.json", "w") as json_file:
-            json_file.write(jsonversion)
-
-        # Save weights to HDF5
-        model.save_weights(f"{stock_symbol}/weights.h5")
-
+    

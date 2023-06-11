@@ -5,6 +5,7 @@ import ssl
 from typing import Optional, List
 from datetime import datetime
 import json
+import yahoo_fin as yf
 
 company_symbols = ["APPL"]
 
@@ -17,7 +18,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         company_ticker str: company to get info of
         context Optional[ssl certificate]: ssl certificate to use
 
-    Warning:
+    Warning::
         IF YOU GET ERROR:
             urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1002)>
         Go to Python3.6 folder (or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
@@ -96,9 +97,32 @@ if __name__ == '__main__':
 
             reference_date = datetime.strptime(date, "%b %d, %Y")
             earnings.append(time_since)
+        with open(f"{company_ticker}/earnings_info.json", "w") as json_file:
+            json.dump(earnings_history, json_file)
+    for company_ticker in company_symbols:
+        stock_data = yf.download(company_ticker, start=start_date, end=end_date)
+        # Calculate the MACD using pandas' rolling mean functions
+        stock_data['12-day EMA'] = stock_data['Close'].ewm(span=12).mean()
+        stock_data['26-day EMA'] = stock_data['Close'].ewm(span=26).mean()
+        stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
+        stock_data['Signal Line'] = stock_data['MACD'].ewm(span=9).mean()
+        stock_data['200-day EMA'] = stock_data['Close'].ewm(span=200).mean()
+        stock_data['flips'] = []
 
+        shortmore = None
+        for short, mid in stock_data['12-day EMA'], stock_data['26-day EMA']:
+            if shortmore is None:
+                shortmore = short>mid
+            elif shortmore and short<mid:
+                stock_data['flips'].append(True)
+                shortmore = False
+                break
+            elif not shortmore and short>mid:
+                stock_data['flips'].append(True)
+                shortmore = True
+                break
+            stock_data['flips'].append(False)
         with open(f"{company_ticker}/info.json", "w") as json_file:
-            print(earnings_history, company_ticker)
             json.dump(earnings_history, json_file)
 
 
