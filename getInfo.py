@@ -98,7 +98,11 @@ if __name__ == '__main__':
             date, actual_eps, estimated_eps = earnings
             time_since = date_time_since_ref(date, reference_date) 
 
-            reference_date = datetime.strptime(date, "%b %d, %Y")
+            actual_eps = actual_eps.replace(',', '')
+            estimated_eps = estimated_eps.replace(',', '')
+
+            earnings[1] = float(actual_eps)
+            earnings[2] = float(estimated_eps)
             earnings.append(time_since)
 
         with open(f"{company_ticker}/earnings_info.json", "w") as json_file:
@@ -112,10 +116,16 @@ if __name__ == '__main__':
         stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
         stock_data['Signal Line'] = stock_data['MACD'].ewm(span=9).mean()
         stock_data['200-day EMA'] = stock_data['Close'].ewm(span=200).mean()
+
+
+        # Calculate the change in price (impulse) and momentum
+        #Basically makes it impulse MACD
+        stock_data['Change'] = stock_data['Close'].diff()
+        stock_data['Momentum'] = stock_data['Change'].rolling(window=10).sum()  # Example: Using a 10-day rolling sum
+
         temp = []
         shortmore = None
         for short, mid in zip(stock_data['12-day EMA'].values, stock_data['26-day EMA'].values):
-            print(short, mid)
             if shortmore is None:
                 shortmore = short>mid
             elif shortmore and short<mid:
@@ -129,7 +139,16 @@ if __name__ == '__main__':
             temp.append(False)
         stock_data['flips'] = temp
 
+
+        converted_data = {
+            'MACD': stock_data['MACD'].values.tolist(),
+            'Signal Line': stock_data['Signal Line'].values.tolist(),
+            '200-day ema': stock_data['200-day EMA'].values.tolist(),
+            'flips': stock_data['flips'].values.tolist(),
+            'Momentum': stock_data['Momentum'],
+            'Change': stock_data['Change']
+        }
         with open(f"{company_ticker}/info.json", "w") as json_file:
-            json.dump(stock_data, json_file)
+            json.dump(converted_data, json_file)
 
 
