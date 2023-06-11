@@ -3,7 +3,7 @@ from threading import Thread
 import yfinance as yf
 from math import floor
 
-company_symbols = ["APPL"]
+company_symbols = ["AAPL"]
 
 class TradingSystem(ABC):
     def __init__(self, api, symbol, time_frame, system_id, system_label):
@@ -34,7 +34,7 @@ class TradingSystem(ABC):
 class DayTrader():
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-09",
-                 stock_symbol: str = "APPL") -> None:
+                 stock_symbol: str = "AAPL") -> None:
         pass
 
 """
@@ -56,11 +56,10 @@ def update_all(model, manager):
     length = len(vals)
 
     keys = holdings.values()
-    for holding, amount in vals, keys:
-        money = amount*stock_price
+    for holding, amount in zip(vals, keys):
         #if the index is too low, or the prediction is negative
         if keys.index(holding) < 5+length or prediction[company_ticker] < 0:
-            manager.sell(amount, money, holding)
+            manager.sell(amount, holding)
 
     #Buy new more profitable ones
     for company_ticker in predictions.keys():
@@ -72,7 +71,7 @@ def update_all(model, manager):
             continue
         stocks = floor(use/stock_price)
         holdings[company_ticker] = stocks
-        manager.buy(stocks, use, company_ticker)
+        manager.buy(stocks, company_ticker)
 
 
         

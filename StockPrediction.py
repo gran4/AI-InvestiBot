@@ -14,7 +14,7 @@ from tensorflow.keras.layers import Dense, Dropout, LSTM
 
 """
 #load data
-company = 'APPL'
+company = 'AAPL'
 
 start = dt.datetime(2015, 1, 1)
 end = dt.datetime(2018, 3, 3)

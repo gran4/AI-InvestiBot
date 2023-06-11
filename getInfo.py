@@ -1,13 +1,15 @@
 import urllib.request
-from bs4 import BeautifulSoup
 import ssl
+import json
 
+import yfinance as yf
+import numpy as np
+
+from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
-import json
-import yahoo_fin as yf
 
-company_symbols = ["APPL"]
+company_symbols = ["AAPL"]
 
 
 def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> List[List[str]]:
@@ -22,7 +24,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         IF YOU GET ERROR:
             urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1002)>
         Go to Python3.6 folder (or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
-        NOTE: ON macOS go to Macintosh HD > Applications > Python3.6(or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
+        NOTE: ON macOS go to Macintosh HD > AAPLications > Python3.6(or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
 
     Warning:
         YOU are probibly looking to use get_corrected_earnings_history not this
@@ -80,7 +82,8 @@ def date_time_since_ref(date_string: str, reference_date: datetime) -> int:
 
 if __name__ == '__main__':
     start_date = '2010-01-01'
-    end_date = '2023-05-16'
+    end_date = '2023-02-16'
+    stock_data = yf.download("AAPL", start=start_date, end=end_date)
 
     date_object = datetime.strptime(start_date, "%Y-%m-%d")
     # Convert the datetime object back to a string in the desired format
@@ -97,9 +100,11 @@ if __name__ == '__main__':
 
             reference_date = datetime.strptime(date, "%b %d, %Y")
             earnings.append(time_since)
+
         with open(f"{company_ticker}/earnings_info.json", "w") as json_file:
             json.dump(earnings_history, json_file)
     for company_ticker in company_symbols:
+        print(company_ticker)
         stock_data = yf.download(company_ticker, start=start_date, end=end_date)
         # Calculate the MACD using pandas' rolling mean functions
         stock_data['12-day EMA'] = stock_data['Close'].ewm(span=12).mean()
@@ -107,22 +112,24 @@ if __name__ == '__main__':
         stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
         stock_data['Signal Line'] = stock_data['MACD'].ewm(span=9).mean()
         stock_data['200-day EMA'] = stock_data['Close'].ewm(span=200).mean()
-        stock_data['flips'] = []
-
+        temp = []
         shortmore = None
-        for short, mid in stock_data['12-day EMA'], stock_data['26-day EMA']:
+        for short, mid in zip(stock_data['12-day EMA'].values, stock_data['26-day EMA'].values):
+            print(short, mid)
             if shortmore is None:
                 shortmore = short>mid
             elif shortmore and short<mid:
-                stock_data['flips'].append(True)
+                temp.append(True)
                 shortmore = False
-                break
+                continue
             elif not shortmore and short>mid:
-                stock_data['flips'].append(True)
+                temp.append(True)
                 shortmore = True
-                break
-            stock_data['flips'].append(False)
+                continue
+            temp.append(False)
+        stock_data['flips'] = temp
+
         with open(f"{company_ticker}/info.json", "w") as json_file:
-            json.dump(earnings_history, json_file)
+            json.dump(stock_data, json_file)
 
 

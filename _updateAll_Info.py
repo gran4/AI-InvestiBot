@@ -1,6 +1,6 @@
 import yf
 
-stocks = ["APPL"]
+stocks = ["AAPL"]
 for stock in stocks:
     yf.download()
 
