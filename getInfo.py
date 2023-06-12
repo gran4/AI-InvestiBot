@@ -50,10 +50,13 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
     earnings_history = []
     for row in rows[1:]:
         columns = row.find_all('td')
+        for thing in columns:
+            print(thing.get('class'))
+            print(thing.text)
         if len(columns) == 7:
             date = columns[0].text
             actual_eps = columns[4].text
-            estimated_eps = columns[6].text
+            estimated_eps = columns[3].text
             #list so info can be added
             earnings_history.append([date, actual_eps, estimated_eps])
 
@@ -171,9 +174,9 @@ def getInfo():
         stock_data['Momentum'] = stock_data['Change'].rolling(window=10).sum()  # Example: Using a 10-day rolling sum
 
         #For Reversal trading
-        #stock_data['gradual-liquidity spike'] = get_liquidity_spikes(stock_data[['Bid Volume']], gradual=True)
-        #stock_data['4-liquidity spike'] = get_liquidity_spikes(stock_data[['Bid Volume']])
-        stock_data['momentum_oscillator'] = calculate_momentum_oscillator()
+        stock_data['gradual-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], gradual=True)
+        stock_data['4-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'])
+        stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
 
         temp = []
         shortmore = None
