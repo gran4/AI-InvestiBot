@@ -4,6 +4,7 @@ import json
 
 import yfinance as yf
 import numpy as np
+import pandas as pd
 
 from bs4 import BeautifulSoup
 from typing import Optional, List
@@ -80,8 +81,49 @@ def date_time_since_ref(date_string: str, reference_date: datetime) -> int:
     return days_since_ref
 
 
-if __name__ == '__main__':
-    start_date = '2010-01-01'
+def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> List:
+    # Calculate the rolling average and standard deviation of bid volume
+    window_size = 20
+    rolling_average = data.rolling(window_size).mean()
+    rolling_std = data.rolling(window_size).std()
+
+    # Calculate Z-scores to identify abnormal bid volume spikes
+    z_scores = (data - rolling_average) / rolling_std
+
+    if gradual:
+        abnormal_spikes = data[z_scores]
+    else:
+        # Detect abnormal bid volume spikes
+        abnormal_spikes = data[z_scores > z_score_threshold]
+    return abnormal_spikes
+
+
+def calculate_momentum_oscillator(data: pd.DataFrame, period: int=14) -> pd.Series:
+    """
+    Calculate the momentum oscillator for a given period.
+    
+    Arguments:
+        data pandas.DataFrame: containing price data (e.g., close prices)
+        period int: represents the period for calculating the momentum
+    
+    Returns:
+        momentum_oscillator pandas.Series: representing the momentum oscillator values
+    """
+    # Calculate the momentum
+    momentum = data.diff(period)
+    
+    # Calculate the mean of positive and negative momentum
+    positive_momentum = momentum[momentum > 0].rolling(window=period).mean()
+    negative_momentum = momentum[momentum < 0].rolling(window=period).mean()
+    
+    # Calculate the momentum oscillator
+    momentum_oscillator = 100 * (positive_momentum / abs(negative_momentum))
+    
+    return momentum_oscillator
+
+
+def getInfo():
+    start_date = '2015-01-01'
     end_date = '2023-02-16'
     stock_data = yf.download("AAPL", start=start_date, end=end_date)
 
@@ -107,21 +149,31 @@ if __name__ == '__main__':
 
         with open(f"{company_ticker}/earnings_info.json", "w") as json_file:
             json.dump(earnings_history, json_file)
+
     for company_ticker in company_symbols:
-        print(company_ticker)
-        stock_data = yf.download(company_ticker, start=start_date, end=end_date)
+        ticker = yf.Ticker(company_ticker)
+
+        # Retrieve historical data for the ticker using the `history()` method
+        stock_data = ticker.history(start=start_date, end=end_date, interval="1d", )
+        #stock_data = yf.download(company_ticker, start=start_date, end=end_date, progress=False)
+
         # Calculate the MACD using pandas' rolling mean functions
         stock_data['12-day EMA'] = stock_data['Close'].ewm(span=12).mean()
         stock_data['26-day EMA'] = stock_data['Close'].ewm(span=26).mean()
         stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
         stock_data['Signal Line'] = stock_data['MACD'].ewm(span=9).mean()
+        stock_data['Histogram'] = stock_data['MACD']-stock_data['Signal Line']
         stock_data['200-day EMA'] = stock_data['Close'].ewm(span=200).mean()
-
 
         # Calculate the change in price (impulse) and momentum
         #Basically makes it impulse MACD
         stock_data['Change'] = stock_data['Close'].diff()
         stock_data['Momentum'] = stock_data['Change'].rolling(window=10).sum()  # Example: Using a 10-day rolling sum
+
+        #For Reversal trading
+        #stock_data['gradual-liquidity spike'] = get_liquidity_spikes(stock_data[['Bid Volume']], gradual=True)
+        #stock_data['4-liquidity spike'] = get_liquidity_spikes(stock_data[['Bid Volume']])
+        stock_data['momentum_oscillator'] = calculate_momentum_oscillator()
 
         temp = []
         shortmore = None
@@ -140,15 +192,17 @@ if __name__ == '__main__':
         stock_data['flips'] = temp
 
 
+        dates = stock_data.index.strftime('%Y-%m-%d').tolist()
         converted_data = {
-            'MACD': stock_data['MACD'].values.tolist(),
-            'Signal Line': stock_data['Signal Line'].values.tolist(),
+            'Dates': dates,
+            'Histogram': stock_data['Histogram'].values.tolist(),
             '200-day ema': stock_data['200-day EMA'].values.tolist(),
             'flips': stock_data['flips'].values.tolist(),
-            'Momentum': stock_data['Momentum'],
-            'Change': stock_data['Change']
+            'Momentum': stock_data['Momentum'].values.tolist(),
+            'Change': stock_data['Change'].values.tolist()
         }
         with open(f"{company_ticker}/info.json", "w") as json_file:
             json.dump(converted_data, json_file)
 
-
+if __name__ == '__main__':
+    getInfo()

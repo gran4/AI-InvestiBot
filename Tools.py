@@ -157,14 +157,34 @@ class MACDModel(object):
 
         with open(f'{stock_symbol}/info.json') as file:
             other_vals = json.load(file)
-        other_vals = np.array(other_vals)
 
         # #NOTE: Irrelevant to MACD trading strat
         # with open(f'{stock_symbol}/earnings_info.json') as file:
         #     earnings_info = json.load(file)
         # earnings_info = np.array(earnings_info)
 
-        total_vals = np.concatenate(close_vals, other_vals, axis=1)
+        if start_date in other_vals['Dates']:
+            i = other_vals['Dates'].index(start_date)
+            for vals in other_vals.values():
+                vals = vals[i:]
+        else:
+            raise ValueError(f"Run getInfo.py with start date before {start_date}")
+
+        if end_date in other_vals['Dates']:
+            i = other_vals.index(end_date)
+            for vals in other_vals.values():
+                vals = vals[:i]
+        else:
+            raise ValueError(f"Run getInfo.py with start date before {start_date}")
+        
+        # Convert the dictionary of lists to a NumPy array
+        other_vals = np.array(list(other_vals.values())).T
+        # Concatenate the closing prices array and other_data_arr along axis 1 (column-wise concatenation)
+        close_vals = close_vals[:, np.newaxis]
+        close_vals = close_vals.squeeze()
+
+
+        total_vals = np.concatenate((close_vals, other_vals), axis = 1)
         shape = len(total_vals)
         scaled_data = scaler.fit_transform(total_vals)
 
@@ -198,5 +218,19 @@ class MACDModel(object):
         # Save weights to HDF5
         model.save_weights(f"{stock_symbol}/weights.h5")
 
+        # Make predictions
+        train_predictions = model.predict(X_train)
+        test_predictions = model.predict(X_test)
+
+        # Inverse transform the scaled data to get the actual prices
+        train_predictions = scaler.inverse_transform(train_predictions)
+        y_train = scaler.inverse_transform(Y_train.reshape(-1, 1)).flatten()
+        test_predictions = scaler.inverse_transform(test_predictions)
+        y_test = scaler.inverse_transform(Y_test.reshape(-1, 1)).flatten()
+
+        train_rmse = np.sqrt(np.mean((train_predictions - y_train)**2))
+        test_rmse = np.sqrt(np.mean((test_predictions - y_test)**2))
+        print('Train RMSE:', train_rmse)
+        print('Test RMSE:', test_rmse)
 
 MACDModel()
