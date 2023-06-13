@@ -4,18 +4,18 @@ In dev stages. Stock Bots not completed yet.
 Not even a stock bot yet, only has models(coming soon).
 
 Currently working on:
-  - getting info from web(earnings etc)
-  - creating custom code, simulating wallets
+  - starting to work on actual bot
 
 
 Currently impletmented:
+  - Base Model(Whatever you want)
   - Day Trade Model
   - MACD Model
   - Impulse MACD Model
   - Reversal Model
+  - Misc Model
 
 
 Plans to add
-  - Readd plotting model
-  - Be able to run with loop
-  - Be able to run with lambda
+  - Being able to run with loop
+  - Being able to run with lambda
