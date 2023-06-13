@@ -64,16 +64,14 @@ class BaseModel():
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-09",
                  stock_symbol: str = "AAPL", information_keys: List=[]) -> None:
-        other_vals = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
-
-        # Concatenate the closing prices array and other_data_arr along axis 1 (column-wise concatenation)
-        close_vals = close_vals[:, np.newaxis]
-        close_vals = close_vals.squeeze()
+        num_days = 60
+        scaler = MinMaxScaler(feature_range=(0, 1))
 
 
-        total_vals = np.concatenate((close_vals, other_vals), axis = 1)
-        shape = len(total_vals)
-        scaled_data = scaler.fit_transform(total_vals)
+        data = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
+
+        shape = len(data)
+        scaled_data = scaler.fit_transform(data)
 
         # Split the data into training and testing sets
         train_size = int(len(scaled_data) * 0.8)
