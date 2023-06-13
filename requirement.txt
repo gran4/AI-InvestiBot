@@ -1,0 +1,14 @@
+numpy
+matplotlib
+pandas
+h5py
+yfinance
+tensorflow
+sklearn
+typing
+urllib
+ssl
+bs4
+datetime
+boto3
+threading

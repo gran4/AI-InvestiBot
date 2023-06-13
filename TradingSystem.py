@@ -1,36 +1,7 @@
-from abc import ABC, abstractmethod
-from threading import Thread
-import yfinance as yf
 from math import floor
 
 company_symbols = ["AAPL"]
 
-class TradingSystem(ABC):
-    def __init__(self, api, symbol, time_frame, system_id, system_label):
-        self.api = api
-        self.symbol = symbol
-        self.time_frame = time_frame
-        self.system_id = system_id
-        self.system_label = system_label
-        thread = Thread(target=self.system_loop)
-        thread.start()
-
-    @abstractmethod
-    def buy(self):
-        pass
-
-    @abstractmethod
-    def sell(self):
-        pass
-
-    @abstractmethod
-    def loop(self):
-        pass
-
-    @abstractmethod
-    def create_sequences(data, num_days):
-        pass
-        
 class DayTrader():
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-09",
