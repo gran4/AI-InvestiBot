@@ -6,6 +6,7 @@ import yfinance as yf
 
 from typing import Optional, List
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from pandas_market_calendars import get_calendar
@@ -62,17 +63,33 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
     scaler = MinMaxScaler(feature_range=(0, 1))
 
     for key in information_keys:
-        if type(other_vals[key]) not in (int, float):
+        if type(other_vals[key][0]) == bool:
+            other_vals[key] = list(map(int, other_vals[key]))
+            print(other_vals[key])
+        elif type(other_vals[key][0]) not in (int, float):
             continue
-        other_vals[key] = scaler.fit_transform(other_vals[key])
+        print("EDdeedE", other_vals[key][0], key)
+        print(type(other_vals[key][0]))
+        #other_vals[key] = scaler.fit_transform(other_vals[key])
+        other_vals[key] = np.array(other_vals[key])
+
+        # Calculate the minimum and maximum values
+        min_value = np.min(other_vals[key])
+        max_value = np.max(other_vals[key])
+
+        # Scale the data
+        other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)
+
+        print("EDdeedE", other_vals[key][0])
+        print(key, other_vals[key][0], type(other_vals[key][0]))
 
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
 
 
     filtered = np.transpose(filtered)
-    print(filtered)
-    print("Filtered shape:", filtered.shape)
+    #print(filtered)
+    #print("Filtered shape:", filtered.shape)
     return filtered, start_date, end_date
 
 
@@ -84,7 +101,7 @@ class BaseModel():
 
         data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
 
-        shape = len(data)
+        shape = data.shape[1]
         feature_num = len(data[0])
         print("Data shape:", shape)
 
@@ -98,10 +115,6 @@ class BaseModel():
         X_test, Y_test = create_sequences(test_data, num_days)
 
 
-        X_total = np.reshape(X_total, (X_total.shape[0], X_total.shape[1], shape))
-        X_train = np.reshape(X_train, (X_train.shape[0], X_total.shape[1], shape))
-        X_test = np.reshape(X_test, (X_test.shape[0], X_total.shape[1], shape))
-
         # Build the LSTM model
         model = Sequential()
         model.add(LSTM(50, return_sequences=True, input_shape=(num_days, shape)))
@@ -110,9 +123,9 @@ class BaseModel():
         model.compile(optimizer='adam', loss='mean_squared_error', run_eagerly=True)
 
         # Train the model
-        model.fit(X_total, Y_total, batch_size=32, epochs=20)
-        model.fit(X_test, Y_test, batch_size=32, epochs=20)
-        model.fit(X_train, Y_train, batch_size=32, epochs=20)
+        model.fit(X_total, Y_total, batch_size=32, epochs=10)
+        model.fit(X_test, Y_test, batch_size=32, epochs=10)
+        model.fit(X_train, Y_train, batch_size=32, epochs=10)
 
         # Save structure to json
         jsonversion = model.to_json()
@@ -121,6 +134,18 @@ class BaseModel():
 
         # Save weights to HDF5
         model.save_weights(f"{stock_symbol}/weights.h5")
+
+
+        # Make predictions
+        train_predictions = model.predict(X_train)
+        test_predictions = model.predict(X_test)
+
+        # Calculate RMSSE for training and testing predictions
+        train_rmsse = np.sqrt(mean_squared_error(Y_train, train_predictions)) / np.mean(Y_train[1:] - Y_train[:-1])
+        test_rmsse = np.sqrt(mean_squared_error(Y_test, test_predictions)) / np.mean(Y_test[1:] - Y_test[:-1])
+
+        print('Train RMSSE:', train_rmsse)
+        print('Test RMSSE:', test_rmsse)
 
 
 class DayTradeModel(BaseModel):

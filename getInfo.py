@@ -80,12 +80,19 @@ def modify_earnings_dates(dates, start_date):
     return earnings_since_time(temp, start_date)
 
 
-
 def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> List:
+    # Convert the data to a pandas Series if it's not already
+    if not isinstance(data, pd.Series):
+        data = pd.Series(data)
+
     # Calculate the rolling average and standard deviation of bid volume
     window_size = 20
-    rolling_average = data.rolling(window_size).mean()
-    rolling_std = data.rolling(window_size).std()
+    rolling_average = data.rolling(window_size, min_periods=1).mean()
+    rolling_std = data.rolling(window_size, min_periods=1).std()
+
+    # Replace NaN values in rolling_average and rolling_std with zeros
+    rolling_average = rolling_average.fillna(0)
+    rolling_std = rolling_std.fillna(0)
 
     # Calculate Z-scores to identify abnormal bid volume spikes
     z_scores = (data - rolling_average) / rolling_std
@@ -94,7 +101,8 @@ def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> List:
         abnormal_spikes = z_scores
     else:
         # Detect abnormal bid volume spikes
-        abnormal_spikes = data[z_scores > z_score_threshold]
+        abnormal_spikes = pd.Series(np.where(z_scores > z_score_threshold, 1, 0), index=data.index)
+
     return abnormal_spikes
 
 
@@ -148,7 +156,7 @@ def getHistoricalInfo():
 
         #For Reversal trading
         stock_data['gradual-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], gradual=True)
-        stock_data['4-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'])
+        stock_data['4-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
         stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
 
 

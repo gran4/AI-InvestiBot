@@ -11,4 +11,8 @@ def run_loop():
         time.sleep(time_interval)
 
 if __name__ == "__main__":
-    run_loop()
+    # Create a new thread
+    thread = Thread(target=run_loop)
+
+    # Start the thread
+    thread.start()
