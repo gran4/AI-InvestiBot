@@ -50,9 +50,6 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
     earnings_history = []
     for row in rows[1:]:
         columns = row.find_all('td')
-        for thing in columns:
-            print(thing.get('class'))
-            print(thing.text)
         if len(columns) == 7:
             date = columns[0].text
             actual_eps = columns[4].text
@@ -63,25 +60,24 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
     return earnings_history
 
 
-def date_time_since_ref(date_string: str, reference_date: datetime) -> int:
+def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
     """
     Returns the number of days between the given date and the reference date.
-
-    Args:
-        date_string str: date to use
-        reference_date datetime: date to compare with
-
-    Returns:
-        int: The number of days between the given date and the reference date.
     """
-    # Convert the date string to a datetime object
-    date_object = datetime.strptime(date_string, "%b %d, %Y")
-
     # Calculate the number of days between the date and the reference date
-    delta = date_object - reference_date
-    days_since_ref = delta.days
+    return date_object - reference_date
 
-    return days_since_ref
+def earnings_since_time(dates, start_date):
+    date_object = datetime.strptime(start_date, "%Y-%m-%d")
+    # Convert the datetime object back to a string in the desired format
+    converted_date = date_object.strftime("%b %d, %Y")
+    reference_date = datetime.strptime(converted_date, "%b %d, %Y")
+    return [date_time_since_ref(date, reference_date) for date in dates]
+
+def modify_earnings_dates(dates, start_date):
+    temp = [datetime.strptime(date_string, "%b %d, %Y") for date_string in dates]
+    return earnings_since_time(temp, start_date)
+
 
 
 def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> List:
@@ -94,7 +90,7 @@ def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> List:
     z_scores = (data - rolling_average) / rolling_std
 
     if gradual:
-        abnormal_spikes = data[z_scores]
+        abnormal_spikes = z_scores
     else:
         # Detect abnormal bid volume spikes
         abnormal_spikes = data[z_scores > z_score_threshold]
@@ -129,30 +125,6 @@ def getInfo():
     start_date = '2015-01-01'
     end_date = '2023-02-16'
     stock_data = yf.download("AAPL", start=start_date, end=end_date)
-
-    date_object = datetime.strptime(start_date, "%Y-%m-%d")
-    # Convert the datetime object back to a string in the desired format
-    converted_date = date_object.strftime("%b %d, %Y")
-    reference_date = datetime.strptime(converted_date, "%b %d, %Y")
-
-
-    # Example usage
-    for company_ticker in company_symbols:
-        earnings_history = get_earnings_history(company_ticker)
-        for earnings in earnings_history:
-            date, actual_eps, estimated_eps = earnings
-            time_since = date_time_since_ref(date, reference_date) 
-
-            actual_eps = actual_eps.replace(',', '')
-            estimated_eps = estimated_eps.replace(',', '')
-
-            earnings[1] = float(actual_eps)
-            earnings[2] = float(estimated_eps)
-            earnings.append(time_since)
-
-        with open(f"{company_ticker}/earnings_info.json", "w") as json_file:
-            json.dump(earnings_history, json_file)
-
     for company_ticker in company_symbols:
         ticker = yf.Ticker(company_ticker)
 
@@ -178,6 +150,11 @@ def getInfo():
         stock_data['4-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'])
         stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
 
+        dates, actual, estimated = get_earnings_history(company_ticker)
+        stock_data['earnings dates'] = dates
+        stock_data['earnings'] = float(actual)-float(estimated)
+        #do 
+
         temp = []
         shortmore = None
         for short, mid in zip(stock_data['12-day EMA'].values, stock_data['26-day EMA'].values):
@@ -198,11 +175,18 @@ def getInfo():
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
         converted_data = {
             'Dates': dates,
+            '12-day EMA': stock_data['12-day EMA'].values.tolist(),
+            '26-day EMA': stock_data['26-day EMA'].values.tolist(),
+            'MACD': stock_data['MACD'].values.tolist(),
+            'Signal Line': stock_data['Signal Line'].values.tolist(),
             'Histogram': stock_data['Histogram'].values.tolist(),
-            '200-day ema': stock_data['200-day EMA'].values.tolist(),
+            '200-day EMA': stock_data['200-day EMA'].values.tolist(),
             'flips': stock_data['flips'].values.tolist(),
             'Momentum': stock_data['Momentum'].values.tolist(),
-            'Change': stock_data['Change'].values.tolist()
+            'Change': stock_data['Change'].values.tolist(),
+            'gradual-liquidity spike': stock_data['gradual-liquidity spike'].values.tolist(),
+            '4-liquidity spike': stock_data['4-liquidity spike'].values.tolist(),
+            'momentum_oscillator': stock_data['momentum_oscillator'].values.tolist()
         }
         with open(f"{company_ticker}/info.json", "w") as json_file:
             json.dump(converted_data, json_file)

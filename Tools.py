@@ -2,7 +2,7 @@ import numpy as np
 import yfinance as yf
 import json
 
-from typing import Optional
+from typing import Optional, List
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
@@ -98,54 +98,17 @@ class ResourceManager(object):
                     time_in_force='day',
                 )
 
-class DayTradeModel(object):
+
+excluded_values = (
+    "earnings",
+    "earnings dates"
+)
+
+
+class BaseModel():
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-09",
-                 stock_symbol: str = "AAPL") -> None:
-        # Use yfinance to fetch the stock data from Yahoo Finance
-        stock_data = yf.download(stock_symbol, start=start_date, end=end_date)
-
-        num_days = 60
-
-        # Preprocess the data
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = scaler.fit_transform(stock_data['Close'].values.reshape(-1, 1))
-
-        # Split the data into training and testing sets
-        train_size = int(len(scaled_data) * 0.8)
-        train_data = scaled_data[:train_size]
-        test_data = scaled_data[train_size:]
-
-
-        X_total, Y_total = create_sequences(train_data, num_days)
-        X_train, Y_train = create_sequences(train_data, num_days)
-        X_test, Y_test = create_sequences(test_data, num_days)
-
-        # Build the LSTM model
-        model = Sequential()
-        model.add(LSTM(50, return_sequences=True, input_shape=(num_days, 1)))
-        model.add(LSTM(50))
-        model.add(Dense(1))
-        model.compile(optimizer='adam', loss='mean_squared_error')
-
-        # Train the model
-        model.fit(X_total, Y_total, batch_size=32, epochs=20)
-        model.fit(X_test, Y_test, batch_size=32, epochs=20)
-        model.fit(X_train, Y_train, batch_size=32, epochs=20)
-
-        # Save structure to json
-        jsonversion = model.to_json()
-        with open(f"{stock_symbol}/model.json", "w") as json_file:
-            json_file.write(jsonversion)
-
-        # Save weights to HDF5
-        model.save_weights(f"{stock_symbol}/weights.h5")
-
-
-class MACDModel(object):
-    def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-09",
-                 stock_symbol: str = "AAPL") -> None:
+                 stock_symbol: str = "AAPL", information: List=[]) -> None:
         # Use yfinance to fetch the stock data from Yahoo Finance
         stock_data = yf.download(stock_symbol, start=start_date, end=end_date)
 
@@ -158,22 +121,24 @@ class MACDModel(object):
         with open(f'{stock_symbol}/info.json') as file:
             other_vals = json.load(file)
 
-        # #NOTE: Irrelevant to MACD trading strat
+        # #NOTE: Irrelevant for now
         # with open(f'{stock_symbol}/earnings_info.json') as file:
         #     earnings_info = json.load(file)
         # earnings_info = np.array(earnings_info)
 
         if start_date in other_vals['Dates']:
             i = other_vals['Dates'].index(start_date)
-            for vals in other_vals.values():
+            for key in information:
+                vals = other_vals[key]
                 vals = vals[i:]
         else:
             raise ValueError(f"Run getInfo.py with start date before {start_date}")
 
         if end_date in other_vals['Dates']:
             i = other_vals.index(end_date)
-            for vals in other_vals.values():
-                vals = vals[:i]
+            for key in information:
+                vals = other_vals[key]
+                vals = vals[i:]
         else:
             raise ValueError(f"Run getInfo.py with start date before {start_date}")
         
@@ -232,5 +197,67 @@ class MACDModel(object):
         test_rmse = np.sqrt(np.mean((test_predictions - y_test)**2))
         print('Train RMSE:', train_rmse)
         print('Test RMSE:', test_rmse)
+
+
+
+class DayTradeModel(BaseModel):
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-09",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information=['Close']
+        )
+
+
+class MACDModel(object):
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-09",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information=['Close', 'MACD', 'Histogram', 'flips', '200-day EMA']
+        )
+
+
+class ImpulseMACDModel(object):
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-09",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information=['Close', 'Histogram', 'Momentum', 'Change', 'flips', '200-day EMA']
+        )
+
+
+class ReversalModel(object):
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-09",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information=['Close', 'gradual-liquidity spike', '4-liquidity spike', 'momentum_oscillator']
+        )
+
+
+class MiscModel(object):
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-09",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information=['Close', '4-liquidity spike', 'earnings dates', 'earnings', 'Histogram', 'flips']
+        )
+
 
 MACDModel()
