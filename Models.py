@@ -41,54 +41,73 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
         other_vals = json.load(file)
     if start_date in other_vals['Dates']:
         i = other_vals['Dates'].index(start_date)
+        other_vals['Dates'] = other_vals['Dates'][i:]
         for key in information_keys:
-            vals = other_vals[key]
-            vals = vals[i:]
+            if key in excluded_values:
+                continue
+            other_vals[key] = other_vals[key][i:]
     else:
-        raise ValueError(f"Run getInfo.py with start date before {start_date}")
-
+        raise ValueError(f"Run getInfo.py with start date before {start_date}\n and end date after {start_date}")
     if end_date in other_vals['Dates']:
-        i = other_vals.index(end_date)
+        i = other_vals['Dates'].index(end_date)
+        other_vals['Dates'] = other_vals['Dates'][:i]
         for key in information_keys:
-            vals = other_vals[key]
-            vals = vals[i:]
+            if key in excluded_values:
+                continue
+            other_vals[key] = other_vals[key][:i]
     else:
-        raise ValueError(f"Run getInfo.py with end date after {end_date}")
-        
+        raise ValueError(f"Run getInfo.py with start date before {end_date}\n and end date after {end_date}")
+
+    #Scale numbers to 0-1
+    scaler = MinMaxScaler(feature_range=(0, 1))
+
+    for key in information_keys:
+        if type(other_vals[key]) not in (int, float):
+            continue
+        other_vals[key] = scaler.fit_transform(other_vals[key])
+
     # Convert the dictionary of lists to a NumPy array
-    other_vals = np.array(list(other_vals.values())).T
-    return other_vals, start_date, end_date
+    filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
+
+
+    filtered = np.transpose(filtered)
+    print(filtered)
+    print("Filtered shape:", filtered.shape)
+    return filtered, start_date, end_date
 
 
 class BaseModel():
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-09",
+                 end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL", information_keys: List=[]) -> None:
         num_days = 60
-        scaler = MinMaxScaler(feature_range=(0, 1))
 
-
-        data = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
+        data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
 
         shape = len(data)
-        scaled_data = scaler.fit_transform(data)
+        feature_num = len(data[0])
+        print("Data shape:", shape)
 
         # Split the data into training and testing sets
-        train_size = int(len(scaled_data) * 0.8)
-        train_data = scaled_data[:train_size]
-        test_data = scaled_data[train_size:]
-
+        train_size = int(len(data) * 0.8)
+        train_data = data[:train_size]
+        test_data = data[train_size:]
 
         X_total, Y_total = create_sequences(train_data, num_days)
         X_train, Y_train = create_sequences(train_data, num_days)
         X_test, Y_test = create_sequences(test_data, num_days)
+
+
+        X_total = np.reshape(X_total, (X_total.shape[0], X_total.shape[1], shape))
+        X_train = np.reshape(X_train, (X_train.shape[0], X_total.shape[1], shape))
+        X_test = np.reshape(X_test, (X_test.shape[0], X_total.shape[1], shape))
 
         # Build the LSTM model
         model = Sequential()
         model.add(LSTM(50, return_sequences=True, input_shape=(num_days, shape)))
         model.add(LSTM(50))
         model.add(Dense(1))
-        model.compile(optimizer='adam', loss='mean_squared_error')
+        model.compile(optimizer='adam', loss='mean_squared_error', run_eagerly=True)
 
         # Train the model
         model.fit(X_total, Y_total, batch_size=32, epochs=20)
@@ -103,37 +122,22 @@ class BaseModel():
         # Save weights to HDF5
         model.save_weights(f"{stock_symbol}/weights.h5")
 
-        # Make predictions
-        train_predictions = model.predict(X_train)
-        test_predictions = model.predict(X_test)
-
-        # Inverse transform the scaled data to get the actual prices
-        train_predictions = scaler.inverse_transform(train_predictions)
-        y_train = scaler.inverse_transform(Y_train.reshape(-1, 1)).flatten()
-        test_predictions = scaler.inverse_transform(test_predictions)
-        y_test = scaler.inverse_transform(Y_test.reshape(-1, 1)).flatten()
-
-        train_rmse = np.sqrt(np.mean((train_predictions - y_train)**2))
-        test_rmse = np.sqrt(np.mean((test_predictions - y_test)**2))
-        print('Train RMSE:', train_rmse)
-        print('Test RMSE:', test_rmse)
-
 
 class DayTradeModel(BaseModel):
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-09",
+                 end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close']
+            information_keys=['Close', '4-liquidity spike']
         )
 
 
 class MACDModel(BaseModel):
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-09",
+                 end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
@@ -145,7 +149,7 @@ class MACDModel(BaseModel):
 
 class ImpulseMACDModel(BaseModel):
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-09",
+                 end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
@@ -157,7 +161,7 @@ class ImpulseMACDModel(BaseModel):
 
 class ReversalModel(BaseModel):
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-09",
+                 end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
@@ -169,7 +173,7 @@ class ReversalModel(BaseModel):
 
 class MiscModel(BaseModel):
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-09",
+                 end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
@@ -179,4 +183,4 @@ class MiscModel(BaseModel):
         )
 
 
-MACDModel()
+DayTradeModel()

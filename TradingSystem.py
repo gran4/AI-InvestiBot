@@ -1,4 +1,5 @@
 from math import floor
+from Models import MACDModel
 
 company_symbols = ["AAPL"]
 

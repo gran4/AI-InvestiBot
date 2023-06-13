@@ -124,7 +124,7 @@ def calculate_momentum_oscillator(data: pd.DataFrame, period: int=14) -> pd.Seri
 
 def getHistoricalInfo():
     start_date = '2015-01-01'
-    end_date = '2023-06-12'
+    end_date = '2023-06-13'
     stock_data = yf.download("AAPL", start=start_date, end=end_date)
     for company_ticker in company_symbols:
         ticker = yf.Ticker(company_ticker)
@@ -174,8 +174,10 @@ def getHistoricalInfo():
         #we do not know the start or end, yet
 
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
+        print(len(dates), len(stock_data['Close'].values.tolist()))
         converted_data = {
             'Dates': dates,
+            'Close': stock_data['Close'].values.tolist(),
             '12-day EMA': stock_data['12-day EMA'].values.tolist(),
             '26-day EMA': stock_data['26-day EMA'].values.tolist(),
             'MACD': stock_data['MACD'].values.tolist(),

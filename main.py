@@ -16,11 +16,15 @@ stock_symbol = 'AAPL'  # Replace with your desired stock symbol
 # Use yfinance to fetch the stock data from Yahoo Finance
 stock_data = yf.download(stock_symbol, start=start_date, end=end_date)
 
-num_days = 60#stock_data.size#['Close'].shape[0]  # Number of previous days' closing prices to consider
+num_days = 60  # Number of previous days' data to consider
 
 # Preprocess the data
 scaler = MinMaxScaler(feature_range=(0, 1))
-scaled_data = scaler.fit_transform(stock_data['Close'].values.reshape(-1, 1))
+scaled_close = scaler.fit_transform(stock_data['Close'].values.reshape(-1, 1))
+scaled_volume = scaler.fit_transform(stock_data['Volume'].values.reshape(-1, 1))
+
+scaled_data = np.concatenate((scaled_close, scaled_volume), axis=1)
+print(scaled_data.shape)
 
 # Split the data into training and testing sets
 train_size = int(len(scaled_data) * 0.8)
@@ -32,8 +36,8 @@ def create_sequences(data, num_days):
     sequences = []
     labels = []
     for i in range(num_days, len(data)):
-        sequences.append(data[i-num_days:i, 0])
-        labels.append(data[i, 0])
+        sequences.append(data[i - num_days:i, :])
+        labels.append(data[i, 0])  # Assuming you want to predict the next day's close price
     return np.array(sequences), np.array(labels)
 
 X_train, Y_train = create_sequences(train_data, num_days)
@@ -41,11 +45,10 @@ X_test, Y_test = create_sequences(test_data, num_days)
 
 # Build the LSTM model
 model = Sequential()
-model.add(LSTM(50, return_sequences=True, input_shape=(num_days, 1)))
+model.add(LSTM(50, return_sequences=True, input_shape=(num_days, 2)))  # 2 features: close price and volume
 model.add(LSTM(50))
 model.add(Dense(1))
 model.compile(optimizer='adam', loss='mean_squared_error')
-
 
 # Train the model
 model.fit(X_train, Y_train, batch_size=32, epochs=20)
@@ -60,10 +63,9 @@ y_train = scaler.inverse_transform(Y_train.reshape(-1, 1)).flatten()
 test_predictions = scaler.inverse_transform(test_predictions)
 y_test = scaler.inverse_transform(Y_test.reshape(-1, 1)).flatten()
 
-
 y_train_size = y_train.shape[0]
 days_test = [i for i in range(y_train.shape[0])]
-days_train = [i+y_train_size for i in range(y_test.shape[0])]
+days_train = [i + y_train_size for i in range(y_test.shape[0])]
 
 # Plot the actual and predicted prices
 plt.figure(figsize=(18, 6))
@@ -74,18 +76,8 @@ actual_train = plt.plot(days_test, y_train, label='Actual Train')
 predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
 actual_test = plt.plot(days_train, y_test, label='Actual Test')
 
-#plt.plot(stock_data.index[num_days:num_days+len(train_predictions)], train_predictions, label='Predicted Train')
-#plt.plot(stock_data.index[-len(test_predictions):], test_predictions, label='Predicted Test')
-
-
-
-train_rmse = np.sqrt(np.mean((train_predictions - y_train)**2))
-test_rmse = np.sqrt(np.mean((test_predictions - y_test)**2))
+train_rmse = np.sqrt(np.mean((train_predictions - y_train) ** 2))
+test_rmse = np.sqrt(np.mean((test_predictions - y_test) ** 2))
 print('Train RMSE:', train_rmse)
 print('Test RMSE:', test_rmse)
 
-plt.title(f'{stock_symbol} Stock Price Prediction')
-plt.xlabel('Date')
-plt.ylabel('Price')
-plt.legend([predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]], ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train'])
-plt.show()
