@@ -3,6 +3,20 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#From project
+APPL/
+GOOG/
+META/
+AMZN/
+TSLA/
+NVIDIA/
+MSFT/
+XOM/
+GE/
+C/
+WMT/
+PFE/
+
 # C extensions
 *.so
 
