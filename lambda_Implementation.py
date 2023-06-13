@@ -1,16 +1,8 @@
 from TradingSystem import *
-from Tools import *
-import time
-
+from Models import *
 import boto3
-time_interval = 86400# number of secs in 24 hours
 
-def run_loop():
-    while True:
-        data = request_data()
-        update_data()
-        update_all()
-        time.sleep(time_interval)
+time_interval = 86400# number of secs in 24 hours
 
 
 def lambda_handler(event, context):
@@ -51,3 +43,7 @@ def start_lambda():
         Targets=targets
     )
 
+
+
+if __name__ == "__main__":
+    start_lambda()

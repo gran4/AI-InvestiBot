@@ -31,7 +31,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         YOU are probibly looking to use get_corrected_earnings_history not this
 
     Returns:
-        List: of [Date, Actual EPS, Estimated EPS]
+        Tuple: of 2 Lists made of: Date, EPS_difference, respectivly
     """
     url = f"https://finance.yahoo.com/quote/{company_ticker}/history?p={company_ticker}"
 
@@ -47,7 +47,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
     table = soup.find('table', {'data-test': 'historical-prices'})
     rows = table.find_all('tr')
 
-    earnings_history = []
+    earnings_dates, earnings_diff = [], []
     for row in rows[1:]:
         columns = row.find_all('td')
         if len(columns) == 7:
@@ -55,9 +55,10 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
             actual_eps = columns[4].text
             estimated_eps = columns[3].text
             #list so info can be added
-            earnings_history.append([date, actual_eps, estimated_eps])
+            earnings_dates.append(date)
+            earnings_diff.append(float(actual_eps)-float(estimated_eps))
 
-    return earnings_history
+    return earnings_dates, earnings_diff
 
 
 def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
@@ -121,15 +122,15 @@ def calculate_momentum_oscillator(data: pd.DataFrame, period: int=14) -> pd.Seri
     return momentum_oscillator
 
 
-def getInfo():
+def getHistoricalInfo():
     start_date = '2015-01-01'
-    end_date = '2023-02-16'
+    end_date = '2023-06-12'
     stock_data = yf.download("AAPL", start=start_date, end=end_date)
     for company_ticker in company_symbols:
         ticker = yf.Ticker(company_ticker)
 
         # Retrieve historical data for the ticker using the `history()` method
-        stock_data = ticker.history(start=start_date, end=end_date, interval="1d", )
+        stock_data = ticker.history(start=start_date, end=end_date, interval="1d")
         #stock_data = yf.download(company_ticker, start=start_date, end=end_date, progress=False)
 
         # Calculate the MACD using pandas' rolling mean functions
@@ -150,10 +151,6 @@ def getInfo():
         stock_data['4-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'])
         stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
 
-        dates, actual, estimated = get_earnings_history(company_ticker)
-        stock_data['earnings dates'] = dates
-        stock_data['earnings'] = float(actual)-float(estimated)
-        #do 
 
         temp = []
         shortmore = None
@@ -172,6 +169,10 @@ def getInfo():
         stock_data['flips'] = temp
 
 
+        earnings_dates, earnings_diff = get_earnings_history(company_ticker)
+        #Do more in the model since
+        #we do not know the start or end, yet
+
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
         converted_data = {
             'Dates': dates,
@@ -186,10 +187,12 @@ def getInfo():
             'Change': stock_data['Change'].values.tolist(),
             'gradual-liquidity spike': stock_data['gradual-liquidity spike'].values.tolist(),
             '4-liquidity spike': stock_data['4-liquidity spike'].values.tolist(),
-            'momentum_oscillator': stock_data['momentum_oscillator'].values.tolist()
+            'momentum_oscillator': stock_data['momentum_oscillator'].values.tolist(),
+            'earnings dates': earnings_dates,
+            'earnings diff': earnings_diff
         }
         with open(f"{company_ticker}/info.json", "w") as json_file:
             json.dump(converted_data, json_file)
 
 if __name__ == '__main__':
-    getInfo()
+    getHistoricalInfo()
