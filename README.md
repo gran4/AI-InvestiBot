@@ -35,9 +35,9 @@ Currently impletmented:
     - Earnings Model
       + Train RMSSE: 26.418529628219893
       + Test RMSSE: 7.203620865873368
-    - Misc Model
-      + Train RMSSE: 25.684374431590197
-      + Test RMSSE: 7.362586331783404
+    - Breakout Model
+      + Train RMSSE: 27.457170999083573
+      + Test RMSSE: 6.881920637930147
   + Alot of information for you to choose from
     - earnings dates(processed in runtime)
     - earnings diffs(processed in runtime)
@@ -50,6 +50,8 @@ Currently impletmented:
     - Historgram
     - Change
     - Momentum
+    - RSI
+    - TRAMA
     - gradual-liqidity spike
     - 3-liqidity spike
     - momentum_oscillator
