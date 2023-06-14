@@ -10,21 +10,17 @@ from tensorflow.keras.layers import LSTM, Dense
 from pandas_market_calendars import get_calendar
 from datetime import datetime, timedelta
 
-from Tradingfuncs import create_sequences
-
-
-#values that do not go from day to day
-#EX: earnings comeout every quarter
-excluded_values = (
-    "earnings dates",
-    "earnings diff"
-)
+from Tradingfuncs import create_sequences, excluded_values
 
 
 def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     """
-    
+    Returns earnings bettween date range and filled to fit other vals.
+
+    Gets earnings between start and end data
+    then fills in 0s for dates without an earnings report
     """
+    #_________________deletes earnings before start and after end______________________#
     delete_start = 0
     delete_end = 0
     for day in dates:
@@ -38,7 +34,8 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     dates = dates[:delete_end]
     diffs = diffs[:delete_end]
 
-    # Create a new list to store the filled out dates and earnings differences
+
+    #_________________Fill Data out with 0s______________________#
     filled_dates = []
     filled_earnings = []
 
@@ -61,10 +58,11 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
 
 def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> np.array:
     """Returns information asked for and corrected dates"""    
-    #Check if start_day is a holiday
+    #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
     schedule = nyse.schedule(start_date=start_date, end_date=end_date)
 
+    #_________________Change if it is a holiday______________________#
     start_date = pd.to_datetime(start_date).date()
     if start_date not in schedule.index:
         # Find the next trading day
@@ -76,8 +74,11 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
         end_date = schedule.index[-1].date().strftime('%Y-%m-%d')
 
 
+    #_________________Load info______________________#
     with open(f'{stock_symbol}/info.json') as file:
         other_vals = json.load(file)
+
+    #_________________Make Data fit between start and end date______________________#
     if start_date in other_vals['Dates']:
         i = other_vals['Dates'].index(start_date)
         other_vals['Dates'] = other_vals['Dates'][i:]
@@ -97,6 +98,7 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
     else:
         raise ValueError(f"Run getInfo.py with start date before {end_date}\n and end date after {end_date}")
 
+    #_________________Process earnings______________________#
     if "earnings diff" in information_keys:
         dates = other_vals['earnings dates']
         diffs = other_vals['earnings diff']
@@ -105,16 +107,15 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
         other_vals['earnings dates'] = dates
         other_vals['earnings diff'] = diffs
 
+    #_________________Scales Data______________________#
     for key in information_keys:
         if pd.api.types.is_numeric_dtype(other_vals[key]):
             continue
         other_vals[key] = np.array(other_vals[key])
 
-
         # Calculate the minimum and maximum values
         min_value = np.min(other_vals[key])
         max_value = np.max(other_vals[key])
-
 
         if max_value - min_value != 0:
             # Scale the data
@@ -124,7 +125,6 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
 
-
     filtered = np.transpose(filtered)
     return filtered, start_date, end_date
 
@@ -133,10 +133,13 @@ class BaseModel():
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL", information_keys: List=[]) -> None:
+        #_________________ GET Data______________________#
         num_days = 60
         data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
         shape = data.shape[1]
 
+
+        #_________________Process Data for LSTM______________________#
         # Split the data into training and testing sets
         train_size = int(len(data) * 0.8)
         train_data = data[:train_size]
@@ -147,6 +150,7 @@ class BaseModel():
         X_test, Y_test = create_sequences(test_data, num_days)
 
 
+        #_________________Train it______________________#
         # Build the LSTM model
         model = Sequential()
         model.add(LSTM(50, return_sequences=True, input_shape=(num_days, shape)))
@@ -159,6 +163,7 @@ class BaseModel():
         model.fit(X_test, Y_test, batch_size=32, epochs=20)
         model.fit(X_train, Y_train, batch_size=32, epochs=20)
 
+        #_________________Save Model______________________#
         # Save structure to json
         jsonversion = model.to_json()
         with open(f"{stock_symbol}/model.json", "w") as json_file:
@@ -168,6 +173,7 @@ class BaseModel():
         model.save_weights(f"{stock_symbol}/weights.h5")
 
 
+        #_________________TEST QUALITY______________________#
         # Make predictions
         train_predictions = model.predict(X_train)
         test_predictions = model.predict(X_test)

@@ -7,6 +7,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
+from Tradingfuncs import excluded_values
 
 company_symbols = ["AAPL"]
 
@@ -134,6 +135,7 @@ def getHistoricalInfo():
     for company_ticker in company_symbols:
         ticker = yf.Ticker(company_ticker)
 
+        #_________________ GET Data______________________#
         # Retrieve historical data for the ticker using the `history()` method
         stock_data = ticker.history(start=start_date, end=end_date, interval="1d")
         #stock_data = yf.download(company_ticker, start=start_date, end=end_date, progress=False)
@@ -161,24 +163,14 @@ def getHistoricalInfo():
         stock_data['3-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
         stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
 
-
-        keys = (
-            'Close',
-            '12-day EMA',
-            '26-day EMA',
-            'MACD',
-            'Signal Line',
-            'Histogram',
-            '200-day EMA',
-            'Change',
-            'Momentum',
-            'gradual-liquidity spike',
-            '3-liquidity spike',
-            'momentum_oscillator'
-        )
-        for info in keys:
+        #_________________Scale them 0-1______________________#
+        for info in stock_data.keys():
+            if info in excluded_values:
+                continue
             stock_data[info] = convert_0to1(stock_data[info])
 
+
+        #_________________12 and 26 day Ema flips______________________#
         temp = []
         shortmore = None
         for short, mid in zip(stock_data['12-day EMA'].values, stock_data['26-day EMA'].values):
@@ -203,6 +195,8 @@ def getHistoricalInfo():
         #we do not know the start or end, yet
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
 
+
+        #_________________Process to json______________________#
         converted_data = {
             'Dates': dates,
             'Close': stock_data['Close'].values.tolist(),
