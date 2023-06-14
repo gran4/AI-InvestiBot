@@ -11,6 +11,9 @@ Plans to add:
   - Being able to run with loop
   - Being able to run with lambda
 
+Thinking/Debating about:
+  - loss functions being in Tradingfuncs.py
+
 
 Currently impletmented:
   + Easy system for adding models
