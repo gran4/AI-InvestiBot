@@ -8,15 +8,55 @@ from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from pandas_market_calendars import get_calendar
+from datetime import datetime, timedelta
 
 from Tradingfuncs import create_sequences
 
 
-
+#values that do not go from day to day
+#EX: earnings comeout every quarter
 excluded_values = (
     "earnings dates",
     "earnings diff"
 )
+
+
+def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
+    """
+    
+    """
+    delete_start = 0
+    delete_end = 0
+    for day in dates:
+        if day < start_date:
+            delete_start += 1
+        elif day > end_date:
+            delete_end += 1
+    dates = dates[delete_start:]
+    diffs = diffs[delete_start:]
+
+    dates = dates[:delete_end]
+    diffs = diffs[:delete_end]
+
+    # Create a new list to store the filled out dates and earnings differences
+    filled_dates = []
+    filled_earnings = []
+
+    start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+    # Fill out the list to match the start and end date
+    dates = [datetime.strptime(date_str, "%b %d, %Y") for date_str in dates]
+    current_date = start_date
+    while current_date <= end_date:
+        filled_dates.append(current_date)
+        if current_date in dates:
+            existing_index = dates.index(current_date)
+            filled_earnings.append(diffs[existing_index])
+        else:
+            filled_earnings.append(0)
+        current_date += timedelta(days=1)
+    return dates, diffs
 
 
 def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> np.array:
@@ -57,6 +97,13 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
     else:
         raise ValueError(f"Run getInfo.py with start date before {end_date}\n and end date after {end_date}")
 
+    if "earnings diff" in information_keys:
+        dates = other_vals['earnings dates']
+        diffs = other_vals['earnings diff']
+
+        dates, diffs = process_earnings(dates, diffs, start_date, end_date)
+        other_vals['earnings dates'] = dates
+        other_vals['earnings diff'] = diffs
 
     for key in information_keys:
         if pd.api.types.is_numeric_dtype(other_vals[key]):
@@ -72,10 +119,6 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
         if max_value - min_value != 0:
             # Scale the data
             other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)
-
-
-    if "earnings diff" in information_keys:
-        pass
 
 
     # Convert the dictionary of lists to a NumPy array
@@ -185,6 +228,19 @@ class ReversalModel(BaseModel):
         )
 
 
+class EarningsModel(BaseModel):
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-05",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information_keys=['Close', 'earnings dates', 'earnings diff', 'Momentum']
+        )
+
+
+
 class MiscModel(BaseModel):
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -193,12 +249,13 @@ class MiscModel(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', '3-liquidity spike', 'earnings dates', 'earnings diff', 'Histogram', 'flips']
+            information_keys=['Close', '3-liquidity spike', 'earnings dates', 'earnings diff', 'Histogram', 'flips', 'momentum_oscillator']
         )
 
 
-DayTradeModel()
-MACDModel()
-ImpulseMACDModel()
-ReversalModel()
+#DayTradeModel()
+#MACDModel()
+#ImpulseMACDModel()
+#ReversalModel()
+#EarningsModel()
 #MiscModel()
