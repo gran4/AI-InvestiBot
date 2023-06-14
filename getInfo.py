@@ -1,6 +1,4 @@
-import urllib.request
-import ssl
-import json
+import urllib.request, ssl, json
 
 import yfinance as yf
 import numpy as np
@@ -80,7 +78,7 @@ def modify_earnings_dates(dates, start_date):
     return earnings_since_time(temp, start_date)
 
 
-def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> List:
+def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> pd.Series:
     # Convert the data to a pandas Series if it's not already
     if not isinstance(data, pd.Series):
         data = pd.Series(data)
@@ -99,35 +97,34 @@ def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> List:
 
     if gradual:
         abnormal_spikes = z_scores
+        abnormal_spikes.fillna(abnormal_spikes.iloc[1], inplace=True)
     else:
         # Detect abnormal bid volume spikes
         abnormal_spikes = pd.Series(np.where(z_scores > z_score_threshold, 1, 0), index=data.index)
+        abnormal_spikes.astype(int)
 
     return abnormal_spikes
 
 
-def calculate_momentum_oscillator(data: pd.DataFrame, period: int=14) -> pd.Series:
+def calculate_momentum_oscillator(data, period=14):
     """
-    Calculate the momentum oscillator for a given period.
-    
-    Arguments:
-        data pandas.DataFrame: containing price data (e.g., close prices)
-        period int: represents the period for calculating the momentum
-    
+    Calculates the momentum oscillator for the given data series.
+
+    Args:
+        data (pd.Series): Input data series.
+        n (int): Number of periods for the oscillator calculation.
+
     Returns:
-        momentum_oscillator pandas.Series: representing the momentum oscillator values
+        pd.Series: Momentum oscillator values.
     """
-    # Calculate the momentum
-    momentum = data.diff(period)
-    
-    # Calculate the mean of positive and negative momentum
-    positive_momentum = momentum[momentum > 0].rolling(window=period).mean()
-    negative_momentum = momentum[momentum < 0].rolling(window=period).mean()
-    
-    # Calculate the momentum oscillator
-    momentum_oscillator = 100 * (positive_momentum / abs(negative_momentum))
-    
-    return momentum_oscillator
+    momentum = data.diff(period)  # Calculate the difference between current and n periods ago
+    percent_momentum = (momentum / data.shift(period)) * 100  # Calculate momentum as a percentage
+
+    return percent_momentum.fillna(method='bfill')
+
+
+def convert_0to1(data: pd.Series):
+    return (data - data.min()) / (data.max() - data.min())
 
 
 def getHistoricalInfo():
@@ -152,13 +149,35 @@ def getHistoricalInfo():
         # Calculate the change in price (impulse) and momentum
         #Basically makes it impulse MACD
         stock_data['Change'] = stock_data['Close'].diff()
-        stock_data['Momentum'] = stock_data['Change'].rolling(window=10).sum()  # Example: Using a 10-day rolling sum
+        #fill first NaN
+        stock_data['Change'].fillna(stock_data['Change'].iloc[1], inplace=True)
+        stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum()  # Example: Using a 10-day rolling sum
+        #fill first NaN
+        stock_data['Momentum'].fillna(stock_data['Momentum'].iloc[1], inplace=True)
+
 
         #For Reversal trading
         stock_data['gradual-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], gradual=True)
-        stock_data['4-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
+        stock_data['3-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
         stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
 
+
+        keys = (
+            'Close',
+            '12-day EMA',
+            '26-day EMA',
+            'MACD',
+            'Signal Line',
+            'Histogram',
+            '200-day EMA',
+            'Change',
+            'Momentum',
+            'gradual-liquidity spike',
+            '3-liquidity spike',
+            'momentum_oscillator'
+        )
+        for info in keys:
+            stock_data[info] = convert_0to1(stock_data[info])
 
         temp = []
         shortmore = None
@@ -174,15 +193,16 @@ def getHistoricalInfo():
                 shortmore = True
                 continue
             temp.append(False)
-        stock_data['flips'] = temp
+        #When 12-day and 26-day EMA flip
+        stock_data['flips'] = list(map(int, temp))
 
-
+        #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
+        
         #Do more in the model since
         #we do not know the start or end, yet
-
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
-        print(len(dates), len(stock_data['Close'].values.tolist()))
+
         converted_data = {
             'Dates': dates,
             'Close': stock_data['Close'].values.tolist(),
@@ -196,7 +216,7 @@ def getHistoricalInfo():
             'Momentum': stock_data['Momentum'].values.tolist(),
             'Change': stock_data['Change'].values.tolist(),
             'gradual-liquidity spike': stock_data['gradual-liquidity spike'].values.tolist(),
-            '4-liquidity spike': stock_data['4-liquidity spike'].values.tolist(),
+            '3-liquidity spike': stock_data['3-liquidity spike'].values.tolist(),
             'momentum_oscillator': stock_data['momentum_oscillator'].values.tolist(),
             'earnings dates': earnings_dates,
             'earnings diff': earnings_diff

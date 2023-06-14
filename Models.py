@@ -2,10 +2,8 @@ import json
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 from typing import Optional, List
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
@@ -59,37 +57,32 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
     else:
         raise ValueError(f"Run getInfo.py with start date before {end_date}\n and end date after {end_date}")
 
-    #Scale numbers to 0-1
-    scaler = MinMaxScaler(feature_range=(0, 1))
 
     for key in information_keys:
-        if type(other_vals[key][0]) == bool:
-            other_vals[key] = list(map(int, other_vals[key]))
-            print(other_vals[key])
-        elif type(other_vals[key][0]) not in (int, float):
+        if pd.api.types.is_numeric_dtype(other_vals[key]):
             continue
-        print("EDdeedE", other_vals[key][0], key)
-        print(type(other_vals[key][0]))
-        #other_vals[key] = scaler.fit_transform(other_vals[key])
         other_vals[key] = np.array(other_vals[key])
+
 
         # Calculate the minimum and maximum values
         min_value = np.min(other_vals[key])
         max_value = np.max(other_vals[key])
 
-        # Scale the data
-        other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)
 
-        print("EDdeedE", other_vals[key][0])
-        print(key, other_vals[key][0], type(other_vals[key][0]))
+        if max_value - min_value != 0:
+            # Scale the data
+            other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)
+
+
+    if "earnings diff" in information_keys:
+        pass
+
 
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
 
 
     filtered = np.transpose(filtered)
-    #print(filtered)
-    #print("Filtered shape:", filtered.shape)
     return filtered, start_date, end_date
 
 
@@ -98,12 +91,8 @@ class BaseModel():
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL", information_keys: List=[]) -> None:
         num_days = 60
-
         data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
-
         shape = data.shape[1]
-        feature_num = len(data[0])
-        print("Data shape:", shape)
 
         # Split the data into training and testing sets
         train_size = int(len(data) * 0.8)
@@ -120,12 +109,12 @@ class BaseModel():
         model.add(LSTM(50, return_sequences=True, input_shape=(num_days, shape)))
         model.add(LSTM(50))
         model.add(Dense(1))
-        model.compile(optimizer='adam', loss='mean_squared_error', run_eagerly=True)
+        model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train the model
-        model.fit(X_total, Y_total, batch_size=32, epochs=10)
-        model.fit(X_test, Y_test, batch_size=32, epochs=10)
-        model.fit(X_train, Y_train, batch_size=32, epochs=10)
+        model.fit(X_total, Y_total, batch_size=32, epochs=20)
+        model.fit(X_test, Y_test, batch_size=32, epochs=20)
+        model.fit(X_train, Y_train, batch_size=32, epochs=20)
 
         # Save structure to json
         jsonversion = model.to_json()
@@ -156,7 +145,7 @@ class DayTradeModel(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', '4-liquidity spike']
+            information_keys=['Close']
         )
 
 
@@ -192,7 +181,7 @@ class ReversalModel(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', 'gradual-liquidity spike', '4-liquidity spike', 'momentum_oscillator']
+            information_keys=['Close', 'gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
         )
 
 
@@ -204,8 +193,12 @@ class MiscModel(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', '4-liquidity spike', 'earnings dates', 'earnings diff', 'Histogram', 'flips']
+            information_keys=['Close', '3-liquidity spike', 'earnings dates', 'earnings diff', 'Histogram', 'flips']
         )
 
 
 DayTradeModel()
+MACDModel()
+ImpulseMACDModel()
+ReversalModel()
+#MiscModel()
