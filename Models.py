@@ -21,18 +21,15 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     then fills in 0s for dates without an earnings report
     """
     #_________________deletes earnings before start and after end______________________#
-    delete_start = 0
-    delete_end = 0
+    start = 0
+    end = len(dates)
     for day in dates:
         if day < start_date:
-            delete_start += 1
+            start += 1
         elif day > end_date:
-            delete_end += 1
-    dates = dates[delete_start:]
-    diffs = diffs[delete_start:]
-
-    dates = dates[:delete_end]
-    diffs = diffs[:delete_end]
+            end += 1
+    dates = dates[start:end]
+    diffs = diffs[start:end]
 
 
     #_________________Fill Data out with 0s______________________#
@@ -247,7 +244,7 @@ class EarningsModel(BaseModel):
 
 
 
-class MiscModel(BaseModel):
+class BreakoutModel(BaseModel):
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
@@ -255,7 +252,7 @@ class MiscModel(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', '3-liquidity spike', 'earnings dates', 'earnings diff', 'Histogram', 'flips', 'momentum_oscillator']
+            information_keys=['Close', 'RSI', 'TRAMA']
         )
 
 
@@ -264,4 +261,4 @@ class MiscModel(BaseModel):
 #ImpulseMACDModel()
 #ReversalModel()
 #EarningsModel()
-#MiscModel()
+#BreakoutModel()

@@ -129,6 +129,7 @@ def convert_0to1(data: pd.Series):
 
 
 def getHistoricalInfo():
+    period = 14
     start_date = '2015-01-01'
     end_date = '2023-06-13'
     stock_data = yf.download("AAPL", start=start_date, end=end_date)
@@ -140,7 +141,7 @@ def getHistoricalInfo():
         stock_data = ticker.history(start=start_date, end=end_date, interval="1d")
         #stock_data = yf.download(company_ticker, start=start_date, end=end_date, progress=False)
 
-        # Calculate the MACD using pandas' rolling mean functions
+        #_________________MACD Data______________________#
         stock_data['12-day EMA'] = stock_data['Close'].ewm(span=12).mean()
         stock_data['26-day EMA'] = stock_data['Close'].ewm(span=26).mean()
         stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
@@ -148,20 +149,33 @@ def getHistoricalInfo():
         stock_data['Histogram'] = stock_data['MACD']-stock_data['Signal Line']
         stock_data['200-day EMA'] = stock_data['Close'].ewm(span=200).mean()
 
-        # Calculate the change in price (impulse) and momentum
-        #Basically makes it impulse MACD
+        #_________________Basically Impulse MACD______________________#
         stock_data['Change'] = stock_data['Close'].diff()
-        #fill first NaN
         stock_data['Change'].fillna(stock_data['Change'].iloc[1], inplace=True)
         stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum()  # Example: Using a 10-day rolling sum
-        #fill first NaN
         stock_data['Momentum'].fillna(stock_data['Momentum'].iloc[1], inplace=True)
 
+        #_________________Breakout Model______________________#
+        stock_data["Change"] = stock_data["Close"].diff()  # Price change from the previous day
+        stock_data["Gain"] = stock_data["Change"].apply(lambda x: x if x > 0 else 0)  # Positive changes
+        stock_data["Loss"] = stock_data["Change"].apply(lambda x: abs(x) if x < 0 else 0)  # Negative changes
+        stock_data["Avg Gain"] = stock_data["Gain"].rolling(window=14, min_periods=1).mean()  # 14-day average gain
+        stock_data["Avg Loss"] = stock_data["Loss"].rolling(window=14, min_periods=1).mean()  # 14-day average loss
 
-        #For Reversal trading
+        stock_data["RS"] = stock_data["Avg Gain"] / stock_data["Avg Loss"]
+        stock_data["RSI"] = 100 - (100 / (1 + stock_data["RS"]))
+        stock_data["RSI"].fillna(stock_data["RSI"].iloc[1], inplace=True)
+
+        volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
+        trama = stock_data['Close'].rolling(window=period).mean()  # Calculate the initial TRAMA with the specified period
+        stock_data['TRAMA'] = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility
+
+        #_________________Reversal______________________#
         stock_data['gradual-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], gradual=True)
         stock_data['3-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
         stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
+
+
 
         #_________________Scale them 0-1______________________#
         for info in stock_data.keys():
@@ -209,6 +223,8 @@ def getHistoricalInfo():
             'flips': stock_data['flips'].values.tolist(),
             'Momentum': stock_data['Momentum'].values.tolist(),
             'Change': stock_data['Change'].values.tolist(),
+            'RSI': stock_data['RSI'].values.tolist(),
+            'TRAMA': stock_data['TRAMA'].values.tolist(),
             'gradual-liquidity spike': stock_data['gradual-liquidity spike'].values.tolist(),
             '3-liquidity spike': stock_data['3-liquidity spike'].values.tolist(),
             'momentum_oscillator': stock_data['momentum_oscillator'].values.tolist(),
