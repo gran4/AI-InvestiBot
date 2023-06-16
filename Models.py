@@ -3,137 +3,46 @@ import json
 import numpy as np
 import pandas as pd
 
-from typing import Optional, List
+from typing import Optional, List, Dict
 from sklearn.metrics import mean_squared_error
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, model_from_json
 from tensorflow.keras.layers import LSTM, Dense
-from pandas_market_calendars import get_calendar
-from datetime import datetime, timedelta
 
-from Tradingfuncs import create_sequences, excluded_values
+from Tradingfuncs import *
+from getInfo import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
+from warnings import warn
 
-
-def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
-    """
-    Returns earnings bettween date range and filled to fit other vals.
-
-    Gets earnings between start and end data
-    then fills in 0s for dates without an earnings report
-    """
-    #_________________deletes earnings before start and after end______________________#
-    start = 0
-    end = len(dates)
-    for day in dates:
-        if day < start_date:
-            start += 1
-        elif day > end_date:
-            end += 1
-    dates = dates[start:end]
-    diffs = diffs[start:end]
-
-
-    #_________________Fill Data out with 0s______________________#
-    filled_dates = []
-    filled_earnings = []
-
-    start_date = datetime.strptime(start_date, "%Y-%m-%d")
-    end_date = datetime.strptime(end_date, "%Y-%m-%d")
-
-    # Fill out the list to match the start and end date
-    dates = [datetime.strptime(date_str, "%b %d, %Y") for date_str in dates]
-    current_date = start_date
-    while current_date <= end_date:
-        filled_dates.append(current_date)
-        if current_date in dates:
-            existing_index = dates.index(current_date)
-            filled_earnings.append(diffs[existing_index])
-        else:
-            filled_earnings.append(0)
-        current_date += timedelta(days=1)
-    return dates, diffs
-
-
-def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> np.array:
-    """Returns information asked for and corrected dates"""    
-    #_________________Check if start or end is holiday______________________#
-    nyse = get_calendar('NYSE')
-    schedule = nyse.schedule(start_date=start_date, end_date=end_date)
-
-    #_________________Change if it is a holiday______________________#
-    start_date = pd.to_datetime(start_date).date()
-    if start_date not in schedule.index:
-        # Find the next trading day
-        next_trading_day = nyse.valid_days(start_date=start_date, end_date=end_date)[0]
-        start_date = next_trading_day.date().strftime('%Y-%m-%d')
-
-    end_date = pd.to_datetime(end_date).date()
-    if end_date not in schedule.index:
-        end_date = schedule.index[-1].date().strftime('%Y-%m-%d')
-
-
-    #_________________Load info______________________#
-    with open(f'{stock_symbol}/info.json') as file:
-        other_vals = json.load(file)
-
-    #_________________Make Data fit between start and end date______________________#
-    if start_date in other_vals['Dates']:
-        i = other_vals['Dates'].index(start_date)
-        other_vals['Dates'] = other_vals['Dates'][i:]
-        for key in information_keys:
-            if key in excluded_values:
-                continue
-            other_vals[key] = other_vals[key][i:]
-    else:
-        raise ValueError(f"Run getInfo.py with start date before {start_date}\n and end date after {start_date}")
-    if end_date in other_vals['Dates']:
-        i = other_vals['Dates'].index(end_date)
-        other_vals['Dates'] = other_vals['Dates'][:i]
-        for key in information_keys:
-            if key in excluded_values:
-                continue
-            other_vals[key] = other_vals[key][:i]
-    else:
-        raise ValueError(f"Run getInfo.py with start date before {end_date}\n and end date after {end_date}")
-
-    #_________________Process earnings______________________#
-    if "earnings diff" in information_keys:
-        dates = other_vals['earnings dates']
-        diffs = other_vals['earnings diff']
-
-        dates, diffs = process_earnings(dates, diffs, start_date, end_date)
-        other_vals['earnings dates'] = dates
-        other_vals['earnings diff'] = diffs
-
-    #_________________Scales Data______________________#
-    for key in information_keys:
-        if pd.api.types.is_numeric_dtype(other_vals[key]):
-            continue
-        other_vals[key] = np.array(other_vals[key])
-
-        # Calculate the minimum and maximum values
-        min_value = np.min(other_vals[key])
-        max_value = np.max(other_vals[key])
-
-        if max_value - min_value != 0:
-            # Scale the data
-            other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)
-
-
-    # Convert the dictionary of lists to a NumPy array
-    filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
-
-    filtered = np.transpose(filtered)
-    return filtered, start_date, end_date
-
-
-class BaseModel():
+class BaseModel(object):
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL", information_keys: List=[]) -> None:
+        print("EDJNDENJDENJDE")
+        self.start_date = start_date
+        self.end_date = end_date
+        self.stock_symbol = stock_symbol
+        self.information_keys = information_keys
+
+        self.cached: Optional[pd.DataFrame] = None
+        self.model: Optional[Sequential] = None
+        self.data: Optional[Dict] = None
+
+    def train(self):
+        warn("If you saved before, use load func instead")
+
+        start_date = self.start_date
+        end_date = self.end_date
+        stock_symbol = self.stock_symbol
+        information_keys = self.information_keys
+
         #_________________ GET Data______________________#
         num_days = 60
         data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
         shape = data.shape[1]
+
+        temp = {}
+        for key, val in zip(information_keys, data):
+            temp[key] = list(val)
+        self.data = temp
 
 
         #_________________Process Data for LSTM______________________#
@@ -160,20 +69,48 @@ class BaseModel():
         model.fit(X_test, Y_test, batch_size=32, epochs=20)
         model.fit(X_train, Y_train, batch_size=32, epochs=20)
 
+        self.model = model
+
+    def save(self):
         #_________________Save Model______________________#
         # Save structure to json
-        jsonversion = model.to_json()
-        with open(f"{stock_symbol}/model.json", "w") as json_file:
+        jsonversion = self.model.to_json()
+        with open(f"{self.stock_symbol}/model.json", "w") as json_file:
             json_file.write(jsonversion)
 
         # Save weights to HDF5
-        model.save_weights(f"{stock_symbol}/weights.h5")
+        self.model.save_weights(f"{self.stock_symbol}/weights.h5")
 
+        with open(f"{self.stock_symbol}/data.json", "w") as json_file:
+            json.dump(self.data, json_file)
+
+    def test(self):
+        """EXPENSIVE"""
+        warn("Expensive, for testing purposes")
+
+        if not self.model:
+            raise LookupError("Compile or load model first")
+
+        stock_symbol = self.stock_symbol
+        information_keys = self.information_keys
+
+        #_________________ GET Data______________________#
+        num_days = 60
+        data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
+
+
+        #_________________Process Data for LSTM______________________#
+        # Split the data into training and testing sets
+        train_size = int(len(data) * 0.8)
+        train_data = data[:train_size]
+        test_data = data[train_size:]
+
+        X_train, Y_train = create_sequences(train_data, num_days)
+        X_test, Y_test = create_sequences(test_data, num_days)
 
         #_________________TEST QUALITY______________________#
-        # Make predictions
-        train_predictions = model.predict(X_train)
-        test_predictions = model.predict(X_test)
+        train_predictions = self.model.predict(X_train)
+        test_predictions = self.model.predict(X_test)
 
         # Calculate RMSSE for training and testing predictions
         train_rmsse = np.sqrt(mean_squared_error(Y_train, train_predictions)) / np.mean(Y_train[1:] - Y_train[:-1])
@@ -181,6 +118,121 @@ class BaseModel():
 
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
+
+    def load(self):
+        if self.model:
+            return
+        with open(f"{self.stock_symbol}/model.json") as file:
+            model_json = file.read()
+        model = model_from_json(model_json)
+        model.load_weights(f'{self.stock_symbol}/weights.h5')
+
+        with open(f"{self.stock_symbol}/data.json") as file:
+            self.data = file.read()
+
+        self.model = model
+        return model
+
+    def getInfoToday(self, period: int=14) -> List[float]:
+        """
+        Similar to getHistoricalData but it only gets today
+        
+        cached_data used so less data has to be gotten from yf.finance
+        """
+        #Limit attribute look ups + Improve readability
+        stock_symbol = self.stock_symbol
+        information_keys = self.information_keys
+        end_date = self.end_date
+        cached_data = self.cached
+
+        #_________________ GET Data______________________#
+        ticker = yf.Ticker(stock_symbol)
+        if cached_data:
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            day_data = ticker.history(start=end_date, end=end_date, interval="1d")
+            cached_data = cached_data.drop(cached_data.index[0])
+            cached_data.append(day_data, ignore_index=True)
+        else:
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            start_date = end_date - timedelta(days=200)
+            cached_data = ticker.history(start=start_date, end=end_date, interval="1d")
+
+        #_________________MACD Data______________________#
+        # Calculate start and end dates
+        cached_data['12-day EMA'] = cached_data['Close'].ewm(span=12, adjust=False).mean().iloc[-1]
+
+        # 26-day EMA
+        cached_data['26-day EMA'] = cached_data['Close'].ewm(span=26, adjust=False).mean().iloc[-1]
+
+        # MACD
+        cached_data['MACD'] = cached_data['12-day EMA'] - cached_data['26-day EMA']
+
+        # Signal Line
+        span = 9
+        signal_line = cached_data['MACD'].rolling(window=span).mean().iloc[-1]
+        cached_data['Signal Line'] = signal_line
+
+        # Histogram
+        cached_data['Histogram'] = cached_data['MACD'] - cached_data['Signal Line']
+
+        # 200-day EMA
+        cached_data['200-day EMA'] = cached_data['Close'].ewm(span=200, adjust=False).mean().iloc[-1]
+
+        # Basically Impulse MACD
+        cached_data['Change'] = cached_data['Close'].diff().iloc[-1]
+        cached_data['Momentum'] = cached_data['Change'].rolling(window=10, min_periods=1).sum().iloc[-1]
+
+        # Breakout Model
+        cached_data["Gain"] = cached_data["Change"] if cached_data["Change"] > 0 else 0
+        cached_data["Loss"] = abs(cached_data["Change"]) if cached_data["Change"] < 0 else 0
+        cached_data["Avg Gain"] = cached_data["Gain"].rolling(window=14, min_periods=1).mean().iloc[-1]
+        cached_data["Avg Loss"] = cached_data["Loss"].rolling(window=14, min_periods=1).mean().iloc[-1]
+        cached_data["RS"] = cached_data["Avg Gain"] / cached_data["Avg Loss"]
+        cached_data["RSI"] = 100 - (100 / (1 + cached_data["RS"]))
+
+        # TRAMA
+        volatility = cached_data['Close'].diff().abs().iloc[-1]
+        trama = cached_data['Close'].rolling(window=period).mean().iloc[-1]
+        cached_data['TRAMA'] = trama + (volatility * 0.1)
+
+        # Reversal
+        cached_data['gradual-liquidity spike'] = get_liquidity_spikes(cached_data['Volume'], gradual=True).iloc[-1]
+        cached_data['3-liquidity spike'] = get_liquidity_spikes(cached_data['Volume'], z_score_threshold=4).iloc[-1]
+        cached_data['momentum_oscillator'] = calculate_momentum_oscillator(cached_data['Close']).iloc[-1]
+
+
+        #_________________12 and 26 day Ema flips______________________#
+        temp12 = cached_data['Close'].ewm(span=12, adjust=False).mean().iloc[-2]
+        temp26 = cached_data['Close'].ewm(span=26, adjust=False).mean().iloc[-2]
+        temp_bool = temp12 > temp26
+        cached_data['flips'] = temp_bool != cached_data['12-day EMA'] > cached_data['26-day EMA']
+        cached_data['flips'] = int(cached_data['flips'])
+
+        #earnings stuffs
+        earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
+        if not end_date in earnings_dates:
+            cached_data['earnings diff'] = 0
+        else:
+            cached_data['earnings diff'] = earnings_diff
+        cached_data['earnings dates'] = end_date
+
+        # Scale them 0-1
+        excluded_values = ['Date']  # Add any additional columns you want to exclude from scaling
+        for info in cached_data.keys():
+            if info in excluded_values:
+                continue
+            cached_data[info] = scale(cached_data[info], self.data)
+        #NOTE: 'Dates' is irrelevant
+        return [cached_data[key] for key in information_keys]
+
+    def predict(self, info: Optional[List[float]] = None):
+        """Wraps the models predict func"""
+        if not info:
+            info = self.getInfoToday()
+        if self.model:
+            return self.model.predict(info)
+        raise LookupError("Compile or load model first")
+
 
 
 class DayTradeModel(BaseModel):
@@ -243,7 +295,6 @@ class EarningsModel(BaseModel):
         )
 
 
-
 class BreakoutModel(BaseModel):
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -256,9 +307,25 @@ class BreakoutModel(BaseModel):
         )
 
 
-#DayTradeModel()
-#MACDModel()
-#ImpulseMACDModel()
-#ReversalModel()
-#EarningsModel()
-#BreakoutModel()
+if __name__ == "__main__":
+    model = DayTradeModel()
+    model.train()
+    model.save()
+
+
+    model = MACDModel()
+    model.train()
+    model.save()
+    model = ImpulseMACDModel()
+    model.train()
+    model.save()
+    model = ReversalModel()
+    model.train()
+    model = model.save()
+    EarningsModel()
+    model.train()
+    model = model.save()
+    BreakoutModel()
+    model.train()
+    model = model.save()
+
