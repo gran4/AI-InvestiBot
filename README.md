@@ -17,6 +17,10 @@ Thinking/Debating about:
 
 Currently impletmented:
   + Easy system for adding models
+    - Models work with an information_keys attribute
+      + These information_keys are the names of things created from the get_info.py
+      + It gets a dict from a json and gets the list from the key
+      + np.array of features are put into the Sequential model.
     - Base Model(Whatever you want)
       + It is the parent class for all other models
       + It has no data on its own unless specified
