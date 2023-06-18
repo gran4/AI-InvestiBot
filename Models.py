@@ -110,11 +110,18 @@ class BaseModel(object):
         #_________________TEST QUALITY______________________#
         train_predictions = self.model.predict(train_data)
         test_predictions = self.model.predict(test_data)
+        print(train_predictions)
+        print(train_data.shape)
 
 
         # Calculate RMSSE for training and testing predictions
-        train_rmsse = np.sqrt(mean_squared_error(Y_train, train_predictions)) / np.mean(Y_train[1:] - Y_train[:-1])
-        test_rmsse = np.sqrt(mean_squared_error(Y_test, test_predictions)) / np.mean(Y_test[1:] - Y_test[:-1])
+        train_rmse = np.sqrt(mean_squared_error(train_data, train_predictions))
+        train_abs_diff = np.mean(np.abs(train_data[1:] - train_data[:-1]))
+        train_rmsse = train_rmse / train_abs_diff
+
+        test_rmse = np.sqrt(mean_squared_error(test_data, test_predictions))
+        test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
+        test_rmsse = test_rmse / test_abs_diff
 
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
@@ -337,10 +344,7 @@ class BreakoutModel(BaseModel):
 
 if __name__ == "__main__":
     model = DayTradeModel()
-    model.train()
-    model.save()
     model.load()
-    
     model.test()
     import time
     time.sleep(132)
