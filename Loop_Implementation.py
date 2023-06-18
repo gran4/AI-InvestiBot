@@ -6,7 +6,8 @@ time_interval = .0#86400# number of secs in 24 hours
 ticker = "AAPL"
 
 model = DayTradeModel()
-model.load()
+#model.load()
+model.train()
 def run_loop():
     with open(f'{ticker}/info.json') as file:
         data = json.load(file)
@@ -16,14 +17,7 @@ def run_loop():
     l_p = 0
     info_keys = model.information_keys
     while i < 1000:
-        #t = time.time()
-        temp = []
-        for key in info_keys:
-            temp.append(data[key][i])
-        b = model.model.predict([temp]) - l_p
-        #print("TIME: ", time.time()-t)
-        #print(b)
-        #print(data['Close'][i+1]-l)
+        b = model.predict() - l_p
         l = data['Close'][i+1]-l
         l_p = b
 
