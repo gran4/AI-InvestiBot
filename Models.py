@@ -16,12 +16,14 @@ from warnings import warn
 class BaseModel(object):
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
-                 stock_symbol: str = "AAPL", information_keys: List=[]) -> None:
-        print("EDJNDENJDENJDE")
+                 stock_symbol: str = "AAPL",
+                 num_days: int = 60,
+                 information_keys: List=[]) -> None:
         self.start_date = start_date
         self.end_date = end_date
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
+        self.num_days = num_days
 
         self.cached: Optional[pd.DataFrame] = None
         self.model: Optional[Sequential] = None
@@ -34,9 +36,9 @@ class BaseModel(object):
         end_date = self.end_date
         stock_symbol = self.stock_symbol
         information_keys = self.information_keys
+        num_days = self.num_days
 
         #_________________ GET Data______________________#
-        num_days = 60
         data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
         shape = data.shape[1]
 
@@ -85,16 +87,15 @@ class BaseModel(object):
 
         if not self.model:
             raise LookupError("Compile or load model first")
-        
+
         start_date = self.start_date
         end_date = self.end_date
         stock_symbol = self.stock_symbol
         information_keys = self.information_keys
+        num_days = self.num_days
 
         #_________________ GET Data______________________#
-        num_days = 60
         data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
-
 
         #_________________Process Data for LSTM______________________#
         # Split the data into training and testing sets
@@ -156,6 +157,7 @@ class BaseModel(object):
         stock_symbol = self.stock_symbol
         information_keys = self.information_keys
         end_date = self.end_date
+        num_days = self.num_days
         cached_data = self.cached
         stock_data = {}
 
@@ -372,35 +374,4 @@ if __name__ == "__main__":
     model.test()
     time.sleep(5)
 
-    #model = MACDModel()
-    #model.train()
-    #model.save()
-    #model.load()
-    #model.test()
-    #time.sleep(5)
-
-    #model = ImpulseMACDModel()
-    #model.train()
-    #model.save()
-    #model.load()
-    #model.test()
-    #time.sleep(5)
-    #model = ReversalModel()
-    #model.train()
-    #model.save()
-    #model.load()
-    #model.test()
-    #time.sleep(5)
-    #model = EarningsModel()
-    #model.train()
-    #model.save()
-    #model.load()
-    #model.test()
-    #time.sleep(5)
-    #model = BreakoutModel()
-    #model.train()
-    #model.save()
-    #model.load()
-    #model.test()
-    #time.sleep(5)
 
