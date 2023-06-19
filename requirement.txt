@@ -6,7 +6,7 @@ yfinance
 tensorflow
 sklearn
 typing
-urllib
+requests
 ssl
 bs4
 datetime
