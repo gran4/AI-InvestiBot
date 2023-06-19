@@ -11,7 +11,7 @@ from tensorflow.keras.layers import LSTM, Dense
 from Tradingfuncs import *
 from getInfo import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
 from warnings import warn
-from copy import deepcopy
+
 
 class BaseModel(object):
     def __init__(self, start_date: str = "2020-01-01",
@@ -27,7 +27,7 @@ class BaseModel(object):
         self.model: Optional[Sequential] = None
         self.data: Optional[Dict] = None
 
-    def train(self):
+    def train(self, epochs=20):
         warn("If you saved before, use load func instead")
 
         start_date = self.start_date
@@ -66,9 +66,9 @@ class BaseModel(object):
         model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train the model
-        model.fit(X_total, Y_total, batch_size=32, epochs=10)
-        model.fit(X_test, Y_test, batch_size=32, epochs=10)
-        model.fit(X_train, Y_train, batch_size=32, epochs=10)
+        model.fit(X_total, Y_total, batch_size=32, epochs=epochs)
+        model.fit(X_test, Y_test, batch_size=32, epochs=epochs)
+        model.fit(X_train, Y_train, batch_size=32, epochs=epochs)
 
         self.model = model
 
@@ -111,17 +111,28 @@ class BaseModel(object):
         train_predictions = self.model.predict(X_train)
         test_predictions = self.model.predict(X_test)
 
-        print(len(train_data), len(train_predictions))
+        train_data = train_data[num_days:]
+        test_data = test_data[num_days:]
+        
+
+        #Get first collumn
+        temp_train = train_data[:, 0]
+        temp_test = test_data[:, 0]
+
+
         # Calculate RMSSE for training predictions
-        train_rmse = np.sqrt(mean_squared_error(train_data, train_predictions))
+        train_rmse = np.sqrt(mean_squared_error(temp_train, train_predictions))
         train_abs_diff = np.mean(np.abs(train_data[1:] - train_data[:-1]))
         train_rmsse = train_rmse / train_abs_diff
 
         # Calculate RMSSE for testing predictions
-        test_rmse = np.sqrt(mean_squared_error(test_data, test_predictions))
+        test_rmse = np.sqrt(mean_squared_error(temp_test, test_predictions))
         test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
         test_rmsse = test_rmse / test_abs_diff
 
+        print('Train RMSSE:', train_rmse)
+        print('Test RMSSE:', test_rmse)
+        print()
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
 
@@ -354,7 +365,7 @@ class test(BaseModel):
 
 import time
 if __name__ == "__main__":
-    model = MACDModel()#DayTradeModel()
+    model = DayTradeModel()
     model.train()
     model.save()
     model.load()
