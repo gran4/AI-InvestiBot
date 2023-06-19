@@ -22,9 +22,10 @@ def create_sequences(data, num_days):
     #______________________From Chat Gpt________________________#
     sequences = []
     labels = []
+    label = data.shape[1]-1
     for i in range(num_days, len(data)):
-        sequences.append(data[i-num_days:i, :])
-        labels.append(data[i, 0])
+        sequences.append(data[i-num_days:i])
+        labels.append(data[i])
     return np.array(sequences), np.array(labels)
 
 

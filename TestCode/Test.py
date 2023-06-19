@@ -56,6 +56,7 @@ model.fit(X_train, Y_train, batch_size=32, epochs=20)
 # Make predictions
 train_predictions = model.predict(X_train)
 test_predictions = model.predict(X_test)
+print(X_train.tolist())
 
 # Inverse transform the scaled data to get the actual prices
 train_predictions = scaler.inverse_transform(train_predictions)

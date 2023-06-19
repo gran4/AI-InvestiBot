@@ -101,24 +101,23 @@ class BaseModel(object):
         train_size = int(len(data) * 0.8)
         train_data = data[:train_size]
         test_data = data[train_size:]
+        #print(train_data)
+        def is_homogeneous(arr):
+            return len(set(arr.dtype for arr in arr.flatten())) == 1
 
         X_train, Y_train = create_sequences(train_data, num_days)
         X_test, Y_test = create_sequences(test_data, num_days)
-        print(X_train.shape)
-        print(X_test.shape)
-
         #_________________TEST QUALITY______________________#
-        train_predictions = self.model.predict(train_data)
-        test_predictions = self.model.predict(test_data)
-        print(train_predictions)
-        print(train_data.shape)
+        train_predictions = self.model.predict(X_train)
+        test_predictions = self.model.predict(X_test)
 
-
-        # Calculate RMSSE for training and testing predictions
+        print(len(train_data), len(train_predictions))
+        # Calculate RMSSE for training predictions
         train_rmse = np.sqrt(mean_squared_error(train_data, train_predictions))
         train_abs_diff = np.mean(np.abs(train_data[1:] - train_data[:-1]))
         train_rmsse = train_rmse / train_abs_diff
 
+        # Calculate RMSSE for testing predictions
         test_rmse = np.sqrt(mean_squared_error(test_data, test_predictions))
         test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
         test_rmsse = test_rmse / test_abs_diff
@@ -341,28 +340,56 @@ class BreakoutModel(BaseModel):
             information_keys=['Close', 'RSI', 'TRAMA']
         )
 
+class test(BaseModel):
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-05",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information_keys=['Close']
+        )
 
+
+import time
 if __name__ == "__main__":
-    model = DayTradeModel()
+    model = MACDModel()#DayTradeModel()
+    model.train()
+    model.save()
     model.load()
     model.test()
-    import time
-    time.sleep(132)
+    time.sleep(5)
 
+    #model = MACDModel()
+    #model.train()
+    #model.save()
+    #model.load()
+    #model.test()
+    #time.sleep(5)
 
-    model = MACDModel()
-    model.train()
-    model.save()
-    model = ImpulseMACDModel()
-    model.train()
-    model.save()
-    model = ReversalModel()
-    model.train()
-    model = model.save()
-    model = EarningsModel()
-    model.train()
-    model = model.save()
-    model = BreakoutModel()
-    model.train()
-    model = model.save()
+    #model = ImpulseMACDModel()
+    #model.train()
+    #model.save()
+    #model.load()
+    #model.test()
+    #time.sleep(5)
+    #model = ReversalModel()
+    #model.train()
+    #model.save()
+    #model.load()
+    #model.test()
+    #time.sleep(5)
+    #model = EarningsModel()
+    #model.train()
+    #model.save()
+    #model.load()
+    #model.test()
+    #time.sleep(5)
+    #model = BreakoutModel()
+    #model.train()
+    #model.save()
+    #model.load()
+    #model.test()
+    #time.sleep(5)
 
