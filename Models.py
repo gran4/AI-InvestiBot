@@ -17,7 +17,6 @@ class BaseModel(object):
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL", information_keys: List=[]) -> None:
-        print("EDJNDENJDENJDE")
         self.start_date = start_date
         self.end_date = end_date
         self.stock_symbol = stock_symbol
@@ -101,9 +100,7 @@ class BaseModel(object):
         train_size = int(len(data) * 0.8)
         train_data = data[:train_size]
         test_data = data[train_size:]
-        #print(train_data)
-        def is_homogeneous(arr):
-            return len(set(arr.dtype for arr in arr.flatten())) == 1
+
 
         X_train, Y_train = create_sequences(train_data, num_days)
         X_test, Y_test = create_sequences(test_data, num_days)
@@ -135,6 +132,10 @@ class BaseModel(object):
         print()
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
+        print()
+        def is_homogeneous(arr):
+            return len(set(arr.dtype for arr in arr.flatten())) == 1
+        print("Homogeneous(Should be True):", is_homogeneous(data))
 
     def load(self):
         if self.model:
@@ -186,18 +187,10 @@ class BaseModel(object):
         span = 9
         signal_line = stock_data['MACD'].rolling(window=span).mean().iloc[-60:]
         stock_data['Signal Line'] = signal_line
-
-        # Histogram
         stock_data['Histogram'] = stock_data['MACD'] - stock_data['Signal Line']
-
-        # 200-day EMA
         stock_data['200-day EMA'] = cached_data['Close'].ewm(span=200, adjust=False).mean().iloc[-60:]
-
-        # Basically Impulse MACD
         stock_data['Change'] = cached_data['Close'].diff().iloc[-60:]
         stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum().iloc[-60:]
-
-        # Breakout Model
         stock_data["Gain"] = stock_data["Change"].apply(lambda x: x if x > 0 else 0)
         stock_data['Loss'] = stock_data['Change'].apply(lambda x: abs(x) if x < 0 else 0)
         stock_data["Avg Gain"] = stock_data["Gain"].rolling(window=14, min_periods=1).mean().iloc[-60:]
@@ -217,7 +210,6 @@ class BaseModel(object):
 
 
         #_________________12 and 26 day Ema flips______________________#
-        #last day's EMA
         temp = []
         ema12=cached_data['Close'].ewm(span=12, adjust=False).mean()
         ema26=cached_data['Close'].ewm(span=26, adjust=False).mean()
@@ -241,7 +233,7 @@ class BaseModel(object):
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
         all_dates = []
-        #date = datetime.strptime(end_date, "%Y-%m-%d")
+
         # Calculate dates before the extracted date
         days_before = 3
         for i in range(days_before):
