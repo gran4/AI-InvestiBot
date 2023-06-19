@@ -18,6 +18,20 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pylint
+        pip install numpy
+        pip install matplotlib
+        pip install pandas
+        pip install h5py
+        pip install yfinance
+        pip install tensorflow
+        pip install sklearn
+        pip install typing
+        pip install urllib
+        pip install ssl
+        pip install bs4
+        pip install datetime
+        pip install boto3
+        pip install threading
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py')
