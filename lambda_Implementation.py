@@ -1,4 +1,4 @@
-from TradingSystem import *
+from trading_system import *
 from Models import *
 import boto3
 
