@@ -7,7 +7,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
-from Tradingfuncs import excluded_values
+from trading_funcs import excluded_values
 
 company_symbols = ["AAPL"]
 
