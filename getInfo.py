@@ -3,22 +3,11 @@ import urllib.request, ssl, json
 from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
-from Tradingfuncs import excluded_values, company_symbols, process_flips
+from trading_funcs import excluded_values, company_symbols, process_flips
 
 import yfinance as yf
 import numpy as np
 import pandas as pd
-
-<<<<<<< HEAD
-=======
-from bs4 import BeautifulSoup
-from typing import Optional, List
-from datetime import datetime
-from trading_funcs import excluded_values
-
-company_symbols = ["AAPL"]
->>>>>>> 838612987acaeaad1bb99d694342c6698a6b471b
-
 
 def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> List[List[str]]:
     """

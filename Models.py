@@ -6,11 +6,7 @@ from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
 
-<<<<<<< HEAD
-from Tradingfuncs import get_relavant_values, create_sequences, process_flips
-=======
-from trading_funcs import *
->>>>>>> 838612987acaeaad1bb99d694342c6698a6b471b
+from trading_funcs import get_relavant_values, create_sequences, process_flips
 from getInfo import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
 from warnings import warn
 
