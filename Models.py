@@ -1,24 +1,37 @@
 import json
-
-import numpy as np
-import pandas as pd
+import time
 
 from typing import Optional, List, Dict
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
 
-from Tradingfuncs import *
+from Tradingfuncs import get_relavant_values, create_sequences, process_flips
 from getInfo import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
 from warnings import warn
 
+import numpy as np
+import pandas as pd
 
-class BaseModel(object):
+
+class BaseModel:
+    """
+    Base class for all Models
+    
+    Handles the actual training,
+    saving, loading, predicting, etc
+
+    Set `information_keys` to describe
+    what the model uses
+
+    Gets these `information_key` from a json
+    that was created by getInfo.py
+    """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL",
                  num_days: int = 60,
-                 information_keys: List=[]) -> None:
+                 information_keys: List[str]=["Close"]) -> None:
         self.start_date = start_date
         self.end_date = end_date
         self.stock_symbol = stock_symbol
@@ -39,7 +52,7 @@ class BaseModel(object):
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
+        data, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys)
         shape = data.shape[1]
 
         temp = {}
@@ -54,9 +67,9 @@ class BaseModel(object):
         train_data = data[:train_size]
         test_data = data[train_size:]
 
-        X_total, Y_total = create_sequences(train_data, num_days)
-        X_train, Y_train = create_sequences(train_data, num_days)
-        X_test, Y_test = create_sequences(test_data, num_days)
+        x_total, y_total = create_sequences(train_data, num_days)
+        x_train, y_train = create_sequences(train_data, num_days)
+        x_test, y_test = create_sequences(test_data, num_days)
 
 
         #_________________Train it______________________#
@@ -68,9 +81,9 @@ class BaseModel(object):
         model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train the model
-        model.fit(X_total, Y_total, batch_size=32, epochs=epochs)
-        model.fit(X_test, Y_test, batch_size=32, epochs=epochs)
-        model.fit(X_train, Y_train, batch_size=32, epochs=epochs)
+        model.fit(x_total, y_total, batch_size=32, epochs=epochs)
+        model.fit(x_test, y_test, batch_size=32, epochs=epochs)
+        model.fit(x_train, y_train, batch_size=32, epochs=epochs)
 
         self.model = model
 
@@ -95,7 +108,7 @@ class BaseModel(object):
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        data, start_date, end_date = get_relavant_Values(start_date, end_date, stock_symbol, information_keys)
+        data, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys)
 
         #_________________Process Data for LSTM______________________#
         # Split the data into training and testing sets
@@ -106,11 +119,11 @@ class BaseModel(object):
         def is_homogeneous(arr):
             return len(set(arr.dtype for arr in arr.flatten())) == 1
 
-        X_train, Y_train = create_sequences(train_data, num_days)
-        X_test, Y_test = create_sequences(test_data, num_days)
+        x_train, y_train = create_sequences(train_data, num_days)
+        x_test, y_test = create_sequences(test_data, num_days)
         #_________________TEST QUALITY______________________#
-        train_predictions = self.model.predict(X_train)
-        test_predictions = self.model.predict(X_test)
+        train_predictions = self.model.predict(x_train)
+        test_predictions = self.model.predict(x_test)
 
         train_data = train_data[num_days:]
         test_data = test_data[num_days:]
@@ -223,22 +236,8 @@ class BaseModel(object):
         temp = []
         ema12=cached_data['Close'].ewm(span=12, adjust=False).mean()
         ema26=cached_data['Close'].ewm(span=26, adjust=False).mean()
-        shortmore = None
-        for i in range(60, 0):
-            short = ema12.iloc[-i]
-            mid = ema26.iloc[-i]
-            if shortmore is None:
-                shortmore = short>mid
-            elif shortmore and short<mid:
-                temp.append(True)
-                shortmore = False
-                continue
-            elif not shortmore and short>mid:
-                temp.append(True)
-                shortmore = True
-                continue
-            temp.append(False)
-        stock_data['flips'] = list(map(int, temp))
+        
+        stock_data['flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
 
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
@@ -276,7 +275,7 @@ class BaseModel(object):
         if not info:
             info = self.getInfoToday()
         if self.model:
-            #X_train, Y_train = create_sequences(info, 60)
+            #x_train, y_train = create_sequences(info, 60)
             return self.model.predict(info)
         raise LookupError("Compile or load model first")
 
@@ -353,19 +352,7 @@ class BreakoutModel(BaseModel):
             information_keys=['Close', 'RSI', 'TRAMA']
         )
 
-class test(BaseModel):
-    def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-05",
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            start_date=start_date,
-            end_date=end_date,
-            stock_symbol=stock_symbol,
-            information_keys=['Close']
-        )
 
-
-import time
 if __name__ == "__main__":
     model = DayTradeModel()
     model.train()

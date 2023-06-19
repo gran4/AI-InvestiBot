@@ -20,7 +20,6 @@ def test_accuracy():
     alll = []
     last = 0
     last_predict = 0
-    info_keys = model.information_keys
     while i < 1000:
         prediction = model.predict() - last_predict
         last = data['Close'][i+1]-last
@@ -33,7 +32,7 @@ def test_accuracy():
         time.sleep(TIME_INTERVAL)
     alll = [int(a) for a in alll]
     print(sum(alll), len(alll))
-    print("% correct(in terms of going up or down)", sum(alll)/len(alll))
+    print("percennt correct(in terms of going up or down)", sum(alll)/len(alll))
 
 if __name__ == "__main__":
     # Create a new thread

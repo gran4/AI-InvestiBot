@@ -1,12 +1,23 @@
+"""Module-level docstring.
+
+This module provides functions to use in Models
+during getting data, training, and predicting
+
+Get earnings, sequences, scaling, and relevant Values
+
+Author: Grant Yul Hur
+
+See also: Other modules related to Models
+"""
+
 import json
 
-import numpy as np
-import yfinance as yf
-import pandas as pd
-
-from typing import Optional, List
+from typing import List
 from pandas_market_calendars import get_calendar
 from datetime import datetime, timedelta
+
+import numpy as np
+import pandas as pd
 
 
 #values that do not go from day to day
@@ -14,6 +25,11 @@ from datetime import datetime, timedelta
 excluded_values = (
     "earnings dates",
     "earnings diff"
+)
+
+
+company_symbols = (
+    "AAPL"
 )
 
 
@@ -69,7 +85,25 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     return dates, diffs
 
 
-def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> np.array:
+def process_flips(ema12, ema26):
+    temp = []
+    shortmore = None
+    for short, mid in zip(ema12, ema26):
+        if shortmore is None:
+            shortmore = short>mid
+        elif shortmore and short<mid:
+            temp.append(True)
+            shortmore = False
+            continue
+        elif not shortmore and short>mid:
+            temp.append(True)
+            shortmore = True
+            continue
+        temp.append(False)
+    return list(map(int, temp))
+
+
+def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> np.array:
     """Returns information asked for and corrected dates"""    
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
@@ -133,7 +167,6 @@ def get_relavant_Values(start_date: str, end_date: str, stock_symbol: str, infor
         if max_value - min_value != 0:
             # Scale the data
             other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)
-
 
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
