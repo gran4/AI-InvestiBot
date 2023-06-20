@@ -21,11 +21,9 @@ jobs:
         pip install numpy
         pip install matplotlib
         pip install pandas
-        pip install h5py
         pip install yfinance
         pip install tensorflow
         pip install sklearn
-        pip install requests
         pip install bs4
         pip install boto3
     - name: Analysing the code with pylint

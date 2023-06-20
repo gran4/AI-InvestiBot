@@ -1,10 +1,8 @@
 numpy
 matplotlib
 pandas
-h5py
 yfinance
 tensorflow
 sklearn
-requests
 bs4
 boto3
