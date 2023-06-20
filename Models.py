@@ -382,6 +382,3 @@ if __name__ == "__main__":
     for model in models:
         print(type(model))
         model.test()
-    
-
-
