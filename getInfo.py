@@ -1,16 +1,13 @@
 import urllib.request, ssl, json
 
-import yfinance as yf
-import numpy as np
-import pandas as pd
-
 from bs4 import BeautifulSoup
 from typing import Optional, List
 from datetime import datetime
-from trading_funcs import excluded_values
+from trading_funcs import excluded_values, company_symbols, process_flips
 
-company_symbols = ["AAPL"]
-
+import yfinance as yf
+import numpy as np
+import pandas as pd
 
 def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> List[List[str]]:
     """
@@ -30,7 +27,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         YOU are probibly looking to use get_corrected_earnings_history not this
 
     Returns:
-        Tuple: of 2 Lists made of: Date, EPS_difference, respectivly
+        Tuple: of 2 Lists made of: Date and EPS_difference, respectivly
     """
     url = f"https://finance.yahoo.com/quote/{company_ticker}/history?p={company_ticker}"
 
@@ -128,7 +125,7 @@ def convert_0to1(data: pd.Series):
     return (data - data.min()) / (data.max() - data.min())
 
 
-def getHistoricalInfo():
+def get_historical_info():
     period = 14
     start_date = '2015-01-01'
     end_date = '2023-06-13'
@@ -185,22 +182,7 @@ def getHistoricalInfo():
 
 
         #_________________12 and 26 day Ema flips______________________#
-        temp = []
-        shortmore = None
-        for short, mid in zip(stock_data['12-day EMA'].values, stock_data['26-day EMA'].values):
-            if shortmore is None:
-                shortmore = short>mid
-            elif shortmore and short<mid:
-                temp.append(True)
-                shortmore = False
-                continue
-            elif not shortmore and short>mid:
-                temp.append(True)
-                shortmore = True
-                continue
-            temp.append(False)
-        #When 12-day and 26-day EMA flip
-        stock_data['flips'] = list(map(int, temp))
+        stock_data['flips'] = process_flips(stock_data['12-day EMA'].values, stock_data['26-day EMA'].values)
 
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
@@ -235,4 +217,4 @@ def getHistoricalInfo():
             json.dump(converted_data, json_file)
 
 if __name__ == '__main__':
-    getHistoricalInfo()
+    get_historical_info()

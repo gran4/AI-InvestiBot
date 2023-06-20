@@ -1,35 +1,38 @@
-import time, datetime
+import time
 from threading import Thread
 from Models import *
 
-time_interval = .0#86400# number of secs in 24 hours
-ticker = "AAPL"
+TIME_INTERVAL = .0#86400# number of secs in 24 hours
+TICKER = "AAPL"
 
 model = DayTradeModel()
-#model.load()
 model.train()
 def run_loop():
-    with open(f'{ticker}/info.json') as file:
+    while True:
+        model.predict()
+        time.sleep(TIME_INTERVAL)
+
+
+def test_accuracy():
+    with open(f'{TICKER}/info.json') as file:
         data = json.load(file)
     i = 200
     alll = []
-    l = 0
-    l_p = 0
-    info_keys = model.information_keys
+    last = 0
+    last_predict = 0
     while i < 1000:
-        b = model.predict() - l_p
-        l = data['Close'][i+1]-l
-        l_p = b
+        prediction = model.predict() - last_predict
+        last = data['Close'][i+1]-last
+        last_predict = prediction
 
-        a = l_p[0][0]<0 and l<0
-        b = l_p[0][0] >0 and l>0
-        alll.append(a or b)
+        down_together = last_predict[0][0]<0 and last<0
+        up_together = last_predict[0][0] >0 and last>0
+        alll.append(down_together or up_together)
         i += 1
-        time.sleep(time_interval)
+        time.sleep(TIME_INTERVAL)
     alll = [int(a) for a in alll]
-    print(alll[1:10])
     print(sum(alll), len(alll))
-    print(sum(alll)/len(alll))
+    print("percennt correct(in terms of going up or down)", sum(alll)/len(alll))
 
 if __name__ == "__main__":
     # Create a new thread

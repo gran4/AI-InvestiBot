@@ -1,8 +1,7 @@
 from math import floor
 from Models import MACDModel
+from Tradingfuncs import company_symbols
 
-
-company_symbols = ["AAPL"]
 
 class DayTrader():
     def __init__(self, start_date: str = "2020-01-01",
@@ -47,6 +46,4 @@ def update_all(model, manager):
         manager.buy(stocks, company_ticker)
 
 
-        
 
-    

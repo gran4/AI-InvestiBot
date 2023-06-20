@@ -1,6 +1,17 @@
+"""Module-level docstring.
+
+This module provides utility functions for stock trading
+
+So far only a resource manager is added. More may be added later
+
+Author: Grant Yul Hur
+
+See also: Other modules related to running the stock bot
+"""
+
 from typing import Optional
 
-class ResourceManager(object):
+class ResourceManager:
     """
     Manages you money
     
@@ -13,14 +24,14 @@ class ResourceManager(object):
 
     Put restraints on your money.
     """
-    def __init__(self, money, max_percent=100, max=1000, stock_to_money_ratio = 1):
+    def __init__(self, money, maximum=None, max_percent=100, max=1000, stock_to_money_ratio = 1):
         self.total = money
         self.used = 0
         if not max_percent:
             self.max_percent = 100
-        if not max:
-            self.max_percent = money
-        self.max = max
+        if not maximum:
+            maximum = money
+        self.max = maximum
         self.ratio = stock_to_money_ratio
 
         self.stock_mapping = {}
@@ -40,18 +51,15 @@ class ResourceManager(object):
 
         total = self.used+money
         if total/self.total > self.max_percent:
-            percent_acceptable = total/self.money
+            percent_acceptable = total/money
             percent_acceptable -= self.max_percent
+            percent_acceptable *= self.total
+            amount_acceptable = min(amount_acceptable, percent_acceptable)
 
-            #Get lowest amount acceptable
-            if amount_acceptable > percent_acceptable*self.total:
-                amount_acceptable = percent_acceptable*self.total
-            
         if stock in self.stock_mapping and self.stock_mapping[stock]+money > self.max:
             temp = self.stock_mapping[stock]+money-self.max
             #get lowest amount acceptable
-            if amount_acceptable > temp:
-                amount_acceptable = temp
+            amount_acceptable = min(amount_acceptable, temp)
 
         temp = amount_acceptable+self.used
         if temp/self.total > self.ratio:

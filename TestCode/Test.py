@@ -39,8 +39,8 @@ def create_sequences(data, num_days):
         labels.append(data[i, 0])
     return np.array(sequences), np.array(labels)
 
-X_train, Y_train = create_sequences(train_data, num_days)
-X_test, Y_test = create_sequences(test_data, num_days)
+x_train, y_train = create_sequences(train_data, num_days)
+x_test, y_test = create_sequences(test_data, num_days)
 
 # Build the LSTM model
 model = Sequential()
@@ -51,18 +51,18 @@ model.compile(optimizer='adam', loss='mean_squared_error')
 
 
 # Train the model
-model.fit(X_train, Y_train, batch_size=32, epochs=20)
+model.fit(x_train, y_train, batch_size=32, epochs=20)
 
 # Make predictions
-train_predictions = model.predict(X_train)
-test_predictions = model.predict(X_test)
-print(X_train.tolist())
+train_predictions = model.predict(x_train)
+test_predictions = model.predict(x_test)
+print(x_train.tolist())
 
 # Inverse transform the scaled data to get the actual prices
 train_predictions = scaler.inverse_transform(train_predictions)
-y_train = scaler.inverse_transform(Y_train.reshape(-1, 1)).flatten()
+y_train = scaler.inverse_transform(y_train.reshape(-1, 1)).flatten()
 test_predictions = scaler.inverse_transform(test_predictions)
-y_test = scaler.inverse_transform(Y_test.reshape(-1, 1)).flatten()
+y_test = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
 
 
 y_train_size = y_train.shape[0]

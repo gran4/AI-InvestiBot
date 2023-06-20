@@ -22,12 +22,12 @@ X = data['Adj Close']
 y = data.drop(['Adj Close'], axis=1)
 
 # Train test spit
-X_train, X_test, Y_train, Y_test = train_test_split(X, y)
+x_train, x_test, y_train, y_test = train_test_split(X, y)
 
 # Create the sequential
 network = Sequential()
 
-y_train_size = Y_train.shape[0]
+y_train_size = y_train.shape[0]
 days_train = [i for i in range(y_train_size)]
 days_test = [i+y_train_size for i in range(y_train_size)]
 
@@ -43,14 +43,14 @@ model.compile(optimizer='adam', loss='mean_squared_error', metrics=['accuracy'])
 
 
 # Train the model
-network.fit(X_train.values, Y_train.values, batch_size=32, epochs=100)
+network.fit(x_train.values, y_train.values, batch_size=32, epochs=100)
 
 
 # Plot the actual and predicted prices
 plt.figure(figsize=(18, 6))
 
-actual_train = plt.plot(X_train.values, Y_train.values, label='Actual Train')
-actual_test = plt.plot(X_test.values, Y_test.values, label='Actual Test')
+actual_train = plt.plot(x_train.values, y_train.values, label='Actual Train')
+actual_test = plt.plot(x_test.values, y_test.values, label='Actual Test')
 
 plt.title(f'{stock_symbol} Stock Price Prediction')
 plt.xlabel('Date')
