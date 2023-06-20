@@ -5,10 +5,6 @@ h5py
 yfinance
 tensorflow
 sklearn
-typing
 requests
-ssl
 bs4
-datetime
 boto3
-threading
