@@ -376,8 +376,6 @@ if __name__ == "__main__":
     for modelclass in modelclasses:
         model = modelclass()
         model.train()
-        #model.save()
-        #model.load()
         models.append(model)
     for model in models:
         print(type(model))
