@@ -3,6 +3,6 @@ matplotlib
 pandas
 yfinance
 tensorflow
-sklearn
+scikit-learn
 bs4
 boto3

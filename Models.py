@@ -9,9 +9,12 @@ from tensorflow.keras.layers import LSTM, Dense
 from trading_funcs import get_relavant_values, create_sequences, process_flips
 from getInfo import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
 from warnings import warn
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import yfinance as yf
 
 
 class BaseModel:
@@ -42,7 +45,7 @@ class BaseModel:
         self.model: Optional[Sequential] = None
         self.data: Optional[Dict] = None
 
-    def train(self, epochs=20):
+    def train(self, epochs=100):
         warn("If you saved before, use load func instead")
 
         start_date = self.start_date
@@ -142,8 +145,8 @@ class BaseModel:
         test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
         test_rmsse = test_rmse / test_abs_diff
 
-        print('Train RMSSE:', train_rmse)
-        print('Test RMSSE:', test_rmse)
+        print('Train RMSE:', train_rmse)
+        print('Test RMSE:', test_rmse)
         print()
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
@@ -151,6 +154,27 @@ class BaseModel:
         def is_homogeneous(arr):
             return len(set(arr.dtype for arr in arr.flatten())) == 1
         print("Homogeneous(Should be True):", is_homogeneous(data))
+
+
+        y_train_size = y_train.shape[0]
+        days_test = [i for i in range(y_train.shape[0])]
+        days_train = [i+y_train_size for i in range(y_test.shape[0])]
+
+        # Plot the actual and predicted prices
+        plt.figure(figsize=(18, 6))
+
+        predicted_train = plt.plot(days_test, train_predictions, label='Predicted Train')
+        actual_train = plt.plot(days_test, y_train, label='Actual Train')
+
+        predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
+        actual_test = plt.plot(days_train, y_test, label='Actual Test')
+
+
+        plt.title(f'{stock_symbol} Stock Price Prediction')
+        plt.xlabel('Date')
+        plt.ylabel('Price')
+        plt.legend([predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]], ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train'])
+        plt.show()
 
     def load(self):
         if self.model:
@@ -347,11 +371,17 @@ class BreakoutModel(BaseModel):
 
 
 if __name__ == "__main__":
-    model = DayTradeModel()
-    model.train()
-    model.save()
-    model.load()
-    model.test()
-    time.sleep(5)
+    modelclasses = [DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
+    models = []
+    for modelclass in modelclasses:
+        model = modelclass()
+        model.train()
+        #model.save()
+        #model.load()
+        models.append(model)
+    for model in models:
+        print(type(model))
+        model.test()
+    
 
 
