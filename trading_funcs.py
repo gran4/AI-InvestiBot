@@ -34,14 +34,17 @@ company_symbols = (
 
 
 def create_sequences(data, num_days):
-    #_________________Do totally NOT understand______________________#
-    #______________________From Chat Gpt________________________#
-    sequences = []
-    labels = []
-    label = data.shape[1]-1
+    """
+    Goes into model during fitting to show input and output
+
+    Sequences input
+    Labels output
+    """
+    sequences = [] # What inputs look like
+    labels = [] # What output looks like
     for i in range(num_days, len(data)):
         sequences.append(data[i-num_days:i])
-        labels.append(data[i])
+        labels.append(data[i, 0])
     return np.array(sequences), np.array(labels)
 
 

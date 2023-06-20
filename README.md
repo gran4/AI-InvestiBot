@@ -25,23 +25,41 @@ Currently impletmented:
       + It is the parent class for all other models
       + It has no data on its own unless specified
     - Day Trade Model 
-      + Train RMSSE: 27.992971353011118
-      + Test RMSSE: 8.296044664633495
+      + Train RMSSE: 0.022040952764193555
+      + Test RMSSE: 0.01761718200725566
+      
+      + Train RMSSE: 1.3980556690290633
+      + Test RMSSE: 1.2747887486868177
     - MACD Model
-      + Train RMSSE: 27.46306710507532
-      + Test RMSSE: 8.520355736058766
+      + Train RMSE: 0.02109060309388235
+      + Test RMSE: 0.020949530939790666
+
+      + Train RMSSE: 0.8495771704378083
+      + Test RMSSE: 0.5597532219707358
     - Impulse MACD Model
-      + Train RMSSE: 20.360184344580677
-      + Test RMSSE: 6.269214832919357
+      + Train RMSSE: 0.021071730433130226
+      + Test RMSSE: 0.021409005906004214
+
+      + Train RMSSE: 0.430748623349818
+      + Test RMSSE: 0.3854770536908599
     - Reversal Model
-      + Train RMSSE: 30.130229844560294
-      + Test RMSSE: 7.708133225692995
+      + Train RMSSE: 0.02087958554162695
+      + Test RMSSE: 0.0192081585935407
+
+      + Train RMSSE: 0.40873092330802707
+      + Test RMSSE: 0.42745412377982367
     - Earnings Model
-      + Train RMSSE: 26.418529628219893
-      + Test RMSSE: 7.203620865873368
+      + Train RMSSE: 0.023500793525848787
+      + Test RMSSE: 0.01964422511707269
+
+      + Train RMSSE: 0.6397388997572792
+      + Test RMSSE: 0.6214688759571487
     - Breakout Model
-      + Train RMSSE: 27.457170999083573
-      + Test RMSSE: 6.881920637930147
+      + Train RMSSE: 0.024133705747590935
+      + Test RMSSE: 0.025299479271081993
+
+      + Train RMSSE: 0.9638551303328443
+      + Test RMSSE: 1.0401114858071763
   + Alot of information for you to choose from
     - earnings dates(processed in runtime)
     - earnings diffs(processed in runtime)
@@ -61,6 +79,11 @@ Currently impletmented:
     - momentum_oscillator
 
 P.S:
+  + RMSE stands for Root Mean Squared Error
+    - It provides a single value that represents the average magnitude of the errors
+    - Easily interpretable.
   + RMSSE stands for Root Mean Squared Scaled Error
-    - The lower the better.
+    - It accounts for variations in the scale and magnitude of different stocks
+    - Allows for more meaningful comparisons across different time series.
+  + The lower the better.
 
