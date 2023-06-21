@@ -24,7 +24,9 @@ class ResourceManager:
 
     Put restraints on your money.
     """
-    def __init__(self, money, maximum=None, max_percent=100, max=1000, stock_to_money_ratio = 1):
+    def __init__(self, money: float, maximum: Optional[float]=None,
+                 max_percent: float=100.0, max: float=1000.0,
+                 stock_to_money_ratio: float= 1.0) -> None:
         self.total = money
         self.used = 0
         if not max_percent:
@@ -37,7 +39,7 @@ class ResourceManager:
         self.stock_mapping = {}
         self.api = None
 
-    def check(self, stock: str, money: Optional[float]=None):
+    def check(self, stock: str, money: Optional[float]=None) -> float:
         """
         Returns how much can be used
 
@@ -68,7 +70,7 @@ class ResourceManager:
         #Has to be ok to use
         return amount_acceptable
 
-    def buy(self, amount, ticker):
+    def buy(self, amount: int, money: float, ticker: str) -> None:
         #it doesn't update so it is reset every time it is sold
         if ticker in self.stock_mapping:
             self.stock_mapping[ticker] = amount
@@ -84,7 +86,7 @@ class ResourceManager:
                     time_in_force='day',
                 )
 
-    def sell(self, amount, money, ticker):
+    def sell(self, amount: int, money: float, ticker: str) -> None:
         #0 bc I want to reset it. Since, it doesn't update
         self.stock_mapping[ticker] = 0
         self.used -= money
@@ -96,3 +98,4 @@ class ResourceManager:
                     type='market',
                     time_in_force='day',
                 )
+

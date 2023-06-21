@@ -12,7 +12,7 @@ See also: Other modules related to Models
 
 import json
 
-from typing import List
+from typing import List, Tuple
 from pandas_market_calendars import get_calendar
 from datetime import datetime, timedelta
 
@@ -33,12 +33,12 @@ company_symbols = (
 )
 
 
-def create_sequences(data, num_days):
+def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]:
     """
     Goes into model during fitting to show input and output
 
-    Sequences input
-    Labels output
+    Sequences are input
+    Labels are output
     """
     sequences = [] # What inputs look like
     labels = [] # What output looks like
@@ -88,7 +88,12 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     return dates, diffs
 
 
-def process_flips(ema12, ema26):
+def process_flips(ema12: np.array, ema26: np.array) -> List:
+    """
+    Returns list of when 12-day ema and 26-day ema flip
+    
+    mostly used for MACD
+    """
     temp = []
     shortmore = None
     for short, mid in zip(ema12, ema26):
@@ -178,7 +183,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, infor
     return filtered, start_date, end_date
 
 
-def scale(num: float, data: List):
+def scale(num: float, data: List) -> float:
     low, high = min(data), max(data)
     return (num - low) / (high - low)
     
