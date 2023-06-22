@@ -46,7 +46,7 @@ class BaseModel:
         self.data: Optional[Dict] = None
 
     def train(self, epochs=100):
-        """Trains Model off `information_keys
+        """Trains Model off `information_keys"""
         warn("If you saved before, use load func instead")
 
         start_date = self.start_date
