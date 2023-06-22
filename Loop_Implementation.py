@@ -17,7 +17,7 @@ def test_accuracy():
     with open(f'{TICKER}/info.json') as file:
         data = json.load(file)
     i = 200
-    alll = []
+    together_list = []
     last = 0
     last_predict = 0
     while i < 1000:
@@ -27,12 +27,14 @@ def test_accuracy():
 
         down_together = last_predict[0][0]<0 and last<0
         up_together = last_predict[0][0] >0 and last>0
-        alll.append(down_together or up_together)
+
+        together_list.append(down_together or up_together)
         i += 1
         time.sleep(TIME_INTERVAL)
-    alll = [int(a) for a in alll]
-    print(sum(alll), len(alll))
-    print("percennt correct(in terms of going up or down)", sum(alll)/len(alll))
+    together_list = [int(a) for a in together_list]
+
+    print(sum(together_list), len(together_list))
+    print("percennt correct(in terms of going up or down)", sum(together_list)/len(together_list))
 
 if __name__ == "__main__":
     # Create a new thread

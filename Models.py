@@ -46,6 +46,7 @@ class BaseModel:
         self.data: Optional[Dict] = None
 
     def train(self, epochs=100):
+        """Trains Model off `information_keys`"""
         warn("If you saved before, use load func instead")
 
         start_date = self.start_date
@@ -91,6 +92,10 @@ class BaseModel:
         self.model = model
 
     def save(self):
+        """
+        Saves the model using the tensorflow save
+        and saves the data into a json
+        """
         #_________________Save Model______________________#
         self.model.save(f"{self.stock_symbol}/model")
 
@@ -188,7 +193,7 @@ class BaseModel:
 
     def getInfoToday(self, period: int=14) -> List[float]:
         """
-        Similar to getHistoricalData but it only gets today
+        Similar to getHistoricalData but it only gets today and the last relevant days to the stock
         
         cached_data used so less data has to be gotten from yf.finance
         """
@@ -211,6 +216,11 @@ class BaseModel:
             end_date = datetime.strptime(end_date, "%Y-%m-%d")
             start_date = end_date - timedelta(days=260)
             cached_data = ticker.history(start=start_date, end=end_date, interval="1d")
+        if not len(cached_data):
+            raise ConnectionError("Stock data failed to load. Check your internet")
+        date_object = datetime.strptime(self.end_date, "%Y-%m-%d")
+        next_day = date_object + timedelta(days=1)
+        self.end_date = next_day.strftime("%Y-%m-%d")
 
         stock_data['Close'] = cached_data['Close']
         #_________________MACD Data______________________#
@@ -288,7 +298,13 @@ class BaseModel:
         return [stock_data[key].values.tolist() for key in information_keys]
 
     def predict(self, info: Optional[List[float]] = None):
-        """Wraps the models predict func"""
+        """
+        Wraps the models predict func
+
+        Args:
+            info Optional[List[float]]: a List of each day.
+                    If it is not specified then the code get it.
+        """
         if not info:
             info = self.getInfoToday()
         if self.model:
