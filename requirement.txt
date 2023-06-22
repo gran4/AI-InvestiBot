@@ -6,3 +6,4 @@ tensorflow
 scikit-learn
 bs4
 boto3
+typing_extensions

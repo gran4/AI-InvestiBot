@@ -1,7 +1,7 @@
 import urllib.request, ssl, json
 
 from bs4 import BeautifulSoup
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from datetime import datetime
 from trading_funcs import excluded_values, company_symbols, process_flips
 
@@ -9,7 +9,7 @@ import yfinance as yf
 import numpy as np
 import pandas as pd
 
-def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> List[List[str]]:
+def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> Tuple[List[str]]:
     """
     Gets earning history of a company as a list.
 
@@ -64,19 +64,22 @@ def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
     # Calculate the number of days between the date and the reference date
     return date_object - reference_date
 
-def earnings_since_time(dates, start_date):
+
+def earnings_since_time(dates: List, start_date: str) -> List:
     date_object = datetime.strptime(start_date, "%Y-%m-%d")
     # Convert the datetime object back to a string in the desired format
     converted_date = date_object.strftime("%b %d, %Y")
     reference_date = datetime.strptime(converted_date, "%b %d, %Y")
     return [date_time_since_ref(date, reference_date) for date in dates]
 
-def modify_earnings_dates(dates, start_date):
+
+def modify_earnings_dates(dates: List, start_date: str) -> List:
     temp = [datetime.strptime(date_string, "%b %d, %Y") for date_string in dates]
     return earnings_since_time(temp, start_date)
 
 
-def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> pd.Series:
+def get_liquidity_spikes(data, z_score_threshold: float=2.0,
+                         gradual: bool=False) -> pd.Series:
     # Convert the data to a pandas Series if it's not already
     if not isinstance(data, pd.Series):
         data = pd.Series(data)
@@ -104,7 +107,7 @@ def get_liquidity_spikes(data, z_score_threshold=2.0, gradual=False) -> pd.Serie
     return abnormal_spikes
 
 
-def calculate_momentum_oscillator(data, period=14):
+def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
     """
     Calculates the momentum oscillator for the given data series.
 
@@ -125,7 +128,7 @@ def convert_0to1(data: pd.Series):
     return (data - data.min()) / (data.max() - data.min())
 
 
-def get_historical_info():
+def get_historical_info() -> None:
     period = 14
     start_date = '2015-01-01'
     end_date = '2023-06-13'

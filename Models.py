@@ -1,7 +1,7 @@
 import json
-import time
 
 from typing import Optional, List, Dict
+from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
@@ -46,7 +46,7 @@ class BaseModel:
         self.data: Optional[Dict] = None
 
     def train(self, epochs=100):
-        """Trains Model off `information_keys`"""
+        """Trains Model off `information_keys
         warn("If you saved before, use load func instead")
 
         start_date = self.start_date
@@ -85,13 +85,13 @@ class BaseModel:
         model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train the model
-        model.fit(x_total, y_total, batch_size=32, epochs=epochs)
         model.fit(x_test, y_test, batch_size=32, epochs=epochs)
         model.fit(x_train, y_train, batch_size=32, epochs=epochs)
+        model.fit(x_total, y_total, batch_size=32, epochs=epochs)
 
         self.model = model
 
-    def save(self):
+    def save(self) -> None:
         """
         Saves the model using the tensorflow save
         and saves the data into a json
@@ -102,7 +102,7 @@ class BaseModel:
         with open(f"{self.stock_symbol}/data.json", "w") as json_file:
             json.dump(self.data, json_file)
 
-    def test(self):
+    def test(self) -> None:
         """EXPENSIVE"""
         warn("Expensive, for testing purposes")
 
@@ -181,7 +181,7 @@ class BaseModel:
         plt.legend([predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]], ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train'])
         plt.show()
 
-    def load(self):
+    def load(self) -> Optional[Self]:
         if self.model:
             return
         self.model = load_model(f"{self.stock_symbol}/model")
@@ -297,12 +297,15 @@ class BaseModel:
         #NOTE: 'Dates' and 'earnings dates' will never be in information_keys
         return [stock_data[key].values.tolist() for key in information_keys]
 
-    def predict(self, info: Optional[List[float]] = None):
+    def predict(self, info: Optional[np.array] = None) -> np.array:
         """
         Wraps the models predict func
+        
+        Since it gets last 60 days, it gives the predictions
+        for the last 60 days back.  Get the last one to get the applicable day
 
         Args:
-            info Optional[List[float]]: a List of each day.
+            info Optional[np.array]: a np.array of each day.
                     If it is not specified then the code get it.
         """
         if not info:
@@ -387,7 +390,7 @@ class BreakoutModel(BaseModel):
 
 
 if __name__ == "__main__":
-    modelclasses = [DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
+    modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
     models = []
     for modelclass in modelclasses:
         model = modelclass()

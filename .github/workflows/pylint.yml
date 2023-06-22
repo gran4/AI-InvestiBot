@@ -23,9 +23,10 @@ jobs:
         pip install pandas
         pip install yfinance
         pip install tensorflow
-        pip install sklearn
+        pip install scikit-learn
         pip install bs4
         pip install boto3
+        pip install typing_extensions
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py')
