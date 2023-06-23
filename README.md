@@ -25,8 +25,8 @@ Currently impletmented:
       + It is the parent class for all other models
       + It has no data on its own unless specified
     - Day Trade Model 
-      + Train RMSSE: 0.022040952764193555
-      + Test RMSSE: 0.01761718200725566
+      + Train RMSE: 0.022040952764193555
+      + Test RMSE: 0.01761718200725566
       
       + Train RMSSE: 1.3980556690290633
       + Test RMSSE: 1.2747887486868177
@@ -37,26 +37,26 @@ Currently impletmented:
       + Train RMSSE: 0.8495771704378083
       + Test RMSSE: 0.5597532219707358
     - Impulse MACD Model
-      + Train RMSSE: 0.021071730433130226
-      + Test RMSSE: 0.021409005906004214
+      + Train RMSE: 0.021071730433130226
+      + Test RMSE: 0.021409005906004214
 
       + Train RMSSE: 0.430748623349818
       + Test RMSSE: 0.3854770536908599
     - Reversal Model
-      + Train RMSSE: 0.02087958554162695
-      + Test RMSSE: 0.0192081585935407
+      + Train RMSE: 0.02087958554162695
+      + Test RMSE: 0.0192081585935407
 
       + Train RMSSE: 0.40873092330802707
       + Test RMSSE: 0.42745412377982367
     - Earnings Model
-      + Train RMSSE: 0.023500793525848787
-      + Test RMSSE: 0.01964422511707269
+      + Train RMSE: 0.023500793525848787
+      + Test RMSE: 0.01964422511707269
 
       + Train RMSSE: 0.6397388997572792
       + Test RMSSE: 0.6214688759571487
     - Breakout Model
-      + Train RMSSE: 0.024133705747590935
-      + Test RMSSE: 0.025299479271081993
+      + Train RMSE: 0.024133705747590935
+      + Test RMSE: 0.025299479271081993
 
       + Train RMSSE: 0.9638551303328443
       + Test RMSSE: 1.0401114858071763
