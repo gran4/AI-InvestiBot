@@ -140,6 +140,8 @@ def get_historical_info() -> None:
         # Retrieve historical data for the ticker using the `history()` method
         stock_data = ticker.history(start=start_date, end=end_date, interval="1d")
         #stock_data = yf.download(company_ticker, start=start_date, end=end_date, progress=False)
+        if not len(stock_data):
+            raise ConnectionError("Failed to get stock data. Check your internet")
 
         #_________________MACD Data______________________#
         stock_data['12-day EMA'] = stock_data['Close'].ewm(span=12).mean()

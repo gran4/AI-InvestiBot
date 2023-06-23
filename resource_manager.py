@@ -71,6 +71,7 @@ class ResourceManager:
         return amount_acceptable
 
     def buy(self, amount: int, money: float, ticker: str) -> None:
+        """Buys stock"""
         #it doesn't update so it is reset every time it is sold
         if ticker in self.stock_mapping:
             self.stock_mapping[ticker] = amount
@@ -87,6 +88,7 @@ class ResourceManager:
                 )
 
     def sell(self, amount: int, money: float, ticker: str) -> None:
+        """Sells stock"""
         #0 bc I want to reset it. Since, it doesn't update
         self.stock_mapping[ticker] = 0
         self.used -= money
