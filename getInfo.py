@@ -200,6 +200,7 @@ def get_historical_info() -> None:
         #_________________Process to json______________________#
         converted_data = {
             'Dates': dates,
+            'Volume': stock_data['Volume'].values.tolist(),
             'Close': stock_data['Close'].values.tolist(),
             '12-day EMA': stock_data['12-day EMA'].values.tolist(),
             '26-day EMA': stock_data['26-day EMA'].values.tolist(),

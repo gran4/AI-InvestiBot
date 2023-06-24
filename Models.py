@@ -6,7 +6,7 @@ from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
 
-from trading_funcs import get_relavant_values, create_sequences, process_flips
+from trading_funcs import get_relavant_values, create_sequences, process_flips, excluded_values
 from getInfo import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
 from warnings import warn
 from datetime import datetime, timedelta
@@ -48,7 +48,7 @@ class BaseModel:
 #________For testing with offline predicting____________#
         self.cached_json: Optional[Dict] = None
 
-    def train(self, epochs=100):
+    def train(self, epochs=20):
         """Trains Model off `information_keys`"""
         warn("If you saved before, use load func instead")
 
@@ -59,14 +59,11 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        data, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys)
+        self.data, data, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys)
         shape = data.shape[1]
 
-        temp = {}
-        for key, val in zip(information_keys, data):
-            temp[key] = list(val)
-        self.data = temp
-
+        for key in self.data.keys():
+            self.data[key] = list(self.data[key])
 
         #_________________Process Data for LSTM______________________#
         # Split the data into training and testing sets
@@ -119,7 +116,7 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        data, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys)
+        _, data, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys)
 
         #_________________Process Data for LSTM______________________#
         # Split the data into training and testing sets
@@ -198,7 +195,7 @@ class BaseModel:
         cached_data = self.cached
         #_________________ GET Data______________________#
         ticker = yf.Ticker(self.stock_symbol)
-        if cached_data:
+        if len(cached_data): #is more than 0
             end_date = datetime.strptime(end_date, "%Y-%m-%d")
             day_data = ticker.history(start=end_date, end=end_date, interval="1d")
             cached_data = cached_data.drop(cached_data.index[0])
@@ -211,27 +208,40 @@ class BaseModel:
             raise ConnectionError("Stock data failed to load. Check your internet")
 
     def update_cached_offline(self):
-        start_date = self.start_date
         end_date = self.end_date
         cached_data = self.cached
         #_________________ GET Data______________________#
         if not self.cached_json:
-            with open(f"{self.stock_symbol}/data.json") as file:
+            with open(f"{self.stock_symbol}/info.json") as file:
                 self.cached_json = json.load(file)
+
+                for key in excluded_values:
+                    del self.cached_json[key]
                 self.cached = pd.DataFrame.from_dict(self.cached_json)
-                cached_data = {}
-            if not start_date in cached_data['Dates']:
-                raise ValueError("End is before or after `Dates` range")
-        i_end = cached_data['Dates'].index(end_date)
-        if cached_data:
+                cached_data = self.cached[:260]
+            if not len(cached_data):
+                raise RuntimeError("Stock data failed to load. Reason Unknown")
+            return
+            #if not start_date in self.cached['Dates']:
+            #    raise ValueError("End is before or after `Dates` range")
+        i_end = 60#self.cached['Dates'].index(end_date)
+        if len(cached_data):
             end_date = datetime.strptime(end_date, "%Y-%m-%d")
             day_data = {key: self.cached_json[key][i_end] for key in self.information_keys}
             day_data["Dates"] = self.cached_json['Dates'][i_end]
 
             cached_data = cached_data.drop(cached_data.index[0])
             cached_data.append(day_data, ignore_index=True)
-        if not len(cached_data):
-            raise ConnectionError("Stock data failed to load. Check your internet")
+            end += 1
+
+    def get_stock_data_offline(self):
+        """Getting already processed data"""
+        with open(f"{self.stock_symbol}/data.json") as file:
+            data_json = json.load(file)
+            data = pd.DataFrame.from_dict(data_json)
+        self.cached_json = data_json
+        self.cached = data
+        return data
 
     def getInfoToday(self, period: int=14) -> List[float]:
         """
@@ -244,14 +254,14 @@ class BaseModel:
         information_keys = self.information_keys
         end_date = self.end_date
         num_days = self.num_days
-        cached_data = self.cached
-        if not cached_data:
+
+        if not len(self.cached):
             try:
                 self.update_cached_online()
             except ConnectionError:
                 warn("Stock data failed to download. Check your internet")
                 self.update_cached_offline()
-
+        cached_data = self.cached
         stock_data = {}
 
         date_object = datetime.strptime(self.end_date, "%Y-%m-%d")
@@ -296,7 +306,6 @@ class BaseModel:
 
 
         #_________________12 and 26 day Ema flips______________________#
-        temp = []
         ema12=cached_data['Close'].ewm(span=12, adjust=False).mean()
         ema26=cached_data['Close'].ewm(span=26, adjust=False).mean()
         
@@ -431,6 +440,7 @@ if __name__ == "__main__":
     for modelclass in modelclasses:
         model = modelclass()
         model.train()
+        model.save()
         models.append(model)
     for model in models:
         print(type(model))
