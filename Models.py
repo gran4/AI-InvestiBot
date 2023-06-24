@@ -45,8 +45,11 @@ class BaseModel:
         self.model: Optional[Sequential] = None
         self.data: Optional[Dict] = None
 
+#________For testing with offline predicting____________#
+        self.cached_json: Optional[Dict] = None
+
     def train(self, epochs=100):
-        """Trains Model off `information_keys"""
+        """Trains Model off `information_keys`"""
         warn("If you saved before, use load func instead")
 
         start_date = self.start_date
@@ -191,6 +194,45 @@ class BaseModel:
 
         return self.model
 
+    def update_cached_online(self):
+        cached_data = self.cached
+        #_________________ GET Data______________________#
+        ticker = yf.Ticker(self.stock_symbol)
+        if cached_data:
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            day_data = ticker.history(start=end_date, end=end_date, interval="1d")
+            cached_data = cached_data.drop(cached_data.index[0])
+            cached_data.append(day_data, ignore_index=True)
+        else:
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            start_date = end_date - timedelta(days=260)
+            cached_data = ticker.history(start=start_date, end=end_date, interval="1d")
+        if not len(cached_data):
+            raise ConnectionError("Stock data failed to load. Check your internet")
+
+    def update_cached_offline(self):
+        start_date = self.start_date
+        end_date = self.end_date
+        cached_data = self.cached
+        #_________________ GET Data______________________#
+        if not self.cached_json:
+            with open(f"{self.stock_symbol}/data.json") as file:
+                self.cached_json = json.load(file)
+                self.cached = pd.DataFrame.from_dict(self.cached_json)
+                cached_data = {}
+            if not start_date in cached_data['Dates']:
+                raise ValueError("End is before or after `Dates` range")
+        i_end = cached_data['Dates'].index(end_date)
+        if cached_data:
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            day_data = {key: self.cached_json[key][i_end] for key in self.information_keys}
+            day_data["Dates"] = self.cached_json['Dates'][i_end]
+
+            cached_data = cached_data.drop(cached_data.index[0])
+            cached_data.append(day_data, ignore_index=True)
+        if not len(cached_data):
+            raise ConnectionError("Stock data failed to load. Check your internet")
+
     def getInfoToday(self, period: int=14) -> List[float]:
         """
         Similar to getHistoricalData but it only gets today and the last relevant days to the stock
@@ -205,19 +247,6 @@ class BaseModel:
         cached_data = self.cached
         stock_data = {}
 
-        #_________________ GET Data______________________#
-        ticker = yf.Ticker(stock_symbol)
-        if cached_data:
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
-            day_data = ticker.history(start=end_date, end=end_date, interval="1d")
-            cached_data = cached_data.drop(cached_data.index[0])
-            cached_data.append(day_data, ignore_index=True)
-        else:
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
-            start_date = end_date - timedelta(days=260)
-            cached_data = ticker.history(start=start_date, end=end_date, interval="1d")
-        if not len(cached_data):
-            raise ConnectionError("Stock data failed to load. Check your internet")
         date_object = datetime.strptime(self.end_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
         self.end_date = next_day.strftime("%Y-%m-%d")

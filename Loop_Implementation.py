@@ -6,9 +6,10 @@ TIME_INTERVAL = .0#86400# number of secs in 24 hours
 TICKER = "AAPL"
 
 model = DayTradeModel()
-model.train()
+model.load()
 def run_loop():
     while True:
+        model.update_cached_offline()
         model.predict()
         time.sleep(TIME_INTERVAL)
 
