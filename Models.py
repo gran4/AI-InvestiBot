@@ -245,6 +245,13 @@ class BaseModel:
         end_date = self.end_date
         num_days = self.num_days
         cached_data = self.cached
+        if not cached_data:
+            try:
+                self.update_cached_online()
+            except ConnectionError:
+                warn("Stock data failed to download. Check your internet")
+                self.update_cached_offline()
+
         stock_data = {}
 
         date_object = datetime.strptime(self.end_date, "%Y-%m-%d")
