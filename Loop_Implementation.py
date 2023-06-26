@@ -34,6 +34,7 @@ def run_loop():
 
 def test_accuracy():
     """   
+    This function will attempt to test the accuracy of the model.
     """
     with open(f'{TICKER}/info.json') as file:
         data = json.load(file)
