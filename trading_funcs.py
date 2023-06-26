@@ -101,15 +101,15 @@ def process_flips(ema12: np.array, ema26: np.array) -> List:
         if shortmore is None:
             shortmore = short>mid
         elif shortmore and short<mid:
-            temp.append(True)
+            temp.append(1)
             shortmore = False
             continue
         elif not shortmore and short>mid:
-            temp.append(True)
+            temp.append(1)
             shortmore = True
             continue
-        temp.append(False)
-    return list(map(int, temp))
+        temp.append(0)
+    return temp
 
 
 def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,

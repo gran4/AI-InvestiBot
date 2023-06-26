@@ -2,16 +2,17 @@ import time
 from threading import Thread
 from Models import *
 
-TIME_INTERVAL = 2#86400# number of secs in 24 hours
+TIME_INTERVAL = 20#86400# number of secs in 24 hours
 TICKER = "AAPL"
 
 model = ImpulseMACDModel()
 model.load()
 #model.get_stock_data_offline()
+
 def run_loop():
     while True:
         model.update_cached_offline()
-        model.predict()
+        input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
         time.sleep(TIME_INTERVAL)
 
 
