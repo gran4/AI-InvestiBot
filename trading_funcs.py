@@ -49,7 +49,10 @@ def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]
         num_days (int): The number of days which is used to create the sequences
 
     Returns:
-        Tuple[np.array[sequences (list)], np.array[labels (list)]]: The sequences and labels which are used in the model
+        tuple: A tuple containing two NumPy arrays.
+        
+            - sequences (np.ndarray): An array representing the input of the model
+            - label (np.ndarray): An array representing the output of the model
         
     Sequences are the input and Labels are the output
     """
@@ -112,16 +115,15 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
 
 def process_flips(ema12: np.array, ema26: np.array) -> List:
     """
-    The purpose of this function is to process the flips between the 12-day ema and 26-day ema. It
-    is primarily used for the MACD indicator. This is done by iterating through the ema12 and ema26
-    and appending the True or False value to the temp list. 
+    The purpose of this function is to return a list of the 12 and 26 ema flips. It
+    is primarily used for the MACD Model.
 
     Args:
         ema12 (np.array): The 12-day ema which is used to get the flips
         ema26 (np.array): The 26-day ema which is used to get the flips
 
     Returns:
-        List[map(int, temp)]: The list of flips between the 12-day ema and 26-day ema
+        List: The list of flips between the 12-day ema and 26-day ema. List of ints, etc.
     """
     temp = []
     shortmore = None
@@ -140,7 +142,7 @@ def process_flips(ema12: np.array, ema26: np.array) -> List:
     return list(map(int, temp))
 
 
-def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> np.array:
+def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> Tuple[np.array, str, str]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
     as well as the corrected dates.
@@ -152,7 +154,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, infor
         information_keys (List[str]): The information keys which are used to get the relevant values
 
     Returns:
-        (np.array) [filtered (NDArray[Any]), start_date (str), end_date (str)]: The relevant filtered values, start date, and end date
+        Tuple[np.array, str, str] [filtered (NDArray[Any]), start_date (str), end_date (str)]: The relevant filtered values, start date, and end date
     """    
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
@@ -233,7 +235,7 @@ def scale(num: float, data: List) -> float:
         data (List): The data which is used to scale the number
     
     Returns:
-        (float) The scaled number
+        (float): The scaled number
     """
     low, high = min(data), max(data)
     return (num - low) / (high - low)

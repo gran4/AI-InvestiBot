@@ -1,3 +1,18 @@
+"""
+Name:
+    Loop_implementation.py
+
+Purpose:
+    This module provides a loop implementation that is applied to the data
+    in the models.
+
+Author:
+    Grant Yul Hur
+
+See also:
+    Other modules related to running the stock bot -> resource_manager, lambda_implementation
+"""
+
 import time
 from threading import Thread
 from Models import *
@@ -8,6 +23,9 @@ TICKER = "AAPL"
 model = DayTradeModel()
 model.load()
 def run_loop():
+    """
+    This function will attempt to run the loop for the stock bot indefinitely.
+    """
     while True:
         model.update_cached_offline()
         model.predict()
@@ -15,6 +33,8 @@ def run_loop():
 
 
 def test_accuracy():
+    """   
+    """
     with open(f'{TICKER}/info.json') as file:
         data = json.load(file)
     i = 200

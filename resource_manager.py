@@ -88,9 +88,6 @@ class ResourceManager:
             amount (int): The amount of stock you want to buy
             money (float): The amount of money you want to use
             ticker (str): The stock ticker
-        
-        Returns:
-            None
         """
         #it doesn't update so it is reset every time it is sold
         if ticker in self.stock_mapping:
@@ -115,9 +112,6 @@ class ResourceManager:
             amount (int): The amount of stock you want to sell
             money (float): The amount of money you want to use
             ticker (str): The stock ticker
-        
-        Returns:
-            None
         """
         #0 bc I want to reset it. Since, it doesn't update
         self.stock_mapping[ticker] = 0

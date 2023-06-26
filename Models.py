@@ -70,9 +70,6 @@ class BaseModel:
 
         Args:
             epochs (int): The number of epochs to train the model for
-
-        Returns:
-            None
         """
         warn("If you saved before, use load func instead")
 
@@ -122,12 +119,6 @@ class BaseModel:
         """
         This method will save the model using the tensorflow save method. It will also save the data
         into the `json` file format.
-
-        Args:
-            None
-        
-        Returns:
-            None
         """
         #_________________Save Model______________________#
         self.model.save(f"{self.stock_symbol}/model")
@@ -137,13 +128,9 @@ class BaseModel:
 
     def test(self) -> None:
         """
-        A method for testing purposes. It's EXPENSIVE and should only be used for testing purposes.
-
-        Args:
-            None
+        A method for testing purposes. 
         
-        Returns:
-            None
+        WARNING: It's EXPENSIVE and therefore must be used wisely.
         """
         warn("Expensive, for testing purposes")
 
@@ -225,12 +212,10 @@ class BaseModel:
     def load(self) -> Optional[Self]:
         """
         This method will load the model using the tensorflow load method.
-        
-        Args:
-            None
 
         Returns:
-            self.model (Optional[Self]]): The model that was loaded
+            None: If no model is loaded
+            model: The saved model if it was successfully saved
         """
         if self.model:
             return
@@ -243,13 +228,7 @@ class BaseModel:
 
     def update_cached_online(self):
         """
-        This method will update the cached data online.
-
-        Args:
-            None
-
-        Returns:
-            None
+        This method updates the cached data using the internet
         """
         cached_data = self.cached
         #_________________ GET Data______________________#
@@ -268,13 +247,7 @@ class BaseModel:
 
     def update_cached_offline(self):
         """
-        This method will update the cached data offline.
-
-        Args:
-            None
-        
-        Methods:
-            None
+        This method updates the cached data without using the internet
         """
         start_date = self.start_date
         end_date = self.end_date
@@ -309,7 +282,7 @@ class BaseModel:
             period (int): The number of days to get the information for
         
         Returns:
-            stock_data[key].values.tolist() (List[float]): The information for the stock today and the last relevant days to the stock
+            list: The information for the stock today and the last relevant days to the stock
         """
         #Limit attribute look ups + Improve readability
         stock_symbol = self.stock_symbol
@@ -407,8 +380,8 @@ class BaseModel:
 
     def predict(self, info: Optional[np.array] = None) -> np.array:
         """
-        This method will wrap the models predict method. It gives the predictions based on data
-        from the last 60 days back.  Get the last one to get the applicable day.
+        This method wraps the model's predict method. It gives the predictions based on data
+        from the last `num_days` back. Returns the last one to get the applicable day.
 
         Args: 
             info Optional[np.array]: a np.array of each day. Is optional as if not specified then
@@ -430,7 +403,7 @@ class DayTradeModel(BaseModel):
     """
     This is the DayTrade child class that inherits from the BaseModel parent class.
     
-    It contains the information keys `close`
+    It contains the information keys `Close`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -447,7 +420,7 @@ class MACDModel(BaseModel):
     """
     This is the MACD child class that inherits from the BaseModel parent class.
 
-    It contains the information keys `close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
+    It contains the information keys `Close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -464,7 +437,10 @@ class ImpulseMACDModel(BaseModel):
     """
     This is the ImpulseMACD child class that inherits from the BaseModel parent class.
 
-    It contains the information keys `close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
+    The difference between this class and the MACD model class is that the Impluse MACD model
+    is more responsive to short-term market changes and can identify trends earlier. 
+
+    It contains the information keys `Close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -481,7 +457,7 @@ class ReversalModel(BaseModel):
     """
     This is the Reversal child class that inherits from the BaseModel parent class.
 
-    It contains the information keys `close`, `gradual-liquidity spike`, `3-liquidity spike`, `momentum_oscillator`
+    It contains the information keys `Close`, `gradual-liquidity spike`, `3-liquidity spike`, `momentum_oscillator`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -498,7 +474,7 @@ class EarningsModel(BaseModel):
     """
     This is the Earnings child class that inherits from the BaseModel parent class.
 
-    It contains the information keys `close`, `earnings dates`, `earnings diff`, `Momentum`
+    It contains the information keys `Close`, `earnings dates`, `earnings diff`, `Momentum`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -515,7 +491,7 @@ class BreakoutModel(BaseModel):
     """
     This is the Breakout child class that inherits from the BaseModel parent class.
 
-    It contains the information keys `close`, `RSI`, `TRAMA`
+    It contains the information keys `Close`, `RSI`, `TRAMA`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",

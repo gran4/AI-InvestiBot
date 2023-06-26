@@ -46,11 +46,8 @@ def update_all(model, manager):
     predictions it could determine whether it should buy or sell the stocks.
 
     Args:
-        model (Any): The model that will be used to predict the stock prices
-        manager (Any): The manager that will be used to buy and sell stocks
-
-    Returns:
-        None
+        model (BaseModel): The model that will be used to predict the stock prices
+        manager (ResourceManager): The manager that will be used to buy and sell stocks
     """
     #predicts tommorrows prices and sorts it
     predictions = {}
