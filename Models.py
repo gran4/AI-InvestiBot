@@ -45,7 +45,7 @@ class BaseModel:
         self.model: Optional[Sequential] = None
         self.data: Optional[Dict] = None
 
-#________For testing with offline predicting____________#
+#________For offline predicting____________#
         self.cached_json: Optional[Dict] = None
 
     def train(self, epochs=20):
@@ -191,8 +191,11 @@ class BaseModel:
 
         return self.model
 
-    def update_cached_online(self):
+    def update_cached_online(self, period=14):
         cached_data = self.cached
+        num_days = self.num_days
+        information_keys = self.information_keys
+
         #_________________ GET Data______________________#
         ticker = yf.Ticker(self.stock_symbol)
         if len(cached_data): #is more than 0
@@ -206,42 +209,111 @@ class BaseModel:
             cached_data = ticker.history(start=start_date, end=end_date, interval="1d")
         if not len(cached_data):
             raise ConnectionError("Stock data failed to load. Check your internet")
+        stock_data = {}
+        stock_data['Close'] = cached_data['Close']
+
+        if '12-day EMA' in information_keys:
+            stock_data['12-day EMA'] = cached_data['Close'].ewm(span=12, adjust=False).mean().iloc[-num_days:]
+        if '26-day EMA' in information_keys:
+            stock_data['26-day EMA'] = cached_data['Close'].ewm(span=26, adjust=False).mean().iloc[-num_days:]
+        if 'MACD' in information_keys:
+            stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
+        if 'Signal Line' in information_keys:
+            span = 9
+            signal_line = stock_data['MACD'].rolling(window=span).mean().iloc[-num_days:]
+            stock_data['Signal Line'] = signal_line
+        if 'Histogram' in information_keys:
+            stock_data['Histogram'] = stock_data['MACD'] - stock_data['Signal Line']
+        if '200-day EMA' in information_keys:
+            stock_data['200-day EMA'] = cached_data['Close'].ewm(span=200, adjust=False).mean().iloc[-num_days:]
+        if 'Change' in information_keys:
+            stock_data['Change'] = cached_data['Close'].diff().iloc[-num_days:]
+        if 'Momentum' in information_keys:
+            stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum().iloc[-num_days:]
+        if 'RSI' in information_keys:
+            stock_data["Gain"] = stock_data["Change"].apply(lambda x: x if x > 0 else 0)
+            stock_data['Loss'] = stock_data['Change'].apply(lambda x: abs(x) if x < 0 else 0)
+            stock_data["Avg Gain"] = stock_data["Gain"].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
+            stock_data["Avg Loss"] = stock_data["Loss"].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
+            stock_data["RS"] = stock_data["Avg Gain"] / stock_data["Avg Loss"]
+            stock_data["RSI"] = 100 - (100 / (1 + stock_data["RS"]))
+        if 'TRAMA' in information_keys:
+            # TRAMA
+            volatility = cached_data['Close'].diff().abs().iloc[-num_days:]
+            trama = cached_data['Close'].rolling(window=period).mean().iloc[-num_days:]
+            stock_data['TRAMA'] = trama + (volatility * 0.1)
+        if 'gradual-liquidity spike' in information_keys:
+            # Reversal
+            stock_data['gradual-liquidity spike'] = get_liquidity_spikes(cached_data['Volume'], gradual=True).iloc[-num_days:]
+            stock_data['3-liquidity spike'] = get_liquidity_spikes(cached_data['Volume'], z_score_threshold=4).iloc[-num_days:]
+            stock_data['momentum_oscillator'] = calculate_momentum_oscillator(cached_data['Close']).iloc[-num_days:]
+        if 'flips' in information_keys:
+            #_________________12 and 26 day Ema flips______________________#
+            ema12=cached_data['Close'].ewm(span=12, adjust=False).mean()
+            ema26=cached_data['Close'].ewm(span=26, adjust=False).mean()
+            
+            stock_data['flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
+        if 'earnings diff' in information_keys:
+            #earnings stuffs
+            earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
+            all_dates = []
+
+            # Calculate dates before the extracted date
+            days_before = 3
+            for i in range(days_before):
+                day = end_date - timedelta(days=i+1)
+                all_dates.append(day.strftime("%Y-%m-%d"))
+
+            stock_data['earnings diff'] = []
+            for date in all_dates:
+                if not end_date in earnings_dates:
+                    stock_data['earnings diff'].append(0)
+                    continue
+                i = earnings_dates.index(date)
+                stock_data['earnings diff'].append(earnings_diff[i])
+
+        # Scale each column manually
+        for column in self.information_keys:
+            if column in excluded_values:
+                continue
+            low, high = min(self.data[column]), max(self.data[column])
+            column_values = stock_data[column]
+            scaled_values = (column_values - low) / (high - low)
+            stock_data[column] = scaled_values
 
     def update_cached_offline(self):
+        warn("For Testing")
+
         end_date = self.end_date
         cached_data = self.cached
         #_________________ GET Data______________________#
         if not self.cached_json:
             with open(f"{self.stock_symbol}/info.json") as file:
                 self.cached_json = json.load(file)
+                if not self.start_date in self.cached_json['Dates']:
+                    raise ValueError("start is before or after `Dates` range")
+                elif not self.end_date in self.cached_json['Dates']:
+                    raise ValueError("start is before or after `Dates` range")
 
                 for key in excluded_values:
                     del self.cached_json[key]
-                self.cached = pd.DataFrame.from_dict(self.cached_json)
-                cached_data = self.cached[:260]
+                for key in self.information_keys:
+                    date_object = datetime.strptime(self.end_date, "%Y-%m-%d")
+                    next_day = date_object - timedelta(days=self.num_days)
+                    start_date = next_day.strftime("%Y-%m-%d")
+
+                    i = cached_data["Dates"].index(start_date)
+                    cached_data[key] = cached_data[key][i:i+self.num_days]
             if not len(cached_data):
                 raise RuntimeError("Stock data failed to load. Reason Unknown")
-            return
-            #if not start_date in self.cached['Dates']:
-            #    raise ValueError("End is before or after `Dates` range")
-        i_end = 60#self.cached['Dates'].index(end_date)
         if len(cached_data):
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            i_end = self.cached_json["Dates"].index(end_date)
+
             day_data = {key: self.cached_json[key][i_end] for key in self.information_keys}
             day_data["Dates"] = self.cached_json['Dates'][i_end]
 
             cached_data = cached_data.drop(cached_data.index[0])
             cached_data.append(day_data, ignore_index=True)
-            end += 1
-
-    def get_stock_data_offline(self):
-        """Getting already processed data"""
-        with open(f"{self.stock_symbol}/data.json") as file:
-            data_json = json.load(file)
-            data = pd.DataFrame.from_dict(data_json)
-        self.cached_json = data_json
-        self.cached = data
-        return data
 
     def getInfoToday(self, period: int=14) -> List[float]:
         """
@@ -249,98 +321,19 @@ class BaseModel:
         
         cached_data used so less data has to be gotten from yf.finance
         """
-        #Limit attribute look ups + Improve readability
-        stock_symbol = self.stock_symbol
-        information_keys = self.information_keys
-        end_date = self.end_date
-        num_days = self.num_days
-
-        if not len(self.cached):
-            try:
-                self.update_cached_online()
-            except ConnectionError:
-                warn("Stock data failed to download. Check your internet")
-                self.update_cached_offline()
+        try:
+            self.update_cached_online(period=period)
+        except ConnectionError:
+            warn("Stock data failed to download. Check your internet")
+            self.update_cached_offline()
         cached_data = self.cached
-        stock_data = {}
 
         date_object = datetime.strptime(self.end_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
         self.end_date = next_day.strftime("%Y-%m-%d")
 
-        stock_data['Close'] = cached_data['Close']
-        #_________________MACD Data______________________#
-        # Calculate start and end dates
-        stock_data['12-day EMA'] = cached_data['Close'].ewm(span=12, adjust=False).mean().iloc[-60:]
-
-        # 26-day EMA
-        stock_data['26-day EMA'] = cached_data['Close'].ewm(span=26, adjust=False).mean().iloc[-60:]
-
-        # MACD
-        stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
-
-        # Signal Line
-        span = 9
-        signal_line = stock_data['MACD'].rolling(window=span).mean().iloc[-60:]
-        stock_data['Signal Line'] = signal_line
-        stock_data['Histogram'] = stock_data['MACD'] - stock_data['Signal Line']
-        stock_data['200-day EMA'] = cached_data['Close'].ewm(span=200, adjust=False).mean().iloc[-60:]
-        stock_data['Change'] = cached_data['Close'].diff().iloc[-60:]
-        stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum().iloc[-60:]
-        stock_data["Gain"] = stock_data["Change"].apply(lambda x: x if x > 0 else 0)
-        stock_data['Loss'] = stock_data['Change'].apply(lambda x: abs(x) if x < 0 else 0)
-        stock_data["Avg Gain"] = stock_data["Gain"].rolling(window=14, min_periods=1).mean().iloc[-60:]
-        stock_data["Avg Loss"] = stock_data["Loss"].rolling(window=14, min_periods=1).mean().iloc[-60:]
-        stock_data["RS"] = stock_data["Avg Gain"] / stock_data["Avg Loss"]
-        stock_data["RSI"] = 100 - (100 / (1 + stock_data["RS"]))
-
-        # TRAMA
-        volatility = cached_data['Close'].diff().abs().iloc[-60:]
-        trama = cached_data['Close'].rolling(window=period).mean().iloc[-60:]
-        stock_data['TRAMA'] = trama + (volatility * 0.1)
-
-        # Reversal
-        stock_data['gradual-liquidity spike'] = get_liquidity_spikes(cached_data['Volume'], gradual=True).iloc[-60:]
-        stock_data['3-liquidity spike'] = get_liquidity_spikes(cached_data['Volume'], z_score_threshold=4).iloc[-60:]
-        stock_data['momentum_oscillator'] = calculate_momentum_oscillator(cached_data['Close']).iloc[-60:]
-
-
-        #_________________12 and 26 day Ema flips______________________#
-        ema12=cached_data['Close'].ewm(span=12, adjust=False).mean()
-        ema26=cached_data['Close'].ewm(span=26, adjust=False).mean()
-        
-        stock_data['flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
-
-        #earnings stuffs
-        earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
-        all_dates = []
-
-        # Calculate dates before the extracted date
-        days_before = 3
-        for i in range(days_before):
-            day = end_date - timedelta(days=i+1)
-            all_dates.append(day.strftime("%Y-%m-%d"))
-
-        stock_data['earnings diff'] = []
-        for date in all_dates:
-            if not end_date in earnings_dates:
-                stock_data['earnings diff'].append(0)
-                continue
-            i = earnings_dates.index(date)
-            stock_data['earnings diff'].append(earnings_diff[i])
-
-        # Scale them 0-1
-        excluded_values = ['Date', 'earnings diff', 'earnings dates']  # Add any additional columns you want to exclude from scaling
-        # Scale each column manually
-        for column in information_keys:
-            if column in excluded_values:
-                continue
-            low, high = min(self.data[column]), max(self.data[column])
-            column_values = stock_data[column]
-            scaled_values = (column_values - low) / (high - low)
-            stock_data[column] = scaled_values
         #NOTE: 'Dates' and 'earnings dates' will never be in information_keys
-        return [stock_data[key].values.tolist() for key in information_keys]
+        return cached_data
 
     def predict(self, info: Optional[np.array] = None) -> np.array:
         """
@@ -354,7 +347,16 @@ class BaseModel:
                     If it is not specified then the code get it.
         """
         if not info:
-            info = self.getInfoToday()
+            same_model = True
+            with open(f"{self.stock_symbol}/info.json") as file:
+                self.cached_json = json.load(file)
+            for key in self.information_keys:
+                if not key in self.cached_json.keys:
+                    same_model=False
+            if same_model:
+                info = self.cached_json
+            else:
+                info = self.getInfoToday()
         if self.model:
             #x_train, y_train = create_sequences(info, 60)
             return self.model.predict(info)

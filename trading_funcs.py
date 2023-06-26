@@ -23,13 +23,14 @@ import pandas as pd
 #values that do not go from day to day
 #EX: earnings comeout every quarter
 excluded_values = (
+    "Dates",
     "earnings dates",
     "earnings diff"
 )
 
 
 company_symbols = (
-    "AAPL"
+    "AAPL",
 )
 
 
