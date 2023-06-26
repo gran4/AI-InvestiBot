@@ -197,12 +197,6 @@ def get_historical_info() -> None:
     This function will get the historical info for the given company symbols.
     
     It uses many functions from other modules to process historical data and run models on them.
-
-    Args:
-        None
-    
-    Returns:
-        None
     """
     period = 14
     start_date = '2015-01-01'
