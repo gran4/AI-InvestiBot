@@ -1,3 +1,19 @@
+"""
+Name:
+    getInfo.py
+
+Purpose:
+    This module provides utility functions that retrieve information for the
+    stock bot. This includes getting the earnings history, liquidity spikes,
+    and the stock price.
+
+Author:
+    Grant Yul Hur
+
+See also:
+    Other modules that use the getInfo module -> Models.py, trading_funcs.py
+"""
+
 import urllib.request, ssl, json
 
 from bs4 import BeautifulSoup
@@ -11,7 +27,7 @@ import pandas as pd
 
 def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> Tuple[List[str]]:
     """
-    Gets earning history of a company as a list.
+    Gets earning history of a company as a List.
 
     Args:
         company_ticker str: company to get info of
@@ -24,10 +40,10 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         NOTE: ON macOS go to Macintosh HD > AAPLications > Python3.6(or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
 
     Warning:
-        YOU are probibly looking to use get_corrected_earnings_history not this
+        YOU are probably looking to use get_corrected_earnings_history not this
 
     Returns:
-        Tuple: of 2 Lists made of: Date and EPS_difference, respectivly
+        Tuple: of 2 Lists made of: Date and EPS_difference, respectively
     """
     url = f"https://finance.yahoo.com/quote/{company_ticker}/history?p={company_ticker}"
 
@@ -60,12 +76,30 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
 def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
     """
     Returns the number of days between the given date and the reference date.
+
+    Args:
+        date_object (datetime): Date to calculate the difference from.
+        reference_date (datetime): Reference date to calculate the difference to.
+    
+    Returns:
+        date_object - reference_date (int): Number of days between the two dates.
     """
     # Calculate the number of days between the date and the reference date
     return date_object - reference_date
 
 
 def earnings_since_time(dates: List, start_date: str) -> List:
+    """
+    This function will return a List of earnings since the List of dates
+    and the reference date.
+
+    Args:
+        dates (List): List of dates to calculate the difference from.
+        start_date (str): Reference date to calculate the difference to.
+    
+    Returns:
+        List: List of earnings since the reference date using date_time_since_ref(date, reference_date)
+    """
     date_object = datetime.strptime(start_date, "%Y-%m-%d")
     # Convert the datetime object back to a string in the desired format
     converted_date = date_object.strftime("%b %d, %Y")
@@ -74,12 +108,33 @@ def earnings_since_time(dates: List, start_date: str) -> List:
 
 
 def modify_earnings_dates(dates: List, start_date: str) -> List:
+    """
+    This function will modify the earning datesusing the earnings_since_time function.
+
+    Args:
+        dates (List): List of dates to calculate the difference from.
+        start_date (str): Reference date to calculate the difference to.
+    
+    Returns:
+        List: List of earnings since the reference date using earnings_since_time(dates, start_date)
+    """
     temp = [datetime.strptime(date_string, "%b %d, %Y") for date_string in dates]
     return earnings_since_time(temp, start_date)
 
 
 def get_liquidity_spikes(data, z_score_threshold: float=2.0,
                          gradual: bool=False) -> pd.Series:
+    """
+    This function will get the spikes in liquidity for given stock data.
+
+    Args:
+        data (pd.Series): Stock data to calculate the spikes from.
+        z_score_threshold (float): Threshold to determine if a spike is abnormal.
+        gradual (bool): Whether to gradually increase the z-score or not.
+    
+    Returns:
+        abnormal_spikes (pd.Series): Series of abnormal spikes in liquidity returned as a scale between 0 and 1.
+    """
     # Convert the data to a pandas Series if it's not already
     if not isinstance(data, pd.Series):
         data = pd.Series(data)
@@ -116,7 +171,7 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
         n (int): Number of periods for the oscillator calculation.
 
     Returns:
-        pd.Series: Momentum oscillator values.
+        percent_momentum (pd.Series): Momentum oscillator values.
     """
     momentum = data.diff(period)  # Calculate the difference between current and n periods ago
     percent_momentum = (momentum / data.shift(period)) * 100  # Calculate momentum as a percentage
@@ -125,10 +180,24 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
 
 
 def convert_0to1(data: pd.Series):
+    """
+    Converts the given data to a range between 0 and 1.
+    
+    Args:
+        data (pd.Series): Input data series.
+    
+    Returns:
+        (data - data.min()) / (data.max() - data.min())
+    """
     return (data - data.min()) / (data.max() - data.min())
 
 
 def get_historical_info() -> None:
+    """
+    This function will get the historical info for the given company symbols.
+    
+    It uses many functions from other modules to process historical data and run models on them.
+    """
     period = 14
     start_date = '2022-01-01'
     end_date = '2023-02-13'
