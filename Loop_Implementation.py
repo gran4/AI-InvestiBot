@@ -1,3 +1,18 @@
+"""
+Name:
+    Loop_implementation.py
+
+Purpose:
+    This module provides a loop implementation that is applied to the data
+    in the models.
+
+Author:
+    Grant Yul Hur
+
+See also:
+    Other modules related to running the stock bot -> resource_manager, lambda_implementation
+"""
+
 import time
 from threading import Thread
 from Models import *
@@ -10,6 +25,7 @@ model.load()
 #model.get_stock_data_offline()
 
 def run_loop():
+    """This function will attempt to run the loop for the stock bot indefinitely."""
     while True:
         model.update_cached_offline()
         input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
@@ -26,6 +42,7 @@ def run_loop():
 
 
 def test_accuracy():
+    """This function will attempt to test the accuracy of the model."""
     with open(f'{TICKER}/info.json') as file:
         data = json.load(file)
     i = 200
