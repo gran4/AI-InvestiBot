@@ -17,7 +17,7 @@ See also:
 
 import json
 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from pandas_market_calendars import get_calendar
 from datetime import datetime, timedelta
 
@@ -28,13 +28,14 @@ import pandas as pd
 #values that do not go from day to day
 #EX: earnings comeout every quarter
 excluded_values = (
+    "Dates",
     "earnings dates",
     "earnings diff"
 )
 
 
 company_symbols = (
-    "AAPL"
+    "AAPL",
 )
 
 
@@ -131,18 +132,17 @@ def process_flips(ema12: np.array, ema26: np.array) -> List:
         if shortmore is None:
             shortmore = short>mid
         elif shortmore and short<mid:
-            temp.append(True)
+            temp.append(1)
             shortmore = False
             continue
         elif not shortmore and short>mid:
-            temp.append(True)
+            temp.append(1)
             shortmore = True
             continue
-        temp.append(False)
-    return list(map(int, temp))
+        temp.append(0)
+    return temp
 
-
-def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> Tuple[np.array, str, str]:
+def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> Tuple[Dict, np.array, str, str]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
     as well as the corrected dates.
@@ -155,7 +155,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, infor
 
     Returns:
         Tuple[np.array, str, str] [filtered (NDArray[Any]), start_date (str), end_date (str)]: The relevant filtered values, start date, and end date
-    """    
+    """
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
     schedule = nyse.schedule(start_date=start_date, end_date=end_date)
@@ -185,7 +185,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, infor
                 continue
             other_vals[key] = other_vals[key][i:]
     else:
-        raise ValueError(f"Run getInfo.py with start date before {start_date}\n and end date after {start_date}")
+        raise ValueError(f"Run getInfo.py with start date before {start_date}\n and end date after {end_date}")
     if end_date in other_vals['Dates']:
         i = other_vals['Dates'].index(end_date)
         other_vals['Dates'] = other_vals['Dates'][:i]
@@ -223,7 +223,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, infor
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
 
     filtered = np.transpose(filtered)
-    return filtered, start_date, end_date
+    return other_vals, filtered, start_date, end_date
 
 
 def scale(num: float, data: List) -> float:
@@ -239,4 +239,4 @@ def scale(num: float, data: List) -> float:
     """
     low, high = min(data), max(data)
     return (num - low) / (high - low)
-    
+

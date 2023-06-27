@@ -17,18 +17,29 @@ import time
 from threading import Thread
 from Models import *
 
-TIME_INTERVAL = .0#86400# number of secs in 24 hours
+TIME_INTERVAL = 5#86400# number of secs in 24 hours
 TICKER = "AAPL"
 
-model = DayTradeModel()
+model = ImpulseMACDModel()
 model.load()
+#model.get_stock_data_offline()
+
 def run_loop():
     """
     This function will attempt to run the loop for the stock bot indefinitely.
     """
     while True:
         model.update_cached_offline()
-        model.predict()
+        input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
+        print(model.predict(input_data_reshaped))
+
+        date_object = datetime.strptime(model.start_date, "%Y-%m-%d")
+        next_day = date_object + timedelta(days=1)
+        model.start_date = next_day.strftime("%Y-%m-%d")
+
+        date_object = datetime.strptime(model.end_date, "%Y-%m-%d")
+        next_day = date_object + timedelta(days=1)
+        model.end_date = next_day.strftime("%Y-%m-%d")
         time.sleep(TIME_INTERVAL)
 
 

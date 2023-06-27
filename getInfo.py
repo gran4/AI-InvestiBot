@@ -199,15 +199,16 @@ def get_historical_info() -> None:
     It uses many functions from other modules to process historical data and run models on them.
     """
     period = 14
-    start_date = '2015-01-01'
-    end_date = '2023-06-13'
-    stock_data = yf.download("AAPL", start=start_date, end=end_date)
+    start_date = '2022-01-01'
+    end_date = '2023-02-13'
     for company_ticker in company_symbols:
         ticker = yf.Ticker(company_ticker)
 
         #_________________ GET Data______________________#
         # Retrieve historical data for the ticker using the `history()` method
         stock_data = ticker.history(start=start_date, end=end_date, interval="1d")
+
+        #stock_data = yf.download("AAPL", start=start_date, end=end_date)
         #stock_data = yf.download(company_ticker, start=start_date, end=end_date, progress=False)
         if not len(stock_data):
             raise ConnectionError("Failed to get stock data. Check your internet")
@@ -246,8 +247,6 @@ def get_historical_info() -> None:
         stock_data['3-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
         stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
 
-
-
         #_________________Scale them 0-1______________________#
         for info in stock_data.keys():
             if info in excluded_values:
@@ -269,6 +268,7 @@ def get_historical_info() -> None:
         #_________________Process to json______________________#
         converted_data = {
             'Dates': dates,
+            'Volume': stock_data['Volume'].values.tolist(),
             'Close': stock_data['Close'].values.tolist(),
             '12-day EMA': stock_data['12-day EMA'].values.tolist(),
             '26-day EMA': stock_data['26-day EMA'].values.tolist(),
@@ -289,6 +289,12 @@ def get_historical_info() -> None:
         }
         with open(f"{company_ticker}/info.json", "w") as json_file:
             json.dump(converted_data, json_file)
+        
+        temp = {}
+        for key, val in converted_data.items():#????????
+            temp[key] = {"min": val.min, "max": val.max}
+        with open(f"{company_ticker}/min_max_data.json", "w") as json_file:
+            json.dump(temp, json_file)
 
 if __name__ == '__main__':
     get_historical_info()
