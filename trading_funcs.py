@@ -1,13 +1,18 @@
-"""Module-level docstring.
+"""
+Name:
+    trading_funcs.py
 
-This module provides functions to use in Models
-during getting data, training, and predicting
+Description:
+    This module provides functions to use in Models
+    during getting data, training, and predicting.
 
-Get earnings, sequences, scaling, and relevant Values
+    Get earnings, sequences, scaling, and relevant Values.
 
-Author: Grant Yul Hur
+Author:
+    Grant Yul Hur
 
-See also: Other modules related to Models
+See also:
+    Similarly related modules -> E.g Models.py, 
 """
 
 import json
@@ -36,10 +41,21 @@ company_symbols = (
 
 def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]:
     """
-    Goes into model during fitting to show input and output
+    The purpose of this function is to create sequences and labels which are implemented
+    into the model during fitting. This is done by iterating through the data and appending
+    the data to the sequences and labels list.
 
-    Sequences are input
-    Labels are output
+    Args:
+        data (np.array): The data which is used to create the sequences and labels
+        num_days (int): The number of days which is used to create the sequences
+
+    Returns:
+        tuple: A tuple containing two NumPy arrays.
+            
+                    - sequences (np.ndarray): An array representing the input of the model
+                    - label (np.ndarray): An array representing the output of the model
+        
+    Sequences are the input and Labels are the output
     """
     sequences = [] # What inputs look like
     labels = [] # What output looks like
@@ -51,10 +67,18 @@ def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]
 
 def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     """
-    Returns earnings bettween date range and filled to fit other vals.
+    The purpose of this function is to process the earnings between the start and end date range
+    and fill in the 0s for dates without an earnings report. 
 
-    Gets earnings between start and end data
-    then fills in 0s for dates without an earnings report
+    Args:
+        dates (List): The dates which are used to get the earnings
+        diffs (List): The earnings which are used to get the earnings
+        start_date (str): The minimum start date which is used to get the earnings
+        end_date (str): The maximum end date which is used to get the earnings
+    
+    Returns:
+        dates (List): The dates which are used to get the earnings
+        diffs (List): The earnings which are used to get the earnings
     """
     #_________________deletes earnings before start and after end______________________#
     start = 0
@@ -91,9 +115,15 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
 
 def process_flips(ema12: np.array, ema26: np.array) -> List:
     """
-    Returns list of when 12-day ema and 26-day ema flip
-    
-    Mostly used for MACD
+    The purpose of this function is to return a list of the 12 and 26 ema flips. It
+    is primarily used for the MACD Model.
+
+    Args:
+        ema12 (np.array): The 12-day ema which is used to get the flips
+        ema26 (np.array): The 26-day ema which is used to get the flips
+
+    Returns:
+        List: The list of flips between the 12-day ema and 26-day ema. List of ints, etc.
     """
     temp = []
     shortmore = None
@@ -114,7 +144,19 @@ def process_flips(ema12: np.array, ema26: np.array) -> List:
 
 def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
                         information_keys: List[str]) -> Tuple[Dict, np.array, str, str]:
-    """Returns information asked for and corrected dates"""    
+    """
+    The purpose of this function is to get the relevant values between the start and end date range
+    as well as the corrected dates.
+
+    Args:
+        start_date (str): The minimum start date which is used to get the relevant values
+        end_date (str): The maximum end date which is used to get the relevant values
+        stock_symbol (str): The stock symbol which is used to get the relevant values
+        information_keys (List[str]): The information keys which are used to get the relevant values
+
+    Returns:
+        Tuple[filtered (np.array), start_date (str), end_date (str)]: The relevant filtered values, start date, and end date
+    """    
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
     schedule = nyse.schedule(start_date=start_date, end_date=end_date)
@@ -187,9 +229,14 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
 
 def scale(num: float, data: List) -> float:
     """
-    Scales List between 0 and 1
+    Scale the number between the minimum and maximum values of the data
 
-    Easier for model to use
+    Args:
+        num (float): The number which is to be scaled
+        data (List): The data which is used to scale the number
+    
+    Returns:
+        (float): The scaled number
     """
     low, high = min(data), max(data)
     return (num - low) / (high - low)
