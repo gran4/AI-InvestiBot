@@ -12,7 +12,7 @@ See also: Other modules related to Models
 
 import json
 
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from pandas_market_calendars import get_calendar
 from datetime import datetime, timedelta
 
@@ -23,13 +23,14 @@ import pandas as pd
 #values that do not go from day to day
 #EX: earnings comeout every quarter
 excluded_values = (
+    "Dates",
     "earnings dates",
     "earnings diff"
 )
 
 
 company_symbols = (
-    "AAPL"
+    "AAPL",
 )
 
 
@@ -92,7 +93,7 @@ def process_flips(ema12: np.array, ema26: np.array) -> List:
     """
     Returns list of when 12-day ema and 26-day ema flip
     
-    mostly used for MACD
+    Mostly used for MACD
     """
     temp = []
     shortmore = None
@@ -100,18 +101,19 @@ def process_flips(ema12: np.array, ema26: np.array) -> List:
         if shortmore is None:
             shortmore = short>mid
         elif shortmore and short<mid:
-            temp.append(True)
+            temp.append(1)
             shortmore = False
             continue
         elif not shortmore and short>mid:
-            temp.append(True)
+            temp.append(1)
             shortmore = True
             continue
-        temp.append(False)
-    return list(map(int, temp))
+        temp.append(0)
+    return temp
 
 
-def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, information_keys: List[str]) -> np.array:
+def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
+                        information_keys: List[str]) -> Tuple[Dict, np.array, str, str]:
     """Returns information asked for and corrected dates"""    
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
@@ -142,7 +144,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, infor
                 continue
             other_vals[key] = other_vals[key][i:]
     else:
-        raise ValueError(f"Run getInfo.py with start date before {start_date}\n and end date after {start_date}")
+        raise ValueError(f"Run getInfo.py with start date before {start_date}\n and end date after {end_date}")
     if end_date in other_vals['Dates']:
         i = other_vals['Dates'].index(end_date)
         other_vals['Dates'] = other_vals['Dates'][:i]
@@ -180,10 +182,15 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str, infor
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
 
     filtered = np.transpose(filtered)
-    return filtered, start_date, end_date
+    return other_vals, filtered, start_date, end_date
 
 
 def scale(num: float, data: List) -> float:
+    """
+    Scales List between 0 and 1
+
+    Easier for model to use
+    """
     low, high = min(data), max(data)
     return (num - low) / (high - low)
-    
+

@@ -18,8 +18,8 @@ stock_symbol = 'AAPL'  # Replace with your desired stock symbol
 #stock_data = yf.download(stock_symbol, start=start_date, end=end_date)
 
 data = pd.read_csv(f'{stock_symbol}.csv')
-X = data['Adj Close']
-y = data.drop(['Adj Close'], axis=1)
+X = data['Close']
+y = data.drop(['Close'], axis=1)
 
 # Train test spit
 x_train, x_test, y_train, y_test = train_test_split(X, y)
