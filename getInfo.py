@@ -220,6 +220,12 @@ def get_historical_info() -> None:
         }
         with open(f"{company_ticker}/info.json", "w") as json_file:
             json.dump(converted_data, json_file)
+        
+        temp = {}
+        for key, val in converted_data.items():#????????
+            temp[key] = {"min": val.min, "max": val.max}
+        with open(f"{company_ticker}/min_max_data.json", "w") as json_file:
+            json.dump(temp, json_file)
 
 if __name__ == '__main__':
     get_historical_info()
