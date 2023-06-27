@@ -439,8 +439,6 @@ class BaseModel:
         if not len(info):
             info = self.getInfoToday()
         if self.model:
-            #x_train, y_train = create_sequences(info, 60)
-            print(info)
             return self.model.predict(info)
         raise LookupError("Compile or load model first")
 

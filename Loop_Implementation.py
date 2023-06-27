@@ -13,6 +13,7 @@ def run_loop():
     while True:
         model.update_cached_offline()
         input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
+        print(model.predict(input_data_reshaped))
         time.sleep(TIME_INTERVAL)
 
 
