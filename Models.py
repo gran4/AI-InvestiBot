@@ -238,7 +238,7 @@ class BaseModel:
             num_days (int): The number of days to calculate the indicators for
         
         Returns:
-            stock_data (dict): A dictionary containing the indicators for the stock data
+            dict: A dictionary containing the indicators for the stock data
         """
         stock_data = {}
         information_keys = self.information_keys
@@ -325,7 +325,7 @@ class BaseModel:
             num_days (int): The number of days to calculate the indicators for
         
         Returns: 
-            stock_data (dict): A dictionary of the indicators for the stock data
+            dict: A dictionary of the indicators for the stock data
         """
         stock_data = {}
         information_keys = self.information_keys
