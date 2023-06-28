@@ -79,6 +79,7 @@ Currently impletmented:
     - momentum_oscillator
 
 P.S:
+  + Model trained for 20 epochs
   + RMSE stands for Root Mean Squared Error
     - It provides a single value that represents the average magnitude of the errors
     - Easily interpretable.

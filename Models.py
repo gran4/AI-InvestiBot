@@ -1,3 +1,19 @@
+"""
+Name:
+    Models.py
+
+Purpose:
+    This module provides the classes for all the models which can be trained and used to 
+    predict stock prices. The models themselves all inherit the methods from the BaseModel 
+    with variations in symbols and information keys etc.
+
+Author:
+    Grant Yul Hur
+
+See also:
+    Other modules related to running the stock bot -> lambda_implementation, loop_implementation
+"""
+
 import json
 
 from typing import Optional, List, Dict, Union
@@ -19,17 +35,18 @@ import yfinance as yf
 
 class BaseModel:
     """
-    Base class for all Models
-    
-    Handles the actual training,
-    saving, loading, predicting, etc
+    This is the base class for all the models. It handles the actual training, saving, loading, predicting, etc.
+    Setting the `information_keys` allows us to describe what the model uses. The information keys themselves
+    are retrieved from a json format that was created by getInfo.py.
 
-    Set `information_keys` to describe
-    what the model uses
-
-    Gets these `information_key` from a json
-    that was created by getInfo.py
+    Args:
+        start_date (str): The start date of the training data
+        end_date (str): The end date of the training data
+        stock_symbol (str): The stock symbol of the stock you want to train on
+        num_days (int): The number of days to use for the LSTM model
+        information_keys (List[str]): The information keys that describe what the model uses
     """
+
     def __init__(self, start_date: str = "2021-01-01",
                  end_date: str = "2022-01-05",
                  stock_symbol: str = "AAPL",
@@ -52,7 +69,12 @@ class BaseModel:
         self.cached_info: Optional[Union[pd.DataFrame, Dict]] = None
 
     def train(self, epochs=10):
-        """Trains Model off `information_keys`"""
+        """
+        Trains Model off `information_keys`
+
+        Args:
+            epochs (int): The number of epochs to train the model for
+        """
         warn("If you saved before, use load func instead")
 
         start_date = self.start_date
@@ -96,8 +118,8 @@ class BaseModel:
 
     def save(self) -> None:
         """
-        Saves the model using the tensorflow save
-        and saves the data into a json
+        This method will save the model using the tensorflow save method. It will also save the data
+        into the `json` file format.
         """
         #_________________Save Model______________________#
         self.model.save(f"{self.stock_symbol}/model")
@@ -106,7 +128,11 @@ class BaseModel:
             json.dump(self.data, json_file)
 
     def test(self) -> None:
-        """EXPENSIVE"""
+        """
+        A method for testing purposes. 
+        
+        WARNING: It's EXPENSIVE and therefore must be used wisely.
+        """
         warn("Expensive, for testing purposes")
 
         if not self.model:
@@ -185,6 +211,13 @@ class BaseModel:
         plt.show()
 
     def load(self) -> Optional[Self]:
+        """
+        This method will load the model using the tensorflow load method.
+
+        Returns:
+            None: If no model is loaded
+            model: The saved model if it was successfully saved
+        """
         if self.model:
             return
         self.model = load_model(f"{self.stock_symbol}/model")
@@ -195,6 +228,18 @@ class BaseModel:
         return self.model
 
     def indicators_past_num_days(self, cached_info, end_date, num_days):
+        """
+        This method will return the indicators for the past `num_days` days specified in the information keys. 
+        It will use the cached information to calculate the indicators until the `end_date`.
+
+        Args:
+            cached_info (pd.DataFrame): The cached information
+            end_date (datetime): The end date
+            num_days (int): The number of days to calculate the indicators for
+        
+        Returns:
+            dict: A dictionary containing the indicators for the stock data
+        """
         stock_data = {}
         information_keys = self.information_keys
         stock_symbol = self.stock_symbol
@@ -270,6 +315,18 @@ class BaseModel:
         return stock_data
 
     def indicators_today(self, day_info, end_date, num_days):
+        """
+        This method calculates the indicators for the stock data for the current day. 
+        It will use the current day_info to calculate the indicators until the `end_date`.
+
+        Args:
+            day_info (pd.DataFrame): The stock data for the current day
+            end_date (datetime): The date to stop calculating the indicators
+            num_days (int): The number of days to calculate the indicators for
+        
+        Returns: 
+            dict: A dictionary of the indicators for the stock data
+        """
         stock_data = {}
         information_keys = self.information_keys
         stock_symbol = self.stock_symbol
@@ -345,6 +402,7 @@ class BaseModel:
         return stock_data
 
     def update_cached_online(self):
+        """This method updates the cached data using the internet."""
         cached_info = self.cached_info
         cached = self.cached
         num_days = self.num_days
@@ -383,6 +441,7 @@ class BaseModel:
         self.cached = cached
 
     def update_cached_offline(self):
+        """This method updates the cached data without using the internet."""
         warn("For Testing")
 
         end_date = self.end_date
@@ -413,16 +472,16 @@ class BaseModel:
 
     def getInfoToday(self, period: int=14) -> List[float]:
         """
-        Similar to getHistoricalData but it only gets today and the last relevant days to the stock
+        This method will get the information for the stock today and the last relevant days to the stock.
         
-        cached and cached_info used so less data has to be gotten from yf.finance
-        
+        The cached_data is used so less data has to be retrieved from yf.finance as it is held to cached
+        or something else.
+
         Args:
-            cached np.array: array of past `num_days`
-            cached_info pd.DataFrame: basically dict of information/data gotten so far
+            period (int): The number of days to get the information for
         
         Returns:
-            `cached` and moves start and end date up 1 day
+            List: The information for the stock today and the last relevant days to the stock
         """
         try:
             self.update_cached_online(period=period)
@@ -444,14 +503,15 @@ class BaseModel:
 
     def predict(self, info: Optional[np.array] = None) -> np.array:
         """
-        Wraps the models predict func
-        
-        Since it gets last 60 days, it gives the predictions
-        for the last 60 days back.  Get the last one to get the applicable day
+        This method wraps the model's predict method. It gives the predictions based on data
+        from the last `num_days` back. Returns the last one to get the applicable day.
 
-        Args:
-            info Optional[np.array]: a np.array of each day.
-                    If it is not specified then the code get it.
+        Args: 
+            info (Optional[np.array]): the information to predict on. If None, it will get the info
+            from the last relevant days back.
+        
+        Returns:
+            np.array: the predictions for the last 60 days back
         """
         if not len(info):
             info = self.getInfoToday()
@@ -462,6 +522,11 @@ class BaseModel:
 
 
 class DayTradeModel(BaseModel):
+    """
+    This is the DayTrade child class that inherits from the BaseModel parent class.
+    
+    It contains the information keys `Close`
+    """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
@@ -474,6 +539,11 @@ class DayTradeModel(BaseModel):
 
 
 class MACDModel(BaseModel):
+    """
+    This is the MACD child class that inherits from the BaseModel parent class.
+
+    It contains the information keys `Close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
+    """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
@@ -486,6 +556,14 @@ class MACDModel(BaseModel):
 
 
 class ImpulseMACDModel(BaseModel):
+    """
+    This is the ImpulseMACD child class that inherits from the BaseModel parent class.
+
+    The difference between this class and the MACD model class is that the Impluse MACD model
+    is more responsive to short-term market changes and can identify trends earlier. 
+
+    It contains the information keys `Close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
+    """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
@@ -498,6 +576,11 @@ class ImpulseMACDModel(BaseModel):
 
 
 class ReversalModel(BaseModel):
+    """
+    This is the Reversal child class that inherits from the BaseModel parent class.
+
+    It contains the information keys `Close`, `gradual-liquidity spike`, `3-liquidity spike`, `momentum_oscillator`
+    """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
@@ -510,6 +593,11 @@ class ReversalModel(BaseModel):
 
 
 class EarningsModel(BaseModel):
+    """
+    This is the Earnings child class that inherits from the BaseModel parent class.
+
+    It contains the information keys `Close`, `earnings dates`, `earnings diff`, `Momentum`
+    """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
@@ -522,6 +610,11 @@ class EarningsModel(BaseModel):
 
 
 class BreakoutModel(BaseModel):
+    """
+    This is the Breakout child class that inherits from the BaseModel parent class.
+
+    It contains the information keys `Close`, `RSI`, `TRAMA`
+    """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
                  stock_symbol: str = "AAPL") -> None:
