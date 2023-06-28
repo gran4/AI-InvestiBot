@@ -1,26 +1,31 @@
-"""Module-level docstring.
+"""
+Name:
+    resource_manager.py
 
-This module provides utility functions for stock trading
+Purpose:
+    This module provides utility functions for stock trading. At the moment
+    it only contains a resource_manager class. This class is used to manage
+    your money and controlling how much you can use for a stock. 
 
-So far only a resource manager is added. More may be added later
+Author:
+    Grant Yul Hur
 
-Author: Grant Yul Hur
-
-See also: Other modules related to running the stock bot
+See also:
+    Other modules related to running the stock bot -> lambda_implementation, loop_implementation
 """
 
 from typing import Optional
 
 class ResourceManager:
     """
-    Manages you money
+    This is the base class for the resouce manager. It is used to manage the money
+    you have and how much you can use for a stock.
     
     Args:
-        Money int: money that you have
-        max_percent float: max percent of money you can use for a stock
-        max float: max amount of money you can use for a stock
-        stock_to_money_ratio float: 0-1, 1 is all stock, 0 is all cash
-
+        Money (int): Money that you have
+        max_percent (float): Max percent of money you can use for a stock
+        max (float): Max amount of money you can use for a stock
+        stock_to_money_ratio (float): 0-1, 1 is all stock, 0 is all cash
 
     Put restraints on your money.
     """
@@ -41,11 +46,16 @@ class ResourceManager:
 
     def check(self, stock: str, money: Optional[float]=None) -> float:
         """
-        Returns how much can be used
+        The purpose of this method is to determine how much money can be used
+        for a stock. It takes into account the max, max_percent, and ratio to
+        ensure that it does not exceed these metrics.
 
-        Returns how much can be used 
-        with this Stock without going over 
-        max, max_percent, or ratio
+        Args:
+            stock (str): The stock ticker
+            money (float): The amount of money you want to use
+        
+        Returns:
+            float: The amount of money you can use
         """
         if not money:
             money = self.total - self.used
@@ -71,7 +81,14 @@ class ResourceManager:
         return amount_acceptable
 
     def buy(self, amount: int, money: float, ticker: str) -> None:
-        """Buys stock"""
+        """
+        This method will allow you to purchase a stock.
+
+        Args:
+            amount (int): The amount of stock you want to buy
+            money (float): The amount of money you want to use
+            ticker (str): The stock ticker
+        """
         #it doesn't update so it is reset every time it is sold
         if ticker in self.stock_mapping:
             self.stock_mapping[ticker] = amount
@@ -88,7 +105,14 @@ class ResourceManager:
                 )
 
     def sell(self, amount: int, money: float, ticker: str) -> None:
-        """Sells stock"""
+        """
+        This method will allow you to sell a stock.
+
+        Args:
+            amount (int): The amount of stock you want to sell
+            money (float): The amount of money you want to use
+            ticker (str): The stock ticker
+        """
         #0 bc I want to reset it. Since, it doesn't update
         self.stock_mapping[ticker] = 0
         self.used -= money
