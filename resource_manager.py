@@ -55,7 +55,7 @@ class ResourceManager:
             money (float): The amount of money you want to use
         
         Returns:
-            amount_acceptable (float): The amount of money you can use
+            float: The amount of money you can use
         """
         if not money:
             money = self.total - self.used

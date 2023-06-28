@@ -82,7 +82,7 @@ def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
         reference_date (datetime): Reference date to calculate the difference to.
     
     Returns:
-        date_object - reference_date (int): Number of days between the two dates.
+        int: Number of days between the two dates.
     """
     # Calculate the number of days between the date and the reference date
     return date_object - reference_date
@@ -90,15 +90,15 @@ def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
 
 def earnings_since_time(dates: List, start_date: str) -> List:
     """
-    This function will return a List of earnings since the List of dates
+    This function will return a list of earnings since the list of dates
     and the reference date.
 
     Args:
-        dates (List): List of dates to calculate the difference from.
+        dates (list): list of dates to calculate the difference from.
         start_date (str): Reference date to calculate the difference to.
     
     Returns:
-        List: List of earnings since the reference date using date_time_since_ref(date, reference_date)
+        list: list of earnings since the reference date using date_time_since_ref(date, reference_date)
     """
     date_object = datetime.strptime(start_date, "%Y-%m-%d")
     # Convert the datetime object back to a string in the desired format
@@ -116,7 +116,7 @@ def modify_earnings_dates(dates: List, start_date: str) -> List:
         start_date (str): Reference date to calculate the difference to.
     
     Returns:
-        List: List of earnings since the reference date using earnings_since_time(dates, start_date)
+        list: list of earnings since the reference date using earnings_since_time(dates, start_date)
     """
     temp = [datetime.strptime(date_string, "%b %d, %Y") for date_string in dates]
     return earnings_since_time(temp, start_date)
@@ -133,7 +133,7 @@ def get_liquidity_spikes(data, z_score_threshold: float=2.0,
         gradual (bool): Whether to gradually increase the z-score or not.
     
     Returns:
-        abnormal_spikes (pd.Series): Series of abnormal spikes in liquidity returned as a scale between 0 and 1.
+        pd.Series: Series of abnormal spikes in liquidity returned as a scale between 0 and 1.
     """
     # Convert the data to a pandas Series if it's not already
     if not isinstance(data, pd.Series):
@@ -171,7 +171,7 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
         n (int): Number of periods for the oscillator calculation.
 
     Returns:
-        percent_momentum (pd.Series): Momentum oscillator values.
+        pd.Series: Momentum oscillator values.
     """
     momentum = data.diff(period)  # Calculate the difference between current and n periods ago
     percent_momentum = (momentum / data.shift(period)) * 100  # Calculate momentum as a percentage
@@ -187,7 +187,7 @@ def convert_0to1(data: pd.Series):
         data (pd.Series): Input data series.
     
     Returns:
-        (data - data.min()) / (data.max() - data.min())
+        pd.Series: Data series scaled between 0 and 1.
     """
     return (data - data.min()) / (data.max() - data.min())
 
