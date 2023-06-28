@@ -27,7 +27,7 @@ import pandas as pd
 
 def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> Tuple[List[str]]:
     """
-    Gets earning history of a company as a List.
+    Gets earning history of a company as a list.
 
     Args:
         company_ticker str: company to get info of
@@ -43,7 +43,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         YOU are probably looking to use get_corrected_earnings_history not this
 
     Returns:
-        Tuple: of 2 Lists made of: Date and EPS_difference, respectively
+        Tuple: of 2 lists made of: Date and EPS_difference, respectively
     """
     url = f"https://finance.yahoo.com/quote/{company_ticker}/history?p={company_ticker}"
 
@@ -112,7 +112,7 @@ def modify_earnings_dates(dates: List, start_date: str) -> List:
     This function will modify the earning datesusing the earnings_since_time function.
 
     Args:
-        dates (List): List of dates to calculate the difference from.
+        dates (list): list of dates to calculate the difference from.
         start_date (str): Reference date to calculate the difference to.
     
     Returns:
