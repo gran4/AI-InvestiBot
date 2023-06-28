@@ -9,7 +9,7 @@ import yfinance as yf
 import numpy as np
 import pandas as pd
 
-def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> Tuple[List[str]]:
+def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> Tuple[List[str], List[float]]:
     """
     Gets earning history of a company as a list.
 
