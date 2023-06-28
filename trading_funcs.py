@@ -12,7 +12,7 @@ Author:
     Grant Yul Hur
 
 See also:
-    Similarly related modules -> E.g Models.py, 
+    Similarly related modules involving use of the trading functions -> E.g Models.py, getInfo.py
 """
 
 import json
@@ -54,8 +54,6 @@ def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]
             
                     - sequences (np.ndarray): An array representing the input of the model
                     - label (np.ndarray): An array representing the output of the model
-        
-    Sequences are the input and Labels are the output
     """
     sequences = [] # What inputs look like
     labels = [] # What output looks like
@@ -71,14 +69,14 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     and fill in the 0s for dates without an earnings report. 
 
     Args:
-        dates (List): The dates which are used to get the earnings
-        diffs (List): The earnings which are used to get the earnings
-        start_date (str): The minimum start date which is used to get the earnings
-        end_date (str): The maximum end date which is used to get the earnings
+        dates (list): The dates which are used to get the earnings
+        diffs (list): The earnings which are used to get the earnings
+        start_date (str): The start date which is used to get the earnings
+        end_date (str): The end date which is used to get the earnings
     
     Returns:
-        dates (List): The dates which are used to get the earnings
-        diffs (List): The earnings which are used to get the earnings
+        dates (list): The dates which are used to get the earnings
+        diffs (list): The earnings which are used to get the earnings
     """
     #_________________deletes earnings before start and after end______________________#
     start = 0
@@ -123,7 +121,7 @@ def process_flips(ema12: np.array, ema26: np.array) -> List:
         ema26 (np.array): The 26-day ema which is used to get the flips
 
     Returns:
-        List: The list of flips between the 12-day ema and 26-day ema. List of ints, etc.
+        list: The list of flips between the 12-day ema and 26-day ema. 0 is considered as no flip and 1 is considered as a flip.
     """
     temp = []
     shortmore = None
@@ -152,10 +150,10 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
         start_date (str): The minimum start date which is used to get the relevant values
         end_date (str): The maximum end date which is used to get the relevant values
         stock_symbol (str): The stock symbol which is used to get the relevant values
-        information_keys (List[str]): The information keys which are used to get the relevant values
+        information_keys (list[str]): The information keys which are used to get the relevant values
 
     Returns:
-        Tuple[filtered (np.array), start_date (str), end_date (str)]: The relevant filtered values, start date, and end date
+        Tuple[other_vals (dict), filtered (np.array), start_date (str), end_date (str)]: The relevant filtered values, start date, and end date
     """    
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
@@ -229,11 +227,11 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
 
 def scale(num: float, data: List) -> float:
     """
-    Scale the number between the minimum and maximum values of the data
+    Scales the list between 0 and 1 using the `min` and `max` values in the data.
 
     Args:
         num (float): The number which is to be scaled
-        data (List): The data which is used to scale the number
+        data (list): The data which is used to scale the number
     
     Returns:
         (float): The scaled number
