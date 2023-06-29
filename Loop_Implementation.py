@@ -28,11 +28,10 @@ model.load()
 #model.get_stock_data_offline()
 
 def run_loop() -> None:
-    """This function will attempt to run the loop for the stock bot indefinitely."""
     while len(temp) < 1000:
         model.update_cached_offline()
         input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
-        print(model.predict(input_data_reshaped))
+        temp.append(model.predict(input_data_reshaped)[0][0])
 
         date_object = datetime.strptime(model.start_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)

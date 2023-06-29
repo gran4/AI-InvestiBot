@@ -731,6 +731,7 @@ class SuperTrendsModel(BaseModel):
 
 if __name__ == "__main__":
     modelclasses = [BreakoutModel, RSIModel, RSIModel2, SuperTrendsModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
+
     models = []
     for modelclass in modelclasses:
         model = modelclass()
