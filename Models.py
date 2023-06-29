@@ -68,7 +68,7 @@ class BaseModel:
         # while it is a Dict offline
         self.cached_info: Optional[Union[pd.DataFrame, Dict]] = None
 
-    def train(self, epochs=10):
+    def train(self, epochs: int=10) -> None:
         """
         Trains Model off `information_keys`
 
@@ -228,7 +228,8 @@ class BaseModel:
 
         return self.model
 
-    def indicators_past_num_days(self, cached_info, end_date, num_days):
+    def indicators_past_num_days(self, cached_info: pd.DataFrame,
+                                 end_date: datetime, num_days: int) -> Dict[str, Union[float, str]]:
         """
         This method will return the indicators for the past `num_days` days specified in the information keys. 
         It will use the cached information to calculate the indicators until the `end_date`.
@@ -315,7 +316,8 @@ class BaseModel:
             stock_data[column] = scaled_values
         return stock_data
 
-    def indicators_today(self, day_info, end_date, num_days):
+    def indicators_today(self, day_info: pd.DataFrame,
+                         end_date: datetime, num_days: int) -> Dict:
         """
         This method calculates the indicators for the stock data for the current day. 
         It will use the current day_info to calculate the indicators until the `end_date`.
@@ -402,7 +404,7 @@ class BaseModel:
             stock_data[column] = scaled_values
         return stock_data
 
-    def update_cached_online(self):
+    def update_cached_online(self) -> None:
         """This method updates the cached data using the internet."""
         cached_info = self.cached_info
         cached = self.cached
@@ -441,7 +443,7 @@ class BaseModel:
         self.cached_info = cached_info
         self.cached = cached
 
-    def update_cached_offline(self):
+    def update_cached_offline(self) -> None:
         """This method updates the cached data without using the internet."""
         warn("For Testing")
 
