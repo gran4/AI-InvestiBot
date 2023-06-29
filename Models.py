@@ -241,6 +241,7 @@ class BaseModel:
         
         Returns:
             dict: A dictionary containing the indicators for the stock data
+                Values will be floats except some expections tht need to be processed during run time
         """
         stock_data = {}
         information_keys = self.information_keys
@@ -317,7 +318,7 @@ class BaseModel:
         return stock_data
 
     def indicators_today(self, day_info: pd.DataFrame,
-                         end_date: datetime, num_days: int) -> Dict:
+                         end_date: datetime, num_days: int) -> Dict[str, Union[float, str]]:
         """
         This method calculates the indicators for the stock data for the current day. 
         It will use the current day_info to calculate the indicators until the `end_date`.
@@ -329,6 +330,7 @@ class BaseModel:
         
         Returns: 
             dict: A dictionary of the indicators for the stock data
+                Values will be floats except some expections tht need to be processed during run time
         """
         stock_data = {}
         information_keys = self.information_keys
