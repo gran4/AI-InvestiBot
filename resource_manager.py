@@ -16,6 +16,11 @@ See also:
 
 from typing import Optional
 
+__all__ = (
+    ResourceManager
+)
+
+
 class ResourceManager:
     """
     This is the base class for the resouce manager. It is used to manage the money

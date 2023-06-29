@@ -14,7 +14,16 @@ See also:
 """
 
 from trading_system import *
-from Models import *
+from Models import (
+    BaseModel,
+    DayTradeModel,
+    MACDModel,
+    ImpulseMACDModel,
+    EarningsModel,
+    ReversalModel,
+    BreakoutModel
+)
+from typing import Dict
 import boto3
 
 time_interval = 86400# number of secs in 24 hours

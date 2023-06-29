@@ -24,6 +24,16 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
+__all__ = (
+    'excluded_values',
+    'company_symbols',
+    'create_sequences',
+    'process_earnings',
+    'process_flips',
+    'get_relavant_values',
+    'get_scaler'
+)
+
 
 #values that do not go from day to day
 #EX: earnings comeout every quarter
@@ -225,7 +235,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     return other_vals, filtered, start_date, end_date
 
 
-def scale(num: float, data: List) -> float:
+def get_scaler(num: float, data: List) -> float:
     """
     Scales the list between 0 and 1 using the `min` and `max` values in the data.
     Used to scale data.
