@@ -493,7 +493,6 @@ class BaseModel:
         except ConnectionError:
             warn("Stock data failed to download. Check your internet")
             self.update_cached_offline()
-        cached_data = self.cached
 
         date_object = datetime.strptime(self.start_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
@@ -504,7 +503,9 @@ class BaseModel:
         self.end_date = next_day.strftime("%Y-%m-%d")
 
         #NOTE: 'Dates' and 'earnings dates' will never be in information_keys
-        return cached_data
+        
+        self.cached = np.reshape(self.cached, (1, 60, self.cached.shape[1]))
+        return self.cached
 
     def predict(self, info: Optional[np.array] = None) -> np.array:
         """
