@@ -131,7 +131,8 @@ class BaseModel:
         """
         A method for testing purposes. 
         
-        WARNING: It's EXPENSIVE and therefore must be used wisely.
+        Warning:
+            It is EXPENSIVE.
         """
         warn("Expensive, for testing purposes")
 
@@ -216,7 +217,7 @@ class BaseModel:
 
         Returns:
             None: If no model is loaded
-            model: The saved model if it was successfully saved
+            BaseModel: The saved model if it was successfully saved
         """
         if self.model:
             return
@@ -481,7 +482,7 @@ class BaseModel:
             period (int): The number of days to get the information for
         
         Returns:
-            List: The information for the stock today and the last relevant days to the stock
+            list: The information for the stock today and the last relevant days to the stock
         """
         try:
             self.update_cached_online(period=period)
@@ -503,15 +504,36 @@ class BaseModel:
 
     def predict(self, info: Optional[np.array] = None) -> np.array:
         """
-        This method wraps the model's predict method. It gives the predictions based on data
-        from the last `num_days` back. Returns the last one to get the applicable day.
+        This method wraps the model's predict method using `info`.
 
         Args: 
             info (Optional[np.array]): the information to predict on. If None, it will get the info
             from the last relevant days back.
         
         Returns:
-            np.array: the predictions for the last 60 days back
+            np.array: the predictions of the model
+                The length is determined by how many are put in.
+                So, you can predict for time frames or one day depending on what you want.
+                The length is the days `info` minus `num_days` plus 1
+
+        :Example:
+        >>> obj = BaseModel(42)
+        >>> obj.num_days
+        5
+        >>> temp = obj.predict(info = np.array(
+                [2, 2],
+                [3, 2],
+                [4, 1],
+                [3, 2],
+                [0, 2]
+                [7, 0],
+                [1, 2],
+                [0, 1],
+                [2, 2],
+                )
+            ))
+        >>> print(len(temp))
+        4
         """
         if not len(info):
             info = self.getInfoToday()
