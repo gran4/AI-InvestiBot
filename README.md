@@ -80,6 +80,10 @@ Currently impletmented:
     - gradual-liqidity spike
     - 3-liqidity spike
     - momentum_oscillator
+    - supertrend1
+    - supertrend2
+    - supertrend3
+    - kumo_cloud
 
 P.S:
   + Model trained for 20 epochs
