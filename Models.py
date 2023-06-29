@@ -504,8 +504,7 @@ class BaseModel:
 
     def predict(self, info: Optional[np.array] = None) -> np.array:
         """
-        This method wraps the model's predict method. It gives the predictions based on data
-        from the last `num_days` back. Returns the last one to get the applicable day.
+        This method wraps the model's predict method using `info`.
 
         Args: 
             info (Optional[np.array]): the information to predict on. If None, it will get the info

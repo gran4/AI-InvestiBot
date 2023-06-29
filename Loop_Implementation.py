@@ -29,7 +29,7 @@ def run_loop():
     while True:
         model.update_cached_offline()
         input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
-        print(type(model.predict(input_data_reshaped)))
+        print(model.predict(input_data_reshaped))
 
         date_object = datetime.strptime(model.start_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)

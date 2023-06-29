@@ -14,7 +14,7 @@ See also:
 
 from math import floor
 from Models import MACDModel
-from Tradingfuncs import company_symbols
+from trading_funcs import company_symbols
 
 
 class DayTrader():

@@ -51,9 +51,8 @@ def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]
 
     Returns:
         tuple: A tuple containing two NumPy arrays.
-            
-                    - sequences (np.ndarray): An array representing the input of the model
-                    - label (np.ndarray): An array representing the output of the model
+            - sequences (np.ndarray): An array representing the input of the model
+            - label (np.ndarray): An array representing the output of the model
     """
     sequences = [] # What inputs look like
     labels = [] # What output looks like
@@ -75,8 +74,9 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
         end_date (str): The end date which is used to get the earnings
     
     Returns:
-        dates (list): The dates which are used to get the earnings
-        diffs (list): The earnings which are used to get the earnings
+        tuple: A tuple containing two Lists.
+            - dates (list): The dates which are used to align the earnings
+            - diffs (list:) The earnings differences bettween the expected and actual earnings per share
     """
     #_________________deletes earnings before start and after end______________________#
     start = 0
@@ -153,7 +153,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
         information_keys (list[str]): The information keys which are used to get the relevant values
 
     Returns:
-        Tuple[other_vals (dict), filtered (np.array), start_date (str), end_date (str)]: The relevant filtered values, start date, and end date
+        Tuple[dict, np.array, str, str]: The relevant indicators in the form of a dict, and list, start date, and end date
     """    
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
@@ -169,7 +169,6 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     end_date = pd.to_datetime(end_date).date()
     if end_date not in schedule.index:
         end_date = schedule.index[-1].date().strftime('%Y-%m-%d')
-
 
     #_________________Load info______________________#
     with open(f'{stock_symbol}/info.json') as file:
@@ -228,13 +227,14 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
 def scale(num: float, data: List) -> float:
     """
     Scales the list between 0 and 1 using the `min` and `max` values in the data.
+    Used to scale data.
 
     Args:
         num (float): The number which is to be scaled
-        data (list): The data which is used to scale the number
-    
+        data (list): The data which is used to get the `min` and `max`
+
     Returns:
-        (float): The scaled number
+        float: The scaler number
     """
     low, high = min(data), max(data)
     return (num - low) / (high - low)
