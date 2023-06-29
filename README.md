@@ -74,6 +74,9 @@ Currently impletmented:
     - Momentum
     - RSI
     - TRAMA
+    - Bollinger Middle
+    - Bollinger Upper
+    - Bolliner Lower
     - gradual-liqidity spike
     - 3-liqidity spike
     - momentum_oscillator
