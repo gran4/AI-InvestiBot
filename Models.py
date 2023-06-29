@@ -32,6 +32,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
 
+__all__ = (
+    'BaseModel',
+    'DayTradeModel',
+    'MACDModel',
+    'ImpulseMACDModel',
+    'ReversalModel',
+    'EarningsModel',
+    'BreakoutModel'
+)
+
 
 class BaseModel:
     """
@@ -60,6 +70,7 @@ class BaseModel:
 
         self.model: Optional[Sequential] = None
         self.data: Optional[Dict] = None
+        self.scaler_data: Optional[Dict] = None
 
 #________For offline predicting____________#
         self.cached: Optional[np.array] = None
@@ -116,6 +127,11 @@ class BaseModel:
 
         self.model = model
 
+        #For predictions
+        self.scaler_data = {}
+        for key, val in self.data.items():
+            self.scaler_data[key] = {"min": min(val), "max": max(val)}
+
     def save(self) -> None:
         """
         This method will save the model using the tensorflow save method. It will also save the data
@@ -126,6 +142,9 @@ class BaseModel:
 
         with open(f"{self.stock_symbol}/data.json", "w") as json_file:
             json.dump(self.data, json_file)
+
+        with open(f"{self.stock_symbol}/min_max_data.json", "w") as json_file:
+            json.dump(self.scaler_data, json_file)
 
     def test(self) -> None:
         """
@@ -226,6 +245,9 @@ class BaseModel:
         with open(f"{self.stock_symbol}/data.json") as file:
             self.data = json.load(file)
 
+        with open(f"{self.stock_symbol}/data.json") as file:
+            self.scaler_data = json.load(file)
+
         return self.model
 
     def indicators_past_num_days(self, cached_info: pd.DataFrame,
@@ -300,18 +322,20 @@ class BaseModel:
                 all_dates.append(day.strftime("%Y-%m-%d"))
 
             stock_data['earnings diff'] = []
+            low, high = self.scaler_data['earnings diffs']['min'], self.scaler_data['earnings diffs']['max']
             for date in all_dates:
                 if not end_date in earnings_dates:
                     stock_data['earnings diff'].append(0)
                     continue
                 i = earnings_dates.index(date)
-                stock_data['earnings diff'].append(earnings_diff[i])
+                scaled = (earnings_diff[i]-low) / (high - low)
+                stock_data['earnings diff'].append(scaled)
 
         # Scale each column manually
         for column in self.information_keys:
             if column in excluded_values:
                 continue
-            low, high = min(self.data[column]), max(self.data[column])
+            low, high = self.scaler_data[column]['min'], self.scaler_data[column]['max']
             column_values = stock_data[column]
             scaled_values = (column_values - low) / (high - low)
             stock_data[column] = scaled_values
@@ -389,12 +413,14 @@ class BaseModel:
                 all_dates.append(day.strftime("%Y-%m-%d"))
 
             stock_data['earnings diff'] = []
+            low, high = self.scaler_data['earnings diffs']['min'], self.scaler_data['earnings diffs']['max']
             for date in all_dates:
                 if not end_date in earnings_dates:
                     stock_data['earnings diff'].append(0)
                     continue
                 i = earnings_dates.index(date)
-                stock_data['earnings diff'].append(earnings_diff[i])
+                scaled = (earnings_diff[i]-low) / (high - low)
+                stock_data['earnings diff'].append(scaled)
 
         # Scale each column manually
         for column in self.information_keys:
@@ -592,7 +618,7 @@ class ImpulseMACDModel(BaseModel):
     It contains the information keys `Close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
     """
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-05",
+                 end_date: str = "2020-07-06",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
@@ -654,7 +680,7 @@ class BreakoutModel(BaseModel):
 
 
 if __name__ == "__main__":
-    modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
+    modelclasses = [DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
     models = []
     for modelclass in modelclasses:
         model = modelclass()

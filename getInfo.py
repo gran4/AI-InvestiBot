@@ -25,6 +25,18 @@ import yfinance as yf
 import numpy as np
 import pandas as pd
 
+__all__ = (
+    'get_earnings_history',
+    'date_time_since_ref',
+    'earnings_since_time',
+    'modify_earnings_dates',
+    'get_liquidity_spikes',
+    'calculate_momentum_oscillator',
+    'convert_0to1',
+    'get_historical_info'
+)
+
+
 def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> Tuple[List[str], List[float]]:
     """
     Gets earning history of a company as a list.
@@ -194,7 +206,7 @@ def convert_0to1(data: pd.Series) -> pd.Series:
 
 def get_historical_info() -> None:
     """
-    This function will get the historical info for the given company symbols.
+    This function gets the historical info for the given company symbols.
     
     It uses many functions from other modules to process historical data and run models on them.
     """
