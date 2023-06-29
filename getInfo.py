@@ -88,7 +88,7 @@ def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
     return date_object - reference_date
 
 
-def earnings_since_time(dates: List, start_date: str) -> List:
+def earnings_since_time(dates: List, start_date: str) -> List[int]:
     """
     This function will return a list of earnings since the list of dates
     and the reference date.
@@ -107,9 +107,9 @@ def earnings_since_time(dates: List, start_date: str) -> List:
     return [date_time_since_ref(date, reference_date) for date in dates]
 
 
-def modify_earnings_dates(dates: List, start_date: str) -> List:
+def modify_earnings_dates(dates: List, start_date: str) -> List[int]:
     """
-    This function will modify the earning datesusing the earnings_since_time function.
+    This function will modify the earning dates using the earnings_since_time function.
 
     Args:
         dates (list): list of dates to calculate the difference from.
@@ -179,7 +179,7 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
     return percent_momentum.fillna(method='bfill')
 
 
-def convert_0to1(data: pd.Series):
+def convert_0to1(data: pd.Series) -> pd.Series:
     """
     Converts the given data to a range between 0 and 1.
     

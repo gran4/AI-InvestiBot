@@ -24,7 +24,7 @@ model = ImpulseMACDModel()
 model.load()
 #model.get_stock_data_offline()
 
-def run_loop():
+def run_loop() -> None:
     """This function will attempt to run the loop for the stock bot indefinitely."""
     while True:
         model.update_cached_offline()
@@ -41,7 +41,7 @@ def run_loop():
         time.sleep(TIME_INTERVAL)
 
 
-def test_accuracy():
+def test_accuracy() -> None:
     """This function will attempt to test the accuracy of the model."""
     with open(f'{TICKER}/info.json') as file:
         data = json.load(file)
@@ -50,7 +50,9 @@ def test_accuracy():
     last = 0
     last_predict = 0
     while i < 1000:
-        prediction = model.predict() - last_predict
+        model.update_cached_offline()
+        input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
+        prediction = model.predict(input_data_reshaped) - last_predict
         last = data['Close'][i+1]-last
         last_predict = prediction
 

@@ -20,7 +20,7 @@ import boto3
 time_interval = 86400# number of secs in 24 hours
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, context) -> Dict:
     """
     This function is the handler for the lambda function. It is called with the provided
     event and context.

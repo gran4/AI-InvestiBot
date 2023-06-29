@@ -62,7 +62,8 @@ def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]
     return np.array(sequences), np.array(labels)
 
 
-def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
+def process_earnings(dates: List, diffs: List, start_date: str,
+                     end_date: str) -> Tuple[List[str], List[float]]:
     """
     The purpose of this function is to process the earnings between the start and end date range
     and fill in the 0s for dates without an earnings report. 
@@ -76,7 +77,7 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     Returns:
         tuple: A tuple containing two Lists.
             - dates (list): The dates which are used to align the earnings
-            - diffs (list:) The earnings differences bettween the expected and actual earnings per share
+            - diffs (list) The earnings differences bettween the expected and actual earnings per share
     """
     #_________________deletes earnings before start and after end______________________#
     start = 0
@@ -111,7 +112,7 @@ def process_earnings(dates: List, diffs: List, start_date: str, end_date: str):
     return dates, diffs
 
 
-def process_flips(ema12: np.array, ema26: np.array) -> List:
+def process_flips(ema12: np.array, ema26: np.array) -> List[int]:
     """
     The purpose of this function is to return a list of the 12 and 26 ema flips. It
     is primarily used for the MACD Model.

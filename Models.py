@@ -68,7 +68,7 @@ class BaseModel:
         # while it is a Dict offline
         self.cached_info: Optional[Union[pd.DataFrame, Dict]] = None
 
-    def train(self, epochs=10):
+    def train(self, epochs: int=10) -> None:
         """
         Trains Model off `information_keys`
 
@@ -228,7 +228,8 @@ class BaseModel:
 
         return self.model
 
-    def indicators_past_num_days(self, cached_info, end_date, num_days):
+    def indicators_past_num_days(self, cached_info: pd.DataFrame,
+                                 end_date: datetime, num_days: int) -> Dict[str, Union[float, str]]:
         """
         This method will return the indicators for the past `num_days` days specified in the information keys. 
         It will use the cached information to calculate the indicators until the `end_date`.
@@ -240,6 +241,7 @@ class BaseModel:
         
         Returns:
             dict: A dictionary containing the indicators for the stock data
+                Values will be floats except some expections tht need to be processed during run time
         """
         stock_data = {}
         information_keys = self.information_keys
@@ -315,7 +317,8 @@ class BaseModel:
             stock_data[column] = scaled_values
         return stock_data
 
-    def indicators_today(self, day_info, end_date, num_days):
+    def indicators_today(self, day_info: pd.DataFrame,
+                         end_date: datetime, num_days: int) -> Dict[str, Union[float, str]]:
         """
         This method calculates the indicators for the stock data for the current day. 
         It will use the current day_info to calculate the indicators until the `end_date`.
@@ -327,6 +330,7 @@ class BaseModel:
         
         Returns: 
             dict: A dictionary of the indicators for the stock data
+                Values will be floats except some expections tht need to be processed during run time
         """
         stock_data = {}
         information_keys = self.information_keys
@@ -402,7 +406,7 @@ class BaseModel:
             stock_data[column] = scaled_values
         return stock_data
 
-    def update_cached_online(self):
+    def update_cached_online(self) -> None:
         """This method updates the cached data using the internet."""
         cached_info = self.cached_info
         cached = self.cached
@@ -441,7 +445,7 @@ class BaseModel:
         self.cached_info = cached_info
         self.cached = cached
 
-    def update_cached_offline(self):
+    def update_cached_offline(self) -> None:
         """This method updates the cached data without using the internet."""
         warn("For Testing")
 
@@ -489,7 +493,6 @@ class BaseModel:
         except ConnectionError:
             warn("Stock data failed to download. Check your internet")
             self.update_cached_offline()
-        cached_data = self.cached
 
         date_object = datetime.strptime(self.start_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
@@ -500,7 +503,9 @@ class BaseModel:
         self.end_date = next_day.strftime("%Y-%m-%d")
 
         #NOTE: 'Dates' and 'earnings dates' will never be in information_keys
-        return cached_data
+        
+        self.cached = np.reshape(self.cached, (1, 60, self.cached.shape[1]))
+        return self.cached
 
     def predict(self, info: Optional[np.array] = None) -> np.array:
         """
