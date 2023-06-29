@@ -33,7 +33,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         company_ticker str: company to get info of
         context Optional[ssl certificate]: ssl certificate to use
 
-    Warning::
+    Warning:
         IF YOU GET ERROR:
             urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1002)>
         Go to Python3.6 folder (or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
