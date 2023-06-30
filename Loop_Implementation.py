@@ -28,10 +28,6 @@ model.load()
 #model.get_stock_data_offline()
 
 def run_loop() -> None:
-    """This function will attempt to run the loop for the stock bot indefinitely."""
-    temp = []
-    print(model.end_date)
-    start = model.data['Dates'].index(model.end_date)
     while len(temp) < 1000:
         model.update_cached_offline()
         input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
@@ -44,20 +40,6 @@ def run_loop() -> None:
         date_object = datetime.strptime(model.end_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
         model.end_date = next_day.strftime("%Y-%m-%d")
-    with open(f'{TICKER}/info.json') as file:
-        data = json.load(file)
-    temp_data = data['Close'][start:start+1000]
-
-    together = []
-    for predicted, real in zip(temp, temp_data):
-        if predicted > 0 and real > 0:
-            together.append(1)
-        elif predicted < 0 and real < 0:
-            together.append(1)
-        else:
-            together.append(0)
-    print(sum(together)/len(together))
-
 
 
 if __name__ == "__main__":

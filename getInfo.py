@@ -19,7 +19,7 @@ import urllib.request, ssl, json
 from bs4 import BeautifulSoup
 from typing import Optional, List, Tuple
 from datetime import datetime
-from trading_funcs import excluded_values, company_symbols, process_flips
+from trading_funcs import excluded_values, company_symbols, process_flips, supertrends, kumo_cloud
 
 import yfinance as yf
 import numpy as np
@@ -32,7 +32,6 @@ __all__ = (
     'modify_earnings_dates',
     'get_liquidity_spikes',
     'calculate_momentum_oscillator',
-    'convert_0to1',
     'get_historical_info'
 )
 
@@ -180,7 +179,7 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
 
     Args:
         data (pd.Series): Input data series.
-        n (int): Number of periods for the oscillator calculation.
+        period (int): Number of periods for the oscillator calculation.
 
     Returns:
         pd.Series: Momentum oscillator values.
@@ -191,19 +190,6 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
     return percent_momentum.fillna(method='bfill')
 
 
-def convert_0to1(data: pd.Series) -> pd.Series:
-    """
-    Converts the given data to a range between 0 and 1.
-    
-    Args:
-        data (pd.Series): Input data series.
-    
-    Returns:
-        pd.Series: Data series scaled between 0 and 1.
-    """
-    return (data - data.min()) / (data.max() - data.min())
-
-
 def get_historical_info() -> None:
     """
     This function gets the historical info for the given company symbols.
@@ -211,63 +197,68 @@ def get_historical_info() -> None:
     It uses many functions from other modules to process historical data and run models on them.
     """
     period = 14
-    start_date = '2022-01-01'
-    end_date = '2023-02-13'
+    start_date = '2015-01-01'
+    end_date = '2023-06-23'
     for company_ticker in company_symbols:
         ticker = yf.Ticker(company_ticker)
 
         #_________________ GET Data______________________#
         # Retrieve historical data for the ticker using the `history()` method
         stock_data = ticker.history(start=start_date, end=end_date, interval="1d")
-
-        #stock_data = yf.download("AAPL", start=start_date, end=end_date)
-        #stock_data = yf.download(company_ticker, start=start_date, end=end_date, progress=False)
         if not len(stock_data):
             raise ConnectionError("Failed to get stock data. Check your internet")
 
         #_________________MACD Data______________________#
-        stock_data['12-day EMA'] = stock_data['Close'].ewm(span=12).mean()
-        stock_data['26-day EMA'] = stock_data['Close'].ewm(span=26).mean()
-        stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
-        stock_data['Signal Line'] = stock_data['MACD'].ewm(span=9).mean()
-        stock_data['Histogram'] = stock_data['MACD']-stock_data['Signal Line']
-        stock_data['200-day EMA'] = stock_data['Close'].ewm(span=200).mean()
+        ema12 = stock_data['Close'].ewm(span=12).mean()
+        ema26 = stock_data['Close'].ewm(span=26).mean()
+        signal_line = ema12 - ema26
+        signal_line = signal_line.ewm(span=9).mean()
+        histogram = signal_line-signal_line
+        ema200 = stock_data['Close'].ewm(span=200).mean()
 
         #_________________Basically Impulse MACD______________________#
-        stock_data['Change'] = stock_data['Close'].diff()
-        stock_data['Change'].fillna(stock_data['Change'].iloc[1], inplace=True)
-        stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum()  # Example: Using a 10-day rolling sum
-        stock_data['Momentum'].fillna(stock_data['Momentum'].iloc[1], inplace=True)
+        change = stock_data['Close'].diff()
+        change.fillna(change.iloc[1], inplace=True)
+        momentum = change.rolling(window=10, min_periods=1).sum()  # Example: Using a 10-day rolling sum
+        momentum.fillna(momentum.iloc[1], inplace=True)
 
         #_________________Breakout Model______________________#
-        stock_data["Change"] = stock_data["Close"].diff()  # Price change from the previous day
-        stock_data["Gain"] = stock_data["Change"].apply(lambda x: x if x > 0 else 0)  # Positive changes
-        stock_data["Loss"] = stock_data["Change"].apply(lambda x: abs(x) if x < 0 else 0)  # Negative changes
-        stock_data["Avg Gain"] = stock_data["Gain"].rolling(window=14, min_periods=1).mean()  # 14-day average gain
-        stock_data["Avg Loss"] = stock_data["Loss"].rolling(window=14, min_periods=1).mean()  # 14-day average loss
+        change = stock_data['Close'].diff()  # Price change from the previous day
+        gain = change.apply(lambda x: x if x > 0 else 0)  # Positive changes
+        loss = change.apply(lambda x: abs(x) if x < 0 else 0)  # Negative changes
+        avg_gain = gain.rolling(window=14, min_periods=1).mean()  # 14-day average gain
+        avg_loss = loss.rolling(window=14, min_periods=1).mean()  # 14-day average loss
 
-        stock_data["RS"] = stock_data["Avg Gain"] / stock_data["Avg Loss"]
-        stock_data["RSI"] = 100 - (100 / (1 + stock_data["RS"]))
-        stock_data["RSI"].fillna(stock_data["RSI"].iloc[1], inplace=True)
+        #RSI Strat
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        rsi.fillna(rsi.iloc[1], inplace=True)
 
         volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
         trama = stock_data['Close'].rolling(window=period).mean()  # Calculate the initial TRAMA with the specified period
-        stock_data['TRAMA'] = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility
+        trama = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility
+
+        bollinger_middle = stock_data['Close'].rolling(window=20).mean()
+        std_dev = stock_data['Close'].rolling(window=20).std()
+        bollinger_upper = bollinger_middle + (2 * std_dev)
+        bollinger_lower = bollinger_middle - (2 * std_dev)
+        above_bollinger = np.where(stock_data['Close'] > bollinger_upper, 1, 0)
+        bellow_bollinger = np.where(stock_data['Close'] < bollinger_lower, 1, 0)
 
         #_________________Reversal______________________#
-        stock_data['gradual-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], gradual=True)
-        stock_data['3-liquidity spike'] = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
-        stock_data['momentum_oscillator'] = calculate_momentum_oscillator(stock_data['Close'])
-
-        #_________________Scale them 0-1______________________#
-        for info in stock_data.keys():
-            if info in excluded_values:
-                continue
-            stock_data[info] = convert_0to1(stock_data[info])
-
+        gradual_liquidity_spike = get_liquidity_spikes(stock_data['Volume'], gradual=True)
+        liquidity_spike3 = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
+        momentum_oscillator = calculate_momentum_oscillator(stock_data['Close'])
 
         #_________________12 and 26 day Ema flips______________________#
-        stock_data['flips'] = process_flips(stock_data['12-day EMA'].values, stock_data['26-day EMA'].values)
+        flips = process_flips(ema12.values, ema26.values)
+
+        #_______________SuperTrendsModel______________#
+        super_trend1 = supertrends(stock_data, 3, 12)
+        super_trend2 = supertrends(stock_data, 2, 11)
+        super_trend3 = supertrends(stock_data, 1, 10)
+
+        kumo_status = kumo_cloud(stock_data)
 
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
@@ -282,30 +273,52 @@ def get_historical_info() -> None:
             'Dates': dates,
             'Volume': stock_data['Volume'].values.tolist(),
             'Close': stock_data['Close'].values.tolist(),
-            '12-day EMA': stock_data['12-day EMA'].values.tolist(),
-            '26-day EMA': stock_data['26-day EMA'].values.tolist(),
-            'MACD': stock_data['MACD'].values.tolist(),
-            'Signal Line': stock_data['Signal Line'].values.tolist(),
-            'Histogram': stock_data['Histogram'].values.tolist(),
-            '200-day EMA': stock_data['200-day EMA'].values.tolist(),
-            'flips': stock_data['flips'].values.tolist(),
-            'Momentum': stock_data['Momentum'].values.tolist(),
-            'Change': stock_data['Change'].values.tolist(),
-            'RSI': stock_data['RSI'].values.tolist(),
-            'TRAMA': stock_data['TRAMA'].values.tolist(),
-            'gradual-liquidity spike': stock_data['gradual-liquidity spike'].values.tolist(),
-            '3-liquidity spike': stock_data['3-liquidity spike'].values.tolist(),
-            'momentum_oscillator': stock_data['momentum_oscillator'].values.tolist(),
+            '12-day EMA': ema12.values.tolist(),
+            '26-day EMA': ema26.values.tolist(),
+            'MACD': signal_line.values.tolist(),
+            'Signal Line': signal_line.values.tolist(),
+            'Histogram': histogram.values.tolist(),
+            '200-day EMA': ema200.values.tolist(),
+            'flips': flips,
+            'supertrend1': super_trend1.values.tolist(),
+            'supertrend2': super_trend2.values.tolist(),
+            'supertrend3': super_trend3.values.tolist(),
+            'kumo_cloud': kumo_status.tolist(),
+            'Momentum': momentum.values.tolist(),
+            'Change': change.values.tolist(),
+            'RSI': rsi.values.tolist(),
+            'TRAMA': trama.values.tolist(),
+            'volatility': volatility.values.tolist(),
+            'Bollinger Middle': bollinger_middle.values.tolist(),
+            'Above Bollinger': above_bollinger.astype(int).tolist(),
+            'Bellow Bollinger': bellow_bollinger.astype(int).tolist(),
+            'gradual-liquidity spike': gradual_liquidity_spike.values.tolist(),
+            '3-liquidity spike': liquidity_spike3.values.tolist(),
+            'momentum_oscillator': momentum_oscillator.values.tolist(),
             'earnings dates': earnings_dates,
             'earnings diff': earnings_diff
         }
-        with open(f"{company_ticker}/info.json", "w") as json_file:
+
+        #_________________Scale them 0-1______________________#
+        for info in converted_data.keys():
+            if info in excluded_values:
+                continue
+            values = converted_data[info]
+            min_val = min(values)
+            max_val = max(values)
+            if min_val == max_val:
+                # Rare cases where nothing is indicated
+                # Extreme indicators, bools ussually.
+                continue
+            converted_data[info] = [(val - min_val) / (max_val - min_val) for val in values]
+
+        with open(f'{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
         
         temp = {}
         for key, val in converted_data.items():#????????
-            temp[key] = {"min": val.min, "max": val.max}
-        with open(f"{company_ticker}/min_max_data.json", "w") as json_file:
+            temp[key] = {'min': min(val), 'max': max(val)}
+        with open(f'{company_ticker}/min_max_data.json', 'w') as json_file:
             json.dump(temp, json_file)
 
 if __name__ == '__main__':

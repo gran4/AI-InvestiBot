@@ -267,7 +267,6 @@ class BaseModel:
         """
         stock_data = {}
         information_keys = self.information_keys
-        stock_symbol = self.stock_symbol
 
         if '12-day EMA' in information_keys:
             stock_data['12-day EMA'] = cached_info['Close'].ewm(span=12, adjust=False).mean().iloc[-num_days:]
@@ -288,12 +287,12 @@ class BaseModel:
         if 'Momentum' in information_keys:
             stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum().iloc[-num_days:]
         if 'RSI' in information_keys:
-            stock_data["Gain"] = stock_data["Change"].apply(lambda x: x if x > 0 else 0)
+            stock_data['Gain'] = stock_data['Change'].apply(lambda x: x if x > 0 else 0)
             stock_data['Loss'] = stock_data['Change'].apply(lambda x: abs(x) if x < 0 else 0)
-            stock_data["Avg Gain"] = stock_data["Gain"].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            stock_data["Avg Loss"] = stock_data["Loss"].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            stock_data["RS"] = stock_data["Avg Gain"] / stock_data["Avg Loss"]
-            stock_data["RSI"] = 100 - (100 / (1 + stock_data["RS"]))
+            stock_data['Avg Gain'] = stock_data['Gain'].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
+            stock_data['Avg Loss'] = stock_data['Loss'].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
+            stock_data['RS'] = stock_data['Avg Gain'] / stock_data['Avg Loss']
+            stock_data['RSI'] = 100 - (100 / (1 + stock_data['RS']))
         if 'TRAMA' in information_keys:
             # TRAMA
             volatility = cached_info['Close'].diff().abs().iloc[-num_days:]
@@ -312,14 +311,14 @@ class BaseModel:
             stock_data['flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
         if 'earnings diff' in information_keys:
             #earnings stuffs
-            earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
+            earnings_dates, earnings_diff = get_earnings_history(self.stock_symbol)
             all_dates = []
 
             # Calculate dates before the extracted date
             days_before = 3
             for i in range(days_before):
                 day = end_date - timedelta(days=i+1)
-                all_dates.append(day.strftime("%Y-%m-%d"))
+                all_dates.append(day.strftime('%Y-%m-%d'))
 
             stock_data['earnings diff'] = []
             low, high = self.scaler_data['earnings diffs']['min'], self.scaler_data['earnings diffs']['max']
@@ -679,13 +678,65 @@ class BreakoutModel(BaseModel):
         )
 
 
+class RSIModel(BaseModel):
+    """
+    This is the Breakout child class that inherits from the BaseModel parent class.
+
+    It contains the information keys `Close`, `RSI`, `TRAMA`
+    """
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-05",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information_keys=['Close', 'RSI', 'TRAMA', 'Bollinger Middle', 'Above Bollinger', 'Bellow Bollinger']
+        )
+
+
+class RSIModel2(BaseModel):
+    """
+    This is the Breakout child class that inherits from the BaseModel parent class.
+
+    It contains the information keys `Close`, `RSI`, `TRAMA`
+    """
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-05",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information_keys=['Close', 'RSI', 'TRAMA', 'Bollinger Middle', 'Above Bollinger', 'Bellow Bollinger', 'Momentum']
+        )
+
+
+class SuperTrendsModel(BaseModel):
+    """
+    This is the Breakout child class that inherits from the BaseModel parent class.
+
+    It contains the information keys `Close`, `RSI`, `TRAMA`
+    """
+    def __init__(self, start_date: str = "2020-01-01",
+                 end_date: str = "2023-06-05",
+                 stock_symbol: str = "AAPL") -> None:
+        super().__init__(
+            start_date=start_date,
+            end_date=end_date,
+            stock_symbol=stock_symbol,
+            information_keys=['Close', 'supertrend1', 'supertrend2', 'supertrend3', '200-day EMA', 'kumo_cloud']
+        )
+
+
 if __name__ == "__main__":
-    modelclasses = [DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
+    modelclasses = [BreakoutModel, RSIModel, RSIModel2, SuperTrendsModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
+
     models = []
     for modelclass in modelclasses:
         model = modelclass()
-        model.train()
+        model.train(epochs=1000)
         models.append(model)
+
     for model in models:
-        print(type(model))
         model.test()

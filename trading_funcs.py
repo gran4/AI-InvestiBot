@@ -31,7 +31,9 @@ __all__ = (
     'process_earnings',
     'process_flips',
     'get_relavant_values',
-    'get_scaler'
+    'get_scaler',
+    'supertrends'
+    'kumo_cloud'
 )
 
 
@@ -122,7 +124,7 @@ def process_earnings(dates: List, diffs: List, start_date: str,
     return dates, diffs
 
 
-def process_flips(ema12: np.array, ema26: np.array) -> List[int]:
+def process_flips(ema12: pd.Series, ema26: pd.Series) -> pd.Series:
     """
     The purpose of this function is to return a list of the 12 and 26 ema flips. It
     is primarily used for the MACD Model.
@@ -194,7 +196,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
                 continue
             other_vals[key] = other_vals[key][i:]
     else:
-        raise ValueError(f"Run getInfo.py with start date before {start_date}\n and end date after {end_date}")
+        raise ValueError(f"Run getInfo.py with start date before {start_date}\n before {end_date}")
     if end_date in other_vals['Dates']:
         i = other_vals['Dates'].index(end_date)
         other_vals['Dates'] = other_vals['Dates'][:i]
@@ -203,7 +205,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
                 continue
             other_vals[key] = other_vals[key][:i]
     else:
-        raise ValueError(f"Run getInfo.py with start date before {end_date}\n and end date after {end_date}")
+        raise ValueError(f"Run getInfo.py with end date after {start_date}\n and before {end_date}")
 
     #_________________Process earnings______________________#
     if "earnings diff" in information_keys:
@@ -249,4 +251,46 @@ def get_scaler(num: float, data: List) -> float:
     """
     low, high = min(data), max(data)
     return (num - low) / (high - low)
+
+
+def supertrends(data: pd.DataFrame, factor: int, period: int) -> pd.Series:
+    atr = data['High'] - data['Low']
+    atr = atr.rolling(window=period).mean()
+
+    upper_band = data['Close'] + (factor * atr)
+    lower_band = data['Close'] - (factor * atr)
+
+    trend = np.where(data['Close'] > lower_band, 1, 0)
+    trend = np.where(data['Close'] < upper_band, -1, trend)
+
+    signal = pd.Series(trend).diff()
+    return signal
+
+
+def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,
+               base_period: int=26, lagging_span2_period: int=52,
+               displacement: int=26) -> Tuple[pd.Series, pd.Series]:
+    # Calculate conversion line (Tenkan-sen)
+    conversion_line = (data['High'].rolling(window=conversion_period).max() + data['Low'].rolling(window=conversion_period).min()) / 2
+
+    # Calculate base line (Kijun-sen)
+    base_line = (data['High'].rolling(window=base_period).max() + data['Low'].rolling(window=base_period).min()) / 2
+
+    # Calculate leading span A (Senkou Span A)
+    leading_span_a = ((conversion_line + base_line) / 2).shift(displacement)
+
+    # Calculate leading span B (Senkou Span B)
+    leading_span_b = ((data['High'].rolling(window=lagging_span2_period).max() + data['Low'].rolling(window=lagging_span2_period).min()) / 2).shift(displacement)
+
+    # Concatenate leading span A and leading span B
+    span_concat = pd.concat([leading_span_a, leading_span_b], axis=1)
+
+    # Calculate cloud's top and bottom lines
+    cloud_top = span_concat.max(axis=1)
+    cloud_bottom = span_concat.min(axis=1)
+
+    cloud_status = np.where(data['Close'] < cloud_bottom, -1, 0)
+    cloud_status = np.where(data['Close'] > cloud_top, 1, cloud_status)
+
+    return cloud_status
 
