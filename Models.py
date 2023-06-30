@@ -30,7 +30,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
 
-from trading_funcs import get_relavant_values, create_sequences, process_flips, excluded_values
+from trading_funcs import check_for_holidays, get_relavant_values, create_sequences, process_flips, excluded_values
 from get_info import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
 
 
@@ -67,8 +67,8 @@ class BaseModel:
                  stock_symbol: str = "AAPL",
                  num_days: int = 60,
                  information_keys: List[str]=["Close"]) -> None:
-        self.start_date = start_date
-        self.end_date = end_date
+        self.set_dates(start_date, end_date)
+
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
         self.num_days = num_days
@@ -250,10 +250,10 @@ class BaseModel:
             return
         self.model = load_model(f"{self.stock_symbol}/model")
 
-        with open(f"{self.stock_symbol}/data.json") as file:
+        with open(f"{self.stock_symbol}/data.json", 'r') as file:
             self.data = json.load(file)
 
-        with open(f"{self.stock_symbol}/data.json") as file:
+        with open(f"{self.stock_symbol}/min_max_data.json", 'r') as file:
             self.scaler_data = json.load(file)
 
         return self.model
@@ -424,6 +424,12 @@ class BaseModel:
         self.cached_info = cached_info
         self.cached = cached
 
+    def set_dates(self, start_date: str, end_date: str) -> None:
+        """Wrapper to setting dates that checks for holidays"""
+        self.start_date, self.end_date = check_for_holidays(
+            start_date, end_date
+        )
+
     def update_cached_offline(self) -> None:
         """This method updates the cached data without using the internet."""
         warn("For Testing")
@@ -433,11 +439,11 @@ class BaseModel:
         if not self.cached_info:
             with open(f"{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
-                #if not self.start_date in cached_info['Dates']:
-                #    raise ValueError("start is before or after `Dates` range")
-                #elif not self.end_date in cached_info['Dates']:
-                #    raise ValueError("end is before or after `Dates` range")
-    
+                print(type(self.start_date))
+                if not self.start_date in cached_info['Dates']:
+                    raise ValueError("start is before or after `Dates` range")
+                elif not self.end_date in cached_info['Dates']:
+                    raise ValueError("end is before or after `Dates` range")
 
                 end_index = cached_info["Dates"].index(self.end_date)
                 cached = []
@@ -475,7 +481,7 @@ class BaseModel:
                 last relevant days to the stock
         """
         try:
-            self.update_cached_online(period=period)
+            self.update_cached_online()
         except ConnectionError:
             warn("Stock data failed to download. Check your internet")
             self.update_cached_offline()

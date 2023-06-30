@@ -31,6 +31,7 @@ __all__ = (
     'create_sequences',
     'process_earnings',
     'process_flips',
+    'check_for_holidays',
     'get_relavant_values',
     'get_scaler',
     'supertrends',
@@ -94,16 +95,10 @@ def process_earnings(dates: List, diffs: List, start_date: str,
             and actual earnings per share
     """
     #_________________deletes earnings before start and after end______________________#
-    start = 0
-    end = len(dates)
-    for day in dates:
-        if day < start_date:
-            start += 1
-        elif day > end_date:
-            end += 1
+    start = dates.index(start_date)
+    end = dates.index(end_date)
     dates = dates[start:end]
     diffs = diffs[start:end]
-
 
     #_________________Fill Data out with 0s______________________#
     filled_dates = []
@@ -140,20 +135,34 @@ def process_flips(ema12: pd.Series, ema26: pd.Series) -> pd.Series:
         0 is considered as no flip and 1 is considered as a flip.
     """
     temp = []
-    shortmore = None
+    shortmore = ema12[0] > ema26[0]
+
     for short, mid in zip(ema12, ema26):
-        if shortmore is None:
-            shortmore = short>mid
-        elif shortmore and short<mid:
+        if (shortmore and short<mid) or (not shortmore and short>mid):
             temp.append(1)
-            shortmore = False
-            continue
-        elif not shortmore and short>mid:
-            temp.append(1)
-            shortmore = True
-            continue
-        temp.append(0)
+            shortmore = not shortmore # flip
+        else:
+            temp.append(0)
     return temp
+
+
+def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
+    #_________________Check if start or end is holiday______________________#
+    nyse = get_calendar('NYSE')
+    schedule = nyse.schedule(start_date=start_date, end_date=end_date)
+
+    #_________________Change if it is a holiday______________________#
+    start_date = pd.to_datetime(start_date).date()
+    if start_date not in schedule.index:
+        # Find the next trading day
+        next_trading_day = nyse.valid_days(start_date=start_date, end_date=end_date)[0]
+        start_date = next_trading_day.date().strftime('%Y-%m-%d')
+
+    end_date = pd.to_datetime(end_date).date()
+    if end_date not in schedule.index:
+        end_date = schedule.index[-1].date().strftime('%Y-%m-%d')
+    
+    return start_date, end_date
 
 
 def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
@@ -172,23 +181,10 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
         Tuple[dict, np.array, str, str]: The relevant indicators in the
         form of a dict, and list, start date, and end date
     """
-    #_________________Check if start or end is holiday______________________#
-    nyse = get_calendar('NYSE')
-    schedule = nyse.schedule(start_date=start_date, end_date=end_date)
-
-    #_________________Change if it is a holiday______________________#
-    start_date = pd.to_datetime(start_date).date()
-    if start_date not in schedule.index:
-        # Find the next trading day
-        next_trading_day = nyse.valid_days(start_date=start_date, end_date=end_date)[0]
-        start_date = next_trading_day.date().strftime('%Y-%m-%d')
-
-    end_date = pd.to_datetime(end_date).date()
-    if end_date not in schedule.index:
-        end_date = schedule.index[-1].date().strftime('%Y-%m-%d')
+    start_date, end_date = check_for_holidays(start_date, end_date)
 
     #_________________Load info______________________#
-    with open(f'{stock_symbol}/info.json') as file:
+    with open(f'{stock_symbol}/info.json', 'r') as file:
         other_vals = json.load(file)
 
     #_________________Make Data fit between start and end date______________________#

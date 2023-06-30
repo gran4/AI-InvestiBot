@@ -242,7 +242,6 @@ def get_historical_info() -> None:
         momentum.fillna(momentum.iloc[1], inplace=True)
 
         #_________________Breakout Model______________________#
-        change = stock_data['Close'].diff()  # Price change from the previous day
         gain = change.apply(lambda x: x if x > 0 else 0)  # Positive changes
         loss = change.apply(lambda x: abs(x) if x < 0 else 0)  # Negative changes
         avg_gain = gain.rolling(window=14, min_periods=1).mean()  # 14-day average gain
@@ -283,8 +282,7 @@ def get_historical_info() -> None:
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
         
-        #Do more in the model since
-        #we do not know the start or end, yet
+        #Do more in the model since we do not know the start or end, yet
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
 
 
@@ -327,17 +325,11 @@ def get_historical_info() -> None:
             max_val = max(values)
             if min_val == max_val:
                 # Rare cases where nothing is indicated
-                # Extreme indicators, bools ussually.
+                # Extreme indicators, 0/1 ussually.
                 continue
             converted_data[key] = [(val - min_val) / (max_val - min_val) for val in values]
         with open(f'{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
-        
-        temp = {}
-        for key, val in converted_data.items():#????????
-            temp[key] = {'min': min(val), 'max': max(val)}
-        with open(f'{company_ticker}/min_max_data.json', 'w') as json_file:
-            json.dump(temp, json_file)
 
 if __name__ == '__main__':
     get_historical_info()
