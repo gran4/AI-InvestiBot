@@ -330,7 +330,6 @@ def get_historical_info() -> None:
                 # Extreme indicators, bools ussually.
                 continue
             converted_data[key] = [(val - min_val) / (max_val - min_val) for val in values]
-
         with open(f'{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
         

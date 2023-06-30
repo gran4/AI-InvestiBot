@@ -40,7 +40,6 @@ def run_loop() -> None:
         date_object = datetime.strptime(model.end_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
         model.end_date = next_day.strftime("%Y-%m-%d")
- 
 
 if __name__ == "__main__":
     # Create a new thread
