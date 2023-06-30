@@ -439,7 +439,7 @@ class BaseModel:
         if not self.cached_info:
             with open(f"{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
-                print(type(self.start_date))
+                print(type(self.start_date), self.end_date)
                 if not self.start_date in cached_info['Dates']:
                     raise ValueError("start is before or after `Dates` range")
                 elif not self.end_date in cached_info['Dates']:
@@ -549,7 +549,7 @@ class DayTradeModel(BaseModel):
     It contains the information keys `Close`
     """
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-05",
+                 end_date: str = "2023-05-05",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,

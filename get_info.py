@@ -252,13 +252,13 @@ def get_historical_info() -> None:
         rsi = 100 - (100 / (1 + rs))
         rsi.fillna(rsi.iloc[1], inplace=True)
 
-        volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
+        volatility = stock_data['Close'].diff(min_periods=1).abs()  # Calculate price volatility
         # Calculate the initial TRAMA with the specified period
-        trama = stock_data['Close'].rolling(window=period).mean()
+        trama = stock_data['Close'].rolling(window=period, min_periods=1).mean()
         trama = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility
 
-        bollinger_middle = stock_data['Close'].rolling(window=20).mean()
-        std_dev = stock_data['Close'].rolling(window=20).std()
+        bollinger_middle = stock_data['Close'].rolling(window=20, min_periods=1).mean()
+        std_dev = stock_data['Close'].rolling(window=20, min_periods=1).std()
         bollinger_upper = bollinger_middle + (2 * std_dev)
         bollinger_lower = bollinger_middle - (2 * std_dev)
         above_bollinger = np.where(stock_data['Close'] > bollinger_upper, 1, 0)

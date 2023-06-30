@@ -256,7 +256,7 @@ def get_scaler(num: float, data: List) -> float:
 def supertrends(data: pd.DataFrame, factor: int, period: int) -> pd.Series:
     """Returns the `supertrend` indicator"""
     atr = data['High'] - data['Low']
-    atr = atr.rolling(window=period).mean()
+    atr = atr.rolling(window=period, min_periods=1).mean()
 
     upper_band = data['Close'] + (factor * atr)
     lower_band = data['Close'] - (factor * atr)
