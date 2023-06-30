@@ -18,8 +18,9 @@ See also:
 import json
 
 from typing import List, Tuple, Dict
-from pandas_market_calendars import get_calendar
 from datetime import datetime, timedelta
+
+from pandas_market_calendars import get_calendar
 
 import numpy as np
 import pandas as pd
@@ -32,7 +33,7 @@ __all__ = (
     'process_flips',
     'get_relavant_values',
     'get_scaler',
-    'supertrends'
+    'supertrends',
     'kumo_cloud'
 )
 
@@ -77,8 +78,8 @@ def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]
 def process_earnings(dates: List, diffs: List, start_date: str,
                      end_date: str) -> Tuple[List[str], List[float]]:
     """
-    The purpose of this function is to process the earnings between the start and end date range
-    and fill in the 0s for dates without an earnings report. 
+    The purpose of this function is to process the earnings between the start and
+    end date range, and fill in the 0s for dates without an earnings report. 
 
     Args:
         dates (list): The dates which are used to get the earnings
@@ -89,7 +90,8 @@ def process_earnings(dates: List, diffs: List, start_date: str,
     Returns:
         tuple: A tuple containing two Lists.
             - dates (list): The dates which are used to align the earnings
-            - diffs (list) The earnings differences bettween the expected and actual earnings per share
+            - diffs (list) The earnings differences bettween the expected
+            and actual earnings per share
     """
     #_________________deletes earnings before start and after end______________________#
     start = 0
@@ -134,7 +136,8 @@ def process_flips(ema12: pd.Series, ema26: pd.Series) -> pd.Series:
         ema26 (np.array): The 26-day ema which is used to get the flips
 
     Returns:
-        list: The list of flips between the 12-day ema and 26-day ema. 0 is considered as no flip and 1 is considered as a flip.
+        list: The list of flips between the 12-day ema and 26-day ema.
+        0 is considered as no flip and 1 is considered as a flip.
     """
     temp = []
     shortmore = None
@@ -166,8 +169,9 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
         information_keys (list[str]): The information keys which are used to get the relevant values
 
     Returns:
-        Tuple[dict, np.array, str, str]: The relevant indicators in the form of a dict, and list, start date, and end date
-    """    
+        Tuple[dict, np.array, str, str]: The relevant indicators in the
+        form of a dict, and list, start date, and end date
+    """
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
     schedule = nyse.schedule(start_date=start_date, end_date=end_date)
@@ -254,6 +258,7 @@ def get_scaler(num: float, data: List) -> float:
 
 
 def supertrends(data: pd.DataFrame, factor: int, period: int) -> pd.Series:
+    """Returns the `supertrend` indicator"""
     atr = data['High'] - data['Low']
     atr = atr.rolling(window=period).mean()
 
@@ -269,18 +274,25 @@ def supertrends(data: pd.DataFrame, factor: int, period: int) -> pd.Series:
 
 def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,
                base_period: int=26, lagging_span2_period: int=52,
-               displacement: int=26) -> Tuple[pd.Series, pd.Series]:
+               displacement: int=26) -> pd.Series:
+    """Gets a pd.Series of where `data['Close']` is above or bellow the kumo cloud"""
     # Calculate conversion line (Tenkan-sen)
-    conversion_line = (data['High'].rolling(window=conversion_period).max() + data['Low'].rolling(window=conversion_period).min()) / 2
+    top_conversion = data['High'].rolling(window=conversion_period).max()
+    bottom_conversion = data['Low'].rolling(window=conversion_period).min()
+    conversion_line = (top_conversion + bottom_conversion) / 2
 
     # Calculate base line (Kijun-sen)
-    base_line = (data['High'].rolling(window=base_period).max() + data['Low'].rolling(window=base_period).min()) / 2
+    top_base = data['High'].rolling(window=base_period).max()
+    bottom_base = data['Low'].rolling(window=base_period).min()
+    base_line = (top_base + bottom_base) / 2
 
     # Calculate leading span A (Senkou Span A)
     leading_span_a = ((conversion_line + base_line) / 2).shift(displacement)
 
     # Calculate leading span B (Senkou Span B)
-    leading_span_b = ((data['High'].rolling(window=lagging_span2_period).max() + data['Low'].rolling(window=lagging_span2_period).min()) / 2).shift(displacement)
+    span_b_max = data['High'].rolling(window=lagging_span2_period).max()
+    span_b_min = data['Low'].rolling(window=lagging_span2_period).min()
+    leading_span_b = ((span_b_max + span_b_min) / 2).shift(displacement)
 
     # Concatenate leading span A and leading span B
     span_concat = pd.concat([leading_span_a, leading_span_b], axis=1)
@@ -293,4 +305,3 @@ def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,
     cloud_status = np.where(data['Close'] > cloud_top, 1, cloud_status)
 
     return cloud_status
-

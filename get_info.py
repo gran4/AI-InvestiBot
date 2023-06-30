@@ -14,16 +14,24 @@ See also:
     Other modules that use the getInfo module -> Models.py, trading_funcs.py
 """
 
-import urllib.request, ssl, json
-
-from bs4 import BeautifulSoup
+import urllib.request
+import ssl
+import json
 from typing import Optional, List, Tuple
 from datetime import datetime
-from trading_funcs import excluded_values, company_symbols, process_flips, supertrends, kumo_cloud
 
+from bs4 import BeautifulSoup
 import yfinance as yf
 import numpy as np
 import pandas as pd
+
+from trading_funcs import (
+    excluded_values,
+    company_symbols,
+    process_flips,
+    supertrends,
+    kumo_cloud
+)
 
 __all__ = (
     'get_earnings_history',
@@ -36,7 +44,8 @@ __all__ = (
 )
 
 
-def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None) -> Tuple[List[str], List[float]]:
+def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None
+                         ) -> Tuple[List[str], List[float]]:
     """
     Gets earning history of a company as a list.
 
@@ -46,9 +55,14 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
 
     Warning:
         IF YOU GET ERROR:
-            urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1002)>
-        Go to Python3.6 folder (or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
-        NOTE: ON macOS go to Macintosh HD > AAPLications > Python3.6(or whatever version of python you're using) > double click on "Install Certificates.command" file. :D
+            urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate
+            verify failed: unable to get local issuer certificate (_ssl.c:1002)>
+
+        Go to Python3.6 folder (or whatever version of python you're using) > double click
+        on "Install Certificates.command" file. :D
+
+        NOTE: ON macOS go to Macintosh HD > Applications > Python3.6
+        (or whatever version of python you're using), then follow above
 
     Warning:
         YOU are probably looking to use get_corrected_earnings_history not this
@@ -109,7 +123,8 @@ def earnings_since_time(dates: List, start_date: str) -> List[int]:
         start_date (str): Reference date to calculate the difference to.
     
     Returns:
-        list: list of earnings since the reference date using date_time_since_ref(date, reference_date)
+        list: list of earnings since the reference date using
+        date_time_since_ref(date, reference_date)
     """
     date_object = datetime.strptime(start_date, "%Y-%m-%d")
     # Convert the datetime object back to a string in the desired format
@@ -120,14 +135,16 @@ def earnings_since_time(dates: List, start_date: str) -> List[int]:
 
 def modify_earnings_dates(dates: List, start_date: str) -> List[int]:
     """
-    This function will modify the earning dates using the earnings_since_time function.
+    This function will modify the earning dates using the
+    earnings_since_time function.
 
     Args:
         dates (list): list of dates to calculate the difference from.
         start_date (str): Reference date to calculate the difference to.
     
     Returns:
-        list: list of earnings since the reference date using earnings_since_time(dates, start_date)
+        list: list of earnings since the reference date using
+        earnings_since_time(dates, start_date)
     """
     temp = [datetime.strptime(date_string, "%b %d, %Y") for date_string in dates]
     return earnings_since_time(temp, start_date)
@@ -144,7 +161,8 @@ def get_liquidity_spikes(data, z_score_threshold: float=2.0,
         gradual (bool): Whether to gradually increase the z-score or not.
     
     Returns:
-        pd.Series: Series of abnormal spikes in liquidity returned as a scale between 0 and 1.
+        pd.Series: Series of abnormal spikes in liquidity returned
+        as a scale between 0 and 1.
     """
     # Convert the data to a pandas Series if it's not already
     if not isinstance(data, pd.Series):
@@ -194,7 +212,8 @@ def get_historical_info() -> None:
     """
     This function gets the historical info for the given company symbols.
     
-    It uses many functions from other modules to process historical data and run models on them.
+    It uses many functions from other modules to process
+    historical data and run models on them.
     """
     period = 14
     start_date = '2015-01-01'
@@ -205,7 +224,7 @@ def get_historical_info() -> None:
         #_________________ GET Data______________________#
         # Retrieve historical data for the ticker using the `history()` method
         stock_data = ticker.history(start=start_date, end=end_date, interval="1d")
-        if not len(stock_data):
+        if len(stock_data) == 0:
             raise ConnectionError("Failed to get stock data. Check your internet")
 
         #_________________MACD Data______________________#
@@ -219,7 +238,7 @@ def get_historical_info() -> None:
         #_________________Basically Impulse MACD______________________#
         change = stock_data['Close'].diff()
         change.fillna(change.iloc[1], inplace=True)
-        momentum = change.rolling(window=10, min_periods=1).sum()  # Example: Using a 10-day rolling sum
+        momentum = change.rolling(window=10, min_periods=1).sum()
         momentum.fillna(momentum.iloc[1], inplace=True)
 
         #_________________Breakout Model______________________#
@@ -235,7 +254,8 @@ def get_historical_info() -> None:
         rsi.fillna(rsi.iloc[1], inplace=True)
 
         volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
-        trama = stock_data['Close'].rolling(window=period).mean()  # Calculate the initial TRAMA with the specified period
+        # Calculate the initial TRAMA with the specified period
+        trama = stock_data['Close'].rolling(window=period).mean()
         trama = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility
 
         bollinger_middle = stock_data['Close'].rolling(window=20).mean()
@@ -300,18 +320,16 @@ def get_historical_info() -> None:
         }
 
         #_________________Scale them 0-1______________________#
-        for info in converted_data.keys():
-            if info in excluded_values:
+        for key, values in converted_data.items():
+            if key in excluded_values:
                 continue
-            values = converted_data[info]
             min_val = min(values)
             max_val = max(values)
             if min_val == max_val:
                 # Rare cases where nothing is indicated
                 # Extreme indicators, bools ussually.
                 continue
-            converted_data[info] = [(val - min_val) / (max_val - min_val) for val in values]
-
+            converted_data[key] = [(val - min_val) / (max_val - min_val) for val in values]
         with open(f'{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
         
