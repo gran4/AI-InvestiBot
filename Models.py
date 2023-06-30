@@ -320,14 +320,19 @@ class BaseModel:
             stock_data['TRAMA'] = trama + (volatility * 0.1)
         if 'gradual-liquidity spike' in information_keys:
             # Reversal
-            stock_data['gradual-liquidity spike'] = get_liquidity_spikes(cached_info['Volume'], gradual=True).iloc[-num_days:]
-            stock_data['3-liquidity spike'] = get_liquidity_spikes(cached_info['Volume'], z_score_threshold=4).iloc[-num_days:]
-            stock_data['momentum_oscillator'] = calculate_momentum_oscillator(cached_info['Close']).iloc[-num_days:]
+            stock_data['gradual-liquidity spike'] = get_liquidity_spikes(
+                cached_info['Volume'], gradual=True
+            ).iloc[-num_days:]
+            stock_data['3-liquidity spike'] = get_liquidity_spikes(
+                cached_info['Volume'], z_score_threshold=4
+            ).iloc[-num_days:]
+            stock_data['momentum_oscillator'] = calculate_momentum_oscillator(
+                cached_info['Close']).iloc[-num_days:]
         if 'flips' in information_keys:
             #_________________12 and 26 day Ema flips______________________#
             ema12=cached_info['Close'].ewm(span=12, adjust=False).mean()
             ema26=cached_info['Close'].ewm(span=26, adjust=False).mean()
-            
+
             stock_data['flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
         if 'earnings diff' in information_keys:
             #earnings stuffs
@@ -341,7 +346,8 @@ class BaseModel:
                 all_dates.append(day.strftime('%Y-%m-%d'))
 
             stock_data['earnings diff'] = []
-            low, high = self.scaler_data['earnings diffs']['min'], self.scaler_data['earnings diffs']['max']
+            low = self.scaler_data['earnings diffs']['min']
+            high = self.scaler_data['earnings diffs']['max']
             for date in all_dates:
                 if not end_date in earnings_dates:
                     stock_data['earnings diff'].append(0)
@@ -354,7 +360,8 @@ class BaseModel:
         for column in self.information_keys:
             if column in excluded_values:
                 continue
-            low, high = self.scaler_data[column]['min'], self.scaler_data[column]['max']
+            low = self.scaler_data[column]['min']
+            high = self.scaler_data[column]['max']
             column_values = stock_data[column]
             scaled_values = (column_values - low) / (high - low)
             stock_data[column] = scaled_values
@@ -436,7 +443,9 @@ class BaseModel:
                 cached = []
                 for key in self.information_keys:
                     if key not in excluded_values:
-                        cached.append(cached_info[key][end_index-self.num_days:end_index])
+                        cached.append(
+                            cached_info[key][end_index-self.num_days:end_index]
+                        )
                 cached = np.transpose(cached)
 
                 self.cached = cached
@@ -495,7 +504,8 @@ class BaseModel:
         Returns:
             np.array: the predictions of the model
                 The length is determined by how many are put in.
-                So, you can predict for time frames or one day depending on what you want.
+                So, you can predict for time frames or one day
+                depending on what you want.
                 The length is the days `info` minus `num_days` plus 1
 
         :Example:
@@ -548,7 +558,8 @@ class MACDModel(BaseModel):
     This is the MACD child class that inherits
     from the BaseModel parent class.
 
-    It contains the information keys `Close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
+    It contains the information keys `Close`, `MACD`,
+    `Signal Line`, `Histogram`, `flips`, `200-day EMA`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -569,7 +580,8 @@ class ImpulseMACDModel(BaseModel):
     The difference between this class and the MACD model class is that the Impluse MACD model
     is more responsive to short-term market changes and can identify trends earlier. 
 
-    It contains the information keys `Close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
+    It contains the information keys `Close`, `MACD`,
+    `Signal Line`, `Histogram`, `flips`, `200-day EMA`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2020-07-06",
@@ -587,7 +599,8 @@ class ReversalModel(BaseModel):
     This is the Reversal child class that inherits from
     the BaseModel parent class.
 
-    It contains the information keys `Close`, `gradual-liquidity spike`, `3-liquidity spike`, `momentum_oscillator`
+    It contains the information keys `Close`, `gradual-liquidity spike`,
+    `3-liquidity spike`, `momentum_oscillator`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -596,7 +609,10 @@ class ReversalModel(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', 'gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
+            information_keys=[
+                'Close', 'gradual-liquidity spike',
+                '3-liquidity spike', 'momentum_oscillator'
+            ]
         )
 
 
@@ -651,7 +667,10 @@ class RSIModel(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', 'RSI', 'TRAMA', 'Bollinger Middle', 'Above Bollinger', 'Bellow Bollinger']
+            information_keys=[
+                'Close', 'RSI', 'TRAMA', 'Bollinger Middle',
+                'Above Bollinger', 'Bellow Bollinger'
+            ]
         )
 
 
@@ -669,7 +688,10 @@ class RSIModel2(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', 'RSI', 'TRAMA', 'Bollinger Middle', 'Above Bollinger', 'Bellow Bollinger', 'Momentum']
+            information_keys=[
+                'Close', 'RSI', 'TRAMA', 'Bollinger Middle',
+                'Above Bollinger', 'Bellow Bollinger', 'Momentum'
+            ]
         )
 
 

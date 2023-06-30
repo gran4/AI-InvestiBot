@@ -17,6 +17,12 @@ from models import MACDModel
 from trading_funcs import company_symbols
 
 
+__all__ = (
+    'DayTrader',
+    'update_all',
+)
+
+
 class DayTrader():
     """
     This is the base class for the DayTrader. Currently it only initalises
