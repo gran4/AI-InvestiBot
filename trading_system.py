@@ -13,7 +13,7 @@ See also:
 """
 
 from math import floor
-from Models import MACDModel
+from models import MACDModel
 from trading_funcs import company_symbols
 
 
@@ -33,9 +33,7 @@ class DayTrader():
                  stock_symbol: str = "AAPL") -> None:
         pass
 
-"""
-NOTE: Change to use amount of stock not money in stock.
-"""
+# NOTE: Change to use amount of stock not money in stock.
 
 all_models = {}#???????????? USE?????
 holdings = {}
@@ -54,7 +52,7 @@ def update_all(model, manager):
     for company_ticker in company_symbols:
         prediction = model.predict()####
         predictions[company_ticker] = prediction
-    predictions = predictions.sort()
+    predictions = predictions.sort() # NOTE: FIX
 
     #Sell unprofitable ones
     vals = holdings.values()
@@ -72,11 +70,8 @@ def update_all(model, manager):
         #If there is not enough money to use
         if use <= 5 or prediction[company_ticker] < 0:
             break
-        elif stock_price > use:
+        if stock_price > use:
             continue
         stocks = floor(use/stock_price)
         holdings[company_ticker] = stocks
         manager.buy(stocks, company_ticker)
-
-
-

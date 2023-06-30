@@ -17,7 +17,7 @@ See also:
 from typing import Optional
 
 __all__ = (
-    ResourceManager
+    'ResourceManager'
 )
 
 
@@ -43,7 +43,7 @@ class ResourceManager:
             self.max_percent = 100
         if not maximum:
             maximum = money
-        self.max = maximum
+        self.max_used = maximum
         self.ratio = stock_to_money_ratio
 
         self.stock_mapping = {}
@@ -73,8 +73,8 @@ class ResourceManager:
             percent_acceptable *= self.total
             amount_acceptable = min(amount_acceptable, percent_acceptable)
 
-        if stock in self.stock_mapping and self.stock_mapping[stock]+money > self.max:
-            temp = self.stock_mapping[stock]+money-self.max
+        if stock in self.stock_mapping and self.stock_mapping[stock]+money > self.max_used:
+            temp = self.stock_mapping[stock]+money-self.max_used
             #get lowest amount acceptable
             amount_acceptable = min(amount_acceptable, temp)
 
@@ -129,4 +129,3 @@ class ResourceManager:
                     type='market',
                     time_in_force='day',
                 )
-

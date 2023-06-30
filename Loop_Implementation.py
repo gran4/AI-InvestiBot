@@ -13,12 +13,12 @@ See also:
     Other modules related to running the stock bot -> resource_manager, lambda_implementation
 """
 
-import time, json
 from threading import Thread
-from Models import *
 from datetime import datetime, timedelta
 
 import numpy as np
+
+from models import ImpulseMACDModel
 
 TIME_INTERVAL = 5#86400# number of secs in 24 hours
 TICKER = "AAPL"
@@ -28,10 +28,10 @@ model.load()
 #model.get_stock_data_offline()
 
 def run_loop() -> None:
-    while len(temp) < 1000:
+    while True:
         model.update_cached_offline()
         input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
-        temp.append(model.predict(input_data_reshaped)[0][0])
+        print(model.predict(input_data_reshaped))
 
         date_object = datetime.strptime(model.start_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
@@ -40,7 +40,7 @@ def run_loop() -> None:
         date_object = datetime.strptime(model.end_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
         model.end_date = next_day.strftime("%Y-%m-%d")
-
+ 
 
 if __name__ == "__main__":
     # Create a new thread

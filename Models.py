@@ -17,20 +17,22 @@ See also:
 import json
 
 from typing import Optional, List, Dict, Union
+from warnings import warn
+from datetime import datetime, timedelta
+
 from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
 
-from trading_funcs import get_relavant_values, create_sequences, process_flips, excluded_values
-from getInfo import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
-from warnings import warn
-from datetime import datetime, timedelta
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
+
+from trading_funcs import get_relavant_values, create_sequences, process_flips, excluded_values
+from get_info import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
+
 
 __all__ = (
     'BaseModel',
@@ -39,15 +41,18 @@ __all__ = (
     'ImpulseMACDModel',
     'ReversalModel',
     'EarningsModel',
-    'BreakoutModel'
+    'BreakoutModel',
+    'RSIModel',
+    'SuperTrendsModel'
 )
 
 
 class BaseModel:
     """
-    This is the base class for all the models. It handles the actual training, saving, loading, predicting, etc.
-    Setting the `information_keys` allows us to describe what the model uses. The information keys themselves
-    are retrieved from a json format that was created by getInfo.py.
+    This is the base class for all the models. It handles the actual training, saving,
+    loading, predicting, etc. Setting the `information_keys` allows us to describe what
+    the model uses. The information keys themselves are retrieved from a json format
+    that was created by getInfo.py.
 
     Args:
         start_date (str): The start date of the training data
@@ -95,7 +100,9 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        self.data, data, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys)
+        self.data, data, start_date, end_date = get_relavant_values(
+            start_date, end_date, stock_symbol, information_keys
+        )
         shape = data.shape[1]
 
         for key in self.data.keys():
@@ -165,14 +172,15 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        _, data, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys)
+        _, data, start_date, end_date = get_relavant_values(
+            start_date, end_date, stock_symbol, information_keys
+        )
 
         #_________________Process Data for LSTM______________________#
         # Split the data into training and testing sets
         train_size = int(len(data) * 0.8)
         train_data = data[:train_size]
         test_data = data[train_size:]
-
 
         x_train, y_train = create_sequences(train_data, num_days)
         x_test, y_test = create_sequences(test_data, num_days)
@@ -182,7 +190,6 @@ class BaseModel:
 
         train_data = train_data[num_days:]
         test_data = test_data[num_days:]
-        
 
         #Get first collumn
         temp_train = train_data[:, 0]
@@ -205,13 +212,12 @@ class BaseModel:
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
         print()
-        def is_homogeneous(arr):
+        def is_homogeneous(arr) -> bool:
             return len(set(arr.dtype for arr in arr.flatten())) == 1
         print("Homogeneous(Should be True):", is_homogeneous(data))
 
-
         y_train_size = y_train.shape[0]
-        days_test = [i for i in range(y_train.shape[0])]
+        days_test = list(range(y_train.shape[0]))
         days_train = [i+y_train_size for i in range(y_test.shape[0])]
 
         # Plot the actual and predicted prices
@@ -223,11 +229,13 @@ class BaseModel:
         predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
         actual_test = plt.plot(days_train, y_test, label='Actual Test')
 
-
         plt.title(f'{stock_symbol} Stock Price Prediction')
         plt.xlabel('Date')
         plt.ylabel('Price')
-        plt.legend([predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]], ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train'])
+        plt.legend(
+            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],
+            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']
+        )
         plt.show()
 
     def load(self) -> Optional[Self]:
@@ -253,8 +261,9 @@ class BaseModel:
     def indicators_past_num_days(self, cached_info: pd.DataFrame,
                                  end_date: datetime, num_days: int) -> Dict[str, Union[float, str]]:
         """
-        This method will return the indicators for the past `num_days` days specified in the information keys. 
-        It will use the cached information to calculate the indicators until the `end_date`.
+        This method will return the indicators for the past `num_days` days specified in the
+        information keys. It will use the cached information to calculate the indicators
+        until the `end_date`.
 
         Args:
             cached_info (pd.DataFrame): The cached information
@@ -263,36 +272,47 @@ class BaseModel:
         
         Returns:
             dict: A dictionary containing the indicators for the stock data
-                Values will be floats except some expections tht need to be processed during run time
+                Values will be floats except some expections tht need to be
+                processed during run time
         """
         stock_data = {}
         information_keys = self.information_keys
 
         if '12-day EMA' in information_keys:
-            stock_data['12-day EMA'] = cached_info['Close'].ewm(span=12, adjust=False).mean().iloc[-num_days:]
+            ewm12 = cached_info['Close'].ewm(span=12, adjust=False)
+            ema12 = ewm12.mean().iloc[-num_days:]
+            stock_data['12-day EMA'] = ema12
         if '26-day EMA' in information_keys:
-            stock_data['26-day EMA'] = cached_info['Close'].ewm(span=26, adjust=False).mean().iloc[-num_days:]
+            ewm26 = cached_info['Close'].ewm(span=26, adjust=False)
+            ema26 = ewm26.mean().iloc[-num_days:]
+            stock_data['26-day EMA'] = ema26
         if 'MACD' in information_keys:
-            stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
+            macd = ema12 - ema26
+            stock_data['MACD'] = macd
         if 'Signal Line' in information_keys:
             span = 9
-            signal_line = stock_data['MACD'].rolling(window=span).mean().iloc[-num_days:]
+            signal_line = macd.rolling(window=span).mean().iloc[-num_days:]
             stock_data['Signal Line'] = signal_line
         if 'Histogram' in information_keys:
-            stock_data['Histogram'] = stock_data['MACD'] - stock_data['Signal Line']
+            histogram = macd - stock_data['Signal Line']
+            stock_data['Histogram'] = histogram
         if '200-day EMA' in information_keys:
-            stock_data['200-day EMA'] = cached_info['Close'].ewm(span=200, adjust=False).mean().iloc[-num_days:]
+            ewm200 = cached_info['Close'].ewm(span=200, adjust=False)
+            ema200 = ewm200.mean().iloc[-num_days:]
+            stock_data['200-day EMA'] = ema200
         if 'Change' in information_keys:
-            stock_data['Change'] = cached_info['Close'].diff().iloc[-num_days:]
+            change = cached_info['Close'].diff().iloc[-num_days:]
+            stock_data['Change'] = change
         if 'Momentum' in information_keys:
-            stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum().iloc[-num_days:]
+            momentum = change.rolling(window=10, min_periods=1).sum().iloc[-num_days:]
+            stock_data['Momentum'] = momentum
         if 'RSI' in information_keys:
-            stock_data['Gain'] = stock_data['Change'].apply(lambda x: x if x > 0 else 0)
-            stock_data['Loss'] = stock_data['Change'].apply(lambda x: abs(x) if x < 0 else 0)
-            stock_data['Avg Gain'] = stock_data['Gain'].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            stock_data['Avg Loss'] = stock_data['Loss'].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            stock_data['RS'] = stock_data['Avg Gain'] / stock_data['Avg Loss']
-            stock_data['RSI'] = 100 - (100 / (1 + stock_data['RS']))
+            gain = change.apply(lambda x: x if x > 0 else 0)
+            loss = change.apply(lambda x: abs(x) if x < 0 else 0)
+            avg_gain = gain.rolling(window=14, min_periods=1).mean().iloc[-num_days:]
+            avg_loss = loss.rolling(window=14, min_periods=1).mean().iloc[-num_days:]
+            rs = avg_gain / avg_loss
+            stock_data['RSI'] = 100 - (100 / (1 + rs))
         if 'TRAMA' in information_keys:
             # TRAMA
             volatility = cached_info['Close'].diff().abs().iloc[-num_days:]
@@ -341,7 +361,8 @@ class BaseModel:
         return stock_data
 
     def indicators_today(self, day_info: pd.DataFrame,
-                         end_date: datetime, num_days: int) -> Dict[str, Union[float, str]]:
+                         end_date: datetime, num_days: int
+                         ) -> Dict[str, Union[float, str]]:
         """
         This method calculates the indicators for the stock data for the current day. 
         It will use the current day_info to calculate the indicators until the `end_date`.
@@ -355,81 +376,7 @@ class BaseModel:
             dict: A dictionary of the indicators for the stock data
                 Values will be floats except some expections tht need to be processed during run time
         """
-        stock_data = {}
-        information_keys = self.information_keys
-        stock_symbol = self.stock_symbol
-
-        if '12-day EMA' in information_keys:
-            stock_data['12-day EMA'] = day_info['Close'].ewm(span=12, adjust=False).mean().iloc[-num_days:]
-        if '26-day EMA' in information_keys:
-            stock_data['26-day EMA'] = day_info['Close'].ewm(span=26, adjust=False).mean().iloc[-num_days:]
-        if 'MACD' in information_keys:
-            stock_data['MACD'] = stock_data['12-day EMA'] - stock_data['26-day EMA']
-        if 'Signal Line' in information_keys:
-            span = 9
-            signal_line = stock_data['MACD'].rolling(window=span).mean().iloc[-num_days:]
-            stock_data['Signal Line'] = signal_line
-        if 'Histogram' in information_keys:
-            stock_data['Histogram'] = stock_data['MACD'] - stock_data['Signal Line']
-        if '200-day EMA' in information_keys:
-            stock_data['200-day EMA'] = day_info['Close'].ewm(span=200, adjust=False).mean().iloc[-num_days:]
-        if 'Change' in information_keys:
-            stock_data['Change'] = day_info['Close'].diff().iloc[-num_days:]
-        if 'Momentum' in information_keys:
-            stock_data['Momentum'] = stock_data['Change'].rolling(window=10, min_periods=1).sum().iloc[-num_days:]
-        if 'RSI' in information_keys:
-            stock_data["Gain"] = stock_data["Change"].apply(lambda x: x if x > 0 else 0)
-            stock_data['Loss'] = stock_data['Change'].apply(lambda x: abs(x) if x < 0 else 0)
-            stock_data["Avg Gain"] = stock_data["Gain"].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            stock_data["Avg Loss"] = stock_data["Loss"].rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            stock_data["RS"] = stock_data["Avg Gain"] / stock_data["Avg Loss"]
-            stock_data["RSI"] = 100 - (100 / (1 + stock_data["RS"]))
-        if 'TRAMA' in information_keys:
-            # TRAMA
-            volatility = day_info['Close'].diff().abs().iloc[-num_days:]
-            trama = day_info['Close'].rolling(window=14).mean().iloc[-num_days:]
-            stock_data['TRAMA'] = trama + (volatility * 0.1)
-        if 'gradual-liquidity spike' in information_keys:
-            # Reversal
-            stock_data['gradual-liquidity spike'] = get_liquidity_spikes(day_info['Volume'], gradual=True).iloc[-num_days:]
-            stock_data['3-liquidity spike'] = get_liquidity_spikes(day_info['Volume'], z_score_threshold=4).iloc[-num_days:]
-            stock_data['momentum_oscillator'] = calculate_momentum_oscillator(day_info['Close']).iloc[-num_days:]
-        if 'flips' in information_keys:
-            #_________________12 and 26 day Ema flips______________________#
-            ema12=day_info['Close'].ewm(span=12, adjust=False).mean()
-            ema26=day_info['Close'].ewm(span=26, adjust=False).mean()
-            
-            stock_data['flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
-        if 'earnings diff' in information_keys:
-            #earnings stuffs
-            earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
-            all_dates = []
-
-            # Calculate dates before the extracted date
-            days_before = 3
-            for i in range(days_before):
-                day = end_date - timedelta(days=i+1)
-                all_dates.append(day.strftime("%Y-%m-%d"))
-
-            stock_data['earnings diff'] = []
-            low, high = self.scaler_data['earnings diffs']['min'], self.scaler_data['earnings diffs']['max']
-            for date in all_dates:
-                if not end_date in earnings_dates:
-                    stock_data['earnings diff'].append(0)
-                    continue
-                i = earnings_dates.index(date)
-                scaled = (earnings_diff[i]-low) / (high - low)
-                stock_data['earnings diff'].append(scaled)
-
-        # Scale each column manually
-        for column in self.information_keys:
-            if column in excluded_values:
-                continue
-            low, high = min(self.data[column]), max(self.data[column])
-            column_values = stock_data[column]
-            scaled_values = (column_values - low) / (high - low)
-            stock_data[column] = scaled_values
-        return stock_data
+        raise NotImplementedError("Will be added soon")
 
     def update_cached_online(self) -> None:
         """This method updates the cached data using the internet."""
@@ -452,8 +399,8 @@ class BaseModel:
                 cached_info[key].append(val)# NOTE DO IT FINISH
 
             day_data = self.indicators_today(cached_info, end_date, num_days)
-            day_data = [day_data[key] for key in self.information_keys] # make sure it is in correct order
-
+            # make sure it is in correct order
+            day_data = [day_data[key] for key in self.information_keys]
             #delete first day and add new day.
             cached = np.concatenate((cached[1:], [day_data]))
         else:
@@ -477,7 +424,7 @@ class BaseModel:
         end_date = self.end_date
         #_________________ GET Data______________________#
         if not self.cached_info:
-            with open(f"{self.stock_symbol}/info.json") as file:
+            with open(f"{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
                 #if not self.start_date in cached_info['Dates']:
                 #    raise ValueError("start is before or after `Dates` range")
@@ -486,32 +433,37 @@ class BaseModel:
     
 
                 end_index = cached_info["Dates"].index(self.end_date)
-                cached = [cached_info[key][end_index-self.num_days:end_index] for key in self.information_keys if key not in excluded_values]
+                cached = []
+                for key in self.information_keys:
+                    if key not in excluded_values:
+                        cached.append(cached_info[key][end_index-self.num_days:end_index])
                 cached = np.transpose(cached)
 
                 self.cached = cached
                 self.cached_info = cached_info
-            if not len(self.cached):
+            if len(self.cached) == 0:
                 raise RuntimeError("Stock data failed to load. Reason Unknown")
-        if len(self.cached):
+        if len(self.cached) != 0:
             i_end = self.cached_info["Dates"].index(end_date)
             day_data = [self.cached_info[key][i_end] for key in self.information_keys]
 
             #delete first day and add new day.
             self.cached = np.concatenate((self.cached[1:], [day_data]))
 
-    def getInfoToday(self, period: int=14) -> List[float]:
+    def get_info_today(self, period: int=14) -> List[float]:
         """
-        This method will get the information for the stock today and the last relevant days to the stock.
-        
-        The cached_data is used so less data has to be retrieved from yf.finance as it is held to cached
-        or something else.
+        This method will get the information for the stock today and the
+        last relevant days to the stock.
+
+        The cached_data is used so less data has to be retrieved from
+        yf.finance as it is held to cached or something else.
 
         Args:
             period (int): The number of days to get the information for
         
         Returns:
-            list: The information for the stock today and the last relevant days to the stock
+            list: The information for the stock today and the
+                last relevant days to the stock
         """
         try:
             self.update_cached_online(period=period)
@@ -537,8 +489,8 @@ class BaseModel:
         This method wraps the model's predict method using `info`.
 
         Args: 
-            info (Optional[np.array]): the information to predict on. If None, it will get the info
-            from the last relevant days back.
+            info (Optional[np.array]): the information to predict on.
+            If None, it will get the info from the last relevant days back.
         
         Returns:
             np.array: the predictions of the model
@@ -565,8 +517,8 @@ class BaseModel:
         >>> print(len(temp))
         4
         """
-        if not len(info):
-            info = self.getInfoToday()
+        if len(info) != 0:
+            info = self.get_info_today()
         if self.model:
             return self.model.predict(info)
         raise LookupError("Compile or load model first")
@@ -575,7 +527,8 @@ class BaseModel:
 
 class DayTradeModel(BaseModel):
     """
-    This is the DayTrade child class that inherits from the BaseModel parent class.
+    This is the DayTrade child class that inherits from
+    the BaseModel parent class.
     
     It contains the information keys `Close`
     """
@@ -592,7 +545,8 @@ class DayTradeModel(BaseModel):
 
 class MACDModel(BaseModel):
     """
-    This is the MACD child class that inherits from the BaseModel parent class.
+    This is the MACD child class that inherits
+    from the BaseModel parent class.
 
     It contains the information keys `Close`, `MACD`, `Signal Line`, `Histogram`, `flips`, `200-day EMA`
     """
@@ -609,7 +563,8 @@ class MACDModel(BaseModel):
 
 class ImpulseMACDModel(BaseModel):
     """
-    This is the ImpulseMACD child class that inherits from the BaseModel parent class.
+    This is the ImpulseMACD child class that inherits from
+    the BaseModel parent class.
 
     The difference between this class and the MACD model class is that the Impluse MACD model
     is more responsive to short-term market changes and can identify trends earlier. 
@@ -629,7 +584,8 @@ class ImpulseMACDModel(BaseModel):
 
 class ReversalModel(BaseModel):
     """
-    This is the Reversal child class that inherits from the BaseModel parent class.
+    This is the Reversal child class that inherits from
+    the BaseModel parent class.
 
     It contains the information keys `Close`, `gradual-liquidity spike`, `3-liquidity spike`, `momentum_oscillator`
     """
@@ -646,9 +602,11 @@ class ReversalModel(BaseModel):
 
 class EarningsModel(BaseModel):
     """
-    This is the Earnings child class that inherits from the BaseModel parent class.
+    This is the Earnings child class that inherits from
+    the BaseModel parent class.
 
-    It contains the information keys `Close`, `earnings dates`, `earnings diff`, `Momentum`
+    It contains the information keys `Close`, `earnings dates`,
+    `earnings diff`, `Momentum`
     """
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-06-05",
@@ -663,7 +621,8 @@ class EarningsModel(BaseModel):
 
 class BreakoutModel(BaseModel):
     """
-    This is the Breakout child class that inherits from the BaseModel parent class.
+    This is the Breakout child class that inherits from
+    the BaseModel parent class.
 
     It contains the information keys `Close`, `RSI`, `TRAMA`
     """
@@ -680,7 +639,8 @@ class BreakoutModel(BaseModel):
 
 class RSIModel(BaseModel):
     """
-    This is the Breakout child class that inherits from the BaseModel parent class.
+    This is the Breakout child class that inherits from
+    the BaseModel parent class.
 
     It contains the information keys `Close`, `RSI`, `TRAMA`
     """
@@ -697,7 +657,8 @@ class RSIModel(BaseModel):
 
 class RSIModel2(BaseModel):
     """
-    This is the Breakout child class that inherits from the BaseModel parent class.
+    This is the Breakout child class that inherits from
+    the BaseModel parent class.
 
     It contains the information keys `Close`, `RSI`, `TRAMA`
     """
@@ -714,7 +675,8 @@ class RSIModel2(BaseModel):
 
 class SuperTrendsModel(BaseModel):
     """
-    This is the Breakout child class that inherits from the BaseModel parent class.
+    This is the Breakout child class that inherits from
+    the BaseModel parent class.
 
     It contains the information keys `Close`, `RSI`, `TRAMA`
     """
@@ -725,18 +687,22 @@ class SuperTrendsModel(BaseModel):
             start_date=start_date,
             end_date=end_date,
             stock_symbol=stock_symbol,
-            information_keys=['Close', 'supertrend1', 'supertrend2', 'supertrend3', '200-day EMA', 'kumo_cloud']
+            information_keys=[
+                'Close', 'supertrend1', 'supertrend2',
+                'supertrend3', '200-day EMA', 'kumo_cloud'
+            ]
         )
 
 
 if __name__ == "__main__":
-    modelclasses = [BreakoutModel, RSIModel, RSIModel2, SuperTrendsModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
+    #[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
+    modelclasses = [BreakoutModel, RSIModel, RSIModel2]
 
-    models = []
+    test_models = []
     for modelclass in modelclasses:
         model = modelclass()
-        model.train(epochs=1000)
-        models.append(model)
+        model.train(epochs=100)
+        test_models.append(model)
 
-    for model in models:
+    for model in test_models:
         model.test()
