@@ -230,11 +230,9 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
 
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
+    filtered = np.transpose(filtered) # type: ignore[assignment]
 
-    filtered = np.transpose(filtered)
-
-    # type: ignore[return]
-    return other_vals, filtered, start_date, end_date
+    return other_vals, filtered, start_date, end_date # type: ignore[return-value]
 
 
 def get_scaler(num: float, data: List) -> float:

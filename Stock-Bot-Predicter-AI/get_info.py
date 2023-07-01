@@ -190,7 +190,7 @@ def get_liquidity_spikes(data, z_score_threshold: float=2.0,
     return abnormal_spikes
 
 
-def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
+def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series[float]:
     """
     Calculates the momentum oscillator for the given data series.
 
@@ -204,6 +204,7 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
     momentum = data.diff(period)  # Calculate the difference between current and n periods ago
     percent_momentum = (momentum / data.shift(period)) * 100  # Calculate momentum as a percentage
 
+    # type: ignore[no-any-return]
     return percent_momentum.fillna(method='bfill')
 
 

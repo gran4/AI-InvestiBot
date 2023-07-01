@@ -16,7 +16,7 @@ See also:
 
 import json
 
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Union, Any
 from warnings import warn
 from datetime import datetime, timedelta
 
@@ -79,15 +79,15 @@ class BaseModel:
         self.num_days = num_days
 
         self.model: Optional[Sequential] = None
-        self.data: Optional[Dict] = None
-        self.scaler_data: Optional[Dict] = None
+        self.data: Optional[Dict[str, Any]] = None
+        self.scaler_data: Optional[Dict[str, float]] = None
 
 #________For offline predicting____________#
         self.cached: Optional[np.ndarray] = None
 
         # NOTE: cached_info is a pd.DateFrame online,
         # while it is a Dict offline
-        self.cached_info: Optional[Union[pd.DataFrame, Dict]] = None
+        self.cached_info: Optional[Union[pd.DataFrame, Dict[str, Any]]] = None
 
     def train(self, epochs: int=10) -> None:
         """
@@ -183,7 +183,7 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        _, data, start_date, end_date = get_relavant_values( # type: ignore[union-attr]
+        _, data, start_date, end_date = get_relavant_values( # type: ignore[arg-type]
             start_date, end_date, stock_symbol, information_keys, self.scaler_data
         )
 
@@ -262,7 +262,7 @@ class BaseModel:
             BaseModel: The saved model if it was successfully saved
         """
         if self.model:
-            return
+            return None
         self.model = load_model(f"{self.stock_symbol}/model")
 
         with open(f"{self.stock_symbol}/data.json", 'r') as file:
@@ -271,6 +271,7 @@ class BaseModel:
         with open(f"{self.stock_symbol}/min_max_data.json", 'r') as file:
             self.scaler_data = json.load(file)
 
+        # type: ignore[no-any-return]
         return self.model
 
     def indicators_past_num_days(self, cached_info: pd.DataFrame,
@@ -361,8 +362,8 @@ class BaseModel:
                 all_dates.append(day.strftime('%Y-%m-%d'))
 
             stock_data['earnings diff'] = [] # type: ignore[attr]
-            low = self.scaler_data['earnings diffs']['min'] # type: ignore[attr]
-            high = self.scaler_data['earnings diffs']['max'] # type: ignore[attr]
+            low = self.scaler_data['earnings diffs']['min'] # type: ignore[index]
+            high = self.scaler_data['earnings diffs']['max'] # type: ignore[index]
             for date in all_dates:
                 if not self.end_date in earnings_dates:
                     stock_data['earnings diff'].append(0)
@@ -375,8 +376,8 @@ class BaseModel:
         for column in self.information_keys:
             if column in excluded_values:
                 continue
-            low = self.scaler_data[column]['min'] # type: ignore[attr]
-            high = self.scaler_data[column]['max'] # type: ignore[attr]
+            low = self.scaler_data[column]['min'] # type: ignore[index]
+            high = self.scaler_data[column]['max'] # type: ignore[index]
             column_values = stock_data[column]
             scaled_values = (column_values - low) / (high - low)
             stock_data[column] = scaled_values
@@ -430,7 +431,7 @@ class BaseModel:
             start_date = end_datetime - timedelta(days=260)
             cached_info = ticker.history(start=start_date, end=self.end_date, interval="1d")
 
-            if len(cached_info) == 0: # type: ignore[attr]
+            if len(cached_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
             cached = self.indicators_past_num_days(cached_info, num_days)
 
@@ -550,7 +551,7 @@ class BaseModel:
         if info is None:
             info = self.get_info_today()
         if self.model:
-            return self.model.predict(info)
+            return self.model.predict(info) # typing: ignore[return]
         raise LookupError("Compile or load model first")
 
 
