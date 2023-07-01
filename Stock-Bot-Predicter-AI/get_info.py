@@ -82,7 +82,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
 
     # Find the table containing earnings history
     table = soup.find('table', {'data-test': 'historical-prices'})
-    rows = table.find_all('tr')
+    rows = table.find_all('tr') # type: ignore[union-attr]
 
     earnings_dates, earnings_diff = [], []
     for row in rows[1:]:

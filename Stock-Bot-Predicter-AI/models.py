@@ -183,7 +183,7 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        _, data, start_date, end_date = get_relavant_values(
+        _, data, start_date, end_date = get_relavant_values( # type: ignore[union-attr]
             start_date, end_date, stock_symbol, information_keys, self.scaler_data
         )
 
@@ -360,9 +360,9 @@ class BaseModel:
                 day = end_datetime - timedelta(days=i+1)
                 all_dates.append(day.strftime('%Y-%m-%d'))
 
-            stock_data['earnings diff'] = []
-            low = self.scaler_data['earnings diffs']['min']
-            high = self.scaler_data['earnings diffs']['max']
+            stock_data['earnings diff'] = [] # type: ignore[attr]
+            low = self.scaler_data['earnings diffs']['min'] # type: ignore[attr]
+            high = self.scaler_data['earnings diffs']['max'] # type: ignore[attr]
             for date in all_dates:
                 if not self.end_date in earnings_dates:
                     stock_data['earnings diff'].append(0)
@@ -375,8 +375,8 @@ class BaseModel:
         for column in self.information_keys:
             if column in excluded_values:
                 continue
-            low = self.scaler_data[column]['min']
-            high = self.scaler_data[column]['max']
+            low = self.scaler_data[column]['min'] # type: ignore[attr]
+            high = self.scaler_data[column]['max'] # type: ignore[attr]
             column_values = stock_data[column]
             scaled_values = (column_values - low) / (high - low)
             stock_data[column] = scaled_values
@@ -430,7 +430,7 @@ class BaseModel:
             start_date = end_datetime - timedelta(days=260)
             cached_info = ticker.history(start=start_date, end=self.end_date, interval="1d")
 
-            if not len(cached_info):
+            if len(cached_info) == 0: # type: ignore[attr]
                 raise ConnectionError("Stock data failed to load. Check your internet")
             cached = self.indicators_past_num_days(cached_info, num_days)
 

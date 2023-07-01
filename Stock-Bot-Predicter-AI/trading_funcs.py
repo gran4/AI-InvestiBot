@@ -232,6 +232,8 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
 
     filtered = np.transpose(filtered)
+
+    # type: ignore[return]
     return other_vals, filtered, start_date, end_date
 
 
