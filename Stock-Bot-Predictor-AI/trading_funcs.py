@@ -164,8 +164,9 @@ def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
     return start_date, end_date
 
 
-def get_relavant_values(self, start_date: str, end_date: str, stock_symbol: str,
-                        information_keys: List[str]) -> Tuple[Dict, np.ndarray, str, str]:
+def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
+                        information_keys: List[str], scaler_data: Dict
+                        ) -> Tuple[Dict, np.ndarray, str, str]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
     as well as the corrected dates.
@@ -221,8 +222,8 @@ def get_relavant_values(self, start_date: str, end_date: str, stock_symbol: str,
             continue
         other_vals[key] = np.array(other_vals[key])
 
-        min_value = self.scaler_data[key]['min']
-        max_value = self.scaler_data[key]['max']
+        min_value = scaler_data[key]['min']
+        max_value = scaler_data[key]['max']
 
         if max_value - min_value != 0: # Rare, extreme cases
             other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)

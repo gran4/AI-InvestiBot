@@ -23,9 +23,9 @@ __all__ = (
 
 class ResourceManager:
     """
-    This is the base class for the resouce manager. It is used to manage the money
-    you have and how much you can use for a stock.
-    
+    This is used to manage the money you have, buy/sell stock,
+    and place limits on how much you spend/ your risk.
+
     Args:
         Money (int): Money that you have
         max_percent (float): Max percent of money you can use for a stock

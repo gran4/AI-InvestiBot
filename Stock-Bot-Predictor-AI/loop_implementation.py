@@ -28,6 +28,7 @@ model.load()
 #model.get_stock_data_offline()
 
 def run_loop() -> None:
+    """Runs the stock bot in a loop"""
     while True:
         model.update_cached_offline()
         input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))

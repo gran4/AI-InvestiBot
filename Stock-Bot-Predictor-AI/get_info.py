@@ -247,9 +247,9 @@ def get_historical_info() -> None:
         avg_loss = loss.rolling(window=14, min_periods=1).mean()  # 14-day average loss
 
         #RSI Strat
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-        rsi.fillna(rsi.iloc[1], inplace=True)
+        relative_strength = avg_gain / avg_loss
+        relative_strength_index = 100 - (100 / (1 + relative_strength))
+        relative_strength_index.fillna(relative_strength_index.iloc[1], inplace=True)
 
         volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
         # Calculate the initial TRAMA with the specified period
@@ -304,7 +304,7 @@ def get_historical_info() -> None:
             'kumo_cloud': kumo_status.tolist(),
             'Momentum': momentum.values.tolist(),
             'Change': change.values.tolist(),
-            'RSI': rsi.values.tolist(),
+            'RSI': relative_strength_index.values.tolist(),
             'TRAMA': trama.values.tolist(),
             'volatility': volatility.values.tolist(),
             'Bollinger Middle': bollinger_middle.values.tolist(),

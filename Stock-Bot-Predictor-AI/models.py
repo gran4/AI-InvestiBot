@@ -61,6 +61,11 @@ class BaseModel:
         num_days (int): The number of days to use for the LSTM model
         information_keys (List[str]): The information keys that describe what the model uses
     """
+    start_date = "2021-01-01"
+    end_date = "2022-01-05"
+    stock_symbol = "AAPL"
+    num_days = 60
+    information_keys = ["Close"]
 
     def __init__(self, start_date: str = "2021-01-01",
                  end_date: str = "2022-01-05",
@@ -99,12 +104,17 @@ class BaseModel:
         information_keys = self.information_keys
         num_days = self.num_days
 
+
+        #For predictions
+        self.scaler_data = {}
+        for key, val in self.data.items():
+            self.scaler_data[key] = {"min": min(val), "max": max(val)}
+
         #_________________ GET Data______________________#
         self.data, data, start_date, end_date = get_relavant_values(
-            start_date, end_date, stock_symbol, information_keys
+            start_date, end_date, stock_symbol, information_keys, self.scaler_data
         )
         shape = data.shape[1]
-
         for key in self.data.keys():
             self.data[key] = list(self.data[key])
 
@@ -134,10 +144,6 @@ class BaseModel:
 
         self.model = model
 
-        #For predictions
-        self.scaler_data = {}
-        for key, val in self.data.items():
-            self.scaler_data[key] = {"min": min(val), "max": max(val)}
 
     def save(self) -> None:
         """
@@ -154,6 +160,9 @@ class BaseModel:
 
         with open(f"{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
+
+    def is_homogeneous(self, arr) -> bool:
+        return len(set(arr.dtype for arr in arr.flatten())) == 1
 
     def test(self) -> None:
         """
@@ -175,7 +184,7 @@ class BaseModel:
 
         #_________________ GET Data______________________#
         _, data, start_date, end_date = get_relavant_values(
-            start_date, end_date, stock_symbol, information_keys
+            start_date, end_date, stock_symbol, information_keys, self.scaler_data
         )
 
         #_________________Process Data for LSTM______________________#
@@ -214,9 +223,8 @@ class BaseModel:
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
         print()
-        def is_homogeneous(arr) -> bool:
-            return len(set(arr.dtype for arr in arr.flatten())) == 1
-        print("Homogeneous(Should be True):", is_homogeneous(data))
+        
+        print("Homogeneous(Should be True):", self.is_homogeneous(data))
 
         y_train_size = y_train.shape[0]
         days_test = list(range(y_train.shape[0]))
@@ -224,6 +232,11 @@ class BaseModel:
 
         # Plot the actual and predicted prices
         plt.figure(figsize=(18, 6))
+
+        temp = days_train+days_test
+        real_data = plt.plot(temp, data, label='Real Data')
+        #actual_train = plt.plot(days_test, y_train, label='Actual Train')
+
 
         predicted_train = plt.plot(days_test, train_predictions, label='Predicted Train')
         actual_train = plt.plot(days_test, y_train, label='Actual Train')
@@ -235,8 +248,8 @@ class BaseModel:
         plt.xlabel('Date')
         plt.ylabel('Price')
         plt.legend(
-            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],
-            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']
+            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0], real_data],
+            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train', 'Real Data']
         )
         plt.show()
 
@@ -312,8 +325,8 @@ class BaseModel:
             loss = change.apply(lambda x: abs(x) if x < 0 else 0)
             avg_gain = gain.rolling(window=14, min_periods=1).mean().iloc[-num_days:]
             avg_loss = loss.rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            rs = avg_gain / avg_loss
-            stock_data['RSI'] = 100 - (100 / (1 + rs))
+            relative_strength = avg_gain / avg_loss
+            stock_data['RSI'] = 100 - (100 / (1 + relative_strength))
         if 'TRAMA' in information_keys:
             # TRAMA
             volatility = cached_info['Close'].diff().abs().iloc[-num_days:]
@@ -400,7 +413,7 @@ class BaseModel:
             # Only get one day's info
             day_data = ticker.history(start=self.end_date, end=self.end_date, interval="1d")
 
-            if not len(day_data):
+            if len(day_data) == 0:
                 raise ConnectionError("Stock data failed to load. Check your internet")
 
             for key, val in day_data.items():
@@ -444,7 +457,7 @@ class BaseModel:
 
                 if not self.start_date in cached_info['Dates']:
                     raise ValueError("start is before or after `Dates` range")
-                elif not self.end_date in cached_info['Dates']:
+                if not self.end_date in cached_info['Dates']:
                     raise ValueError("end is before or after `Dates` range")
 
                 end_index = cached_info["Dates"].index(self.end_date)
