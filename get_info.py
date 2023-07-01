@@ -105,12 +105,12 @@ def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
     Args:
         date_object (datetime): Date to calculate the difference from.
         reference_date (datetime): Reference date to calculate the difference to.
-    
+
     Returns:
         int: Number of days between the two dates.
     """
     # Calculate the number of days between the date and the reference date
-    return date_object - reference_date
+    return (date_object - reference_date).days
 
 
 def earnings_since_time(dates: List, start_date: str) -> List[int]:
@@ -252,7 +252,7 @@ def get_historical_info() -> None:
         rsi = 100 - (100 / (1 + rs))
         rsi.fillna(rsi.iloc[1], inplace=True)
 
-        volatility = stock_data['Close'].diff(min_periods=1).abs()  # Calculate price volatility
+        volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
         # Calculate the initial TRAMA with the specified period
         trama = stock_data['Close'].rolling(window=period, min_periods=1).mean()
         trama = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility

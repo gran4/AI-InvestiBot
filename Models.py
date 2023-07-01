@@ -78,7 +78,7 @@ class BaseModel:
         self.scaler_data: Optional[Dict] = None
 
 #________For offline predicting____________#
-        self.cached: Optional[np.array] = None
+        self.cached: Optional[np.ndarray] = None
 
         # NOTE: cached_info is a pd.DateFrame online,
         # while it is a Dict offline
@@ -144,6 +144,8 @@ class BaseModel:
         This method will save the model using the tensorflow save method. It will also save the data
         into the `json` file format.
         """
+        if self.model is None:
+            raise LookupError("Compile or load model first")
         #_________________Save Model______________________#
         self.model.save(f"{self.stock_symbol}/model")
 
@@ -259,7 +261,7 @@ class BaseModel:
         return self.model
 
     def indicators_past_num_days(self, cached_info: pd.DataFrame,
-                                 end_date: datetime, num_days: int) -> Dict[str, Union[float, str]]:
+                                 num_days: int) -> Dict[str, Union[float, str]]:
         """
         This method will return the indicators for the past `num_days` days specified in the
         information keys. It will use the cached information to calculate the indicators
@@ -267,7 +269,6 @@ class BaseModel:
 
         Args:
             cached_info (pd.DataFrame): The cached information
-            end_date (datetime): The end date
             num_days (int): The number of days to calculate the indicators for
         
         Returns:
@@ -341,15 +342,16 @@ class BaseModel:
 
             # Calculate dates before the extracted date
             days_before = 3
+            end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
             for i in range(days_before):
-                day = end_date - timedelta(days=i+1)
+                day = end_datetime - timedelta(days=i+1)
                 all_dates.append(day.strftime('%Y-%m-%d'))
 
             stock_data['earnings diff'] = []
             low = self.scaler_data['earnings diffs']['min']
             high = self.scaler_data['earnings diffs']['max']
             for date in all_dates:
-                if not end_date in earnings_dates:
+                if not self.end_date in earnings_dates:
                     stock_data['earnings diff'].append(0)
                     continue
                 i = earnings_dates.index(date)
@@ -390,13 +392,13 @@ class BaseModel:
         cached_info = self.cached_info
         cached = self.cached
         num_days = self.num_days
-        end_date = self.end_date
+        end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
 
         #_________________ GET Data______________________#
         ticker = yf.Ticker(self.stock_symbol)
         if self.cached_info: #is more than 0
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
-            day_data = ticker.history(start=end_date, end=end_date, interval="1d")
+            # Only get one day's info
+            day_data = ticker.history(start=self.end_date, end=self.end_date, interval="1d")
 
             if not len(day_data):
                 raise ConnectionError("Stock data failed to load. Check your internet")
@@ -405,19 +407,18 @@ class BaseModel:
                 cached_info[key].pop()######## NOTE NOTE NOTE
                 cached_info[key].append(val)# NOTE DO IT FINISH
 
-            day_data = self.indicators_today(cached_info, end_date, num_days)
+            day_data = self.indicators_today(cached_info, end_datetime, num_days)
             # make sure it is in correct order
             day_data = [day_data[key] for key in self.information_keys]
             #delete first day and add new day.
             cached = np.concatenate((cached[1:], [day_data]))
         else:
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
-            start_date = end_date - timedelta(days=260)
-            cached_info = ticker.history(start=start_date, end=end_date, interval="1d")
+            start_date = end_datetime - timedelta(days=260)
+            cached_info = ticker.history(start=start_date, end=self.end_date, interval="1d")
 
             if not len(cached_info):
                 raise ConnectionError("Stock data failed to load. Check your internet")
-            cached = self.indicators_past_num_days(cached_info, end_date, num_days)
+            cached = self.indicators_past_num_days(cached_info, num_days)
 
             cached = [cached[key] for key in self.information_keys]
             cached = np.transpose(cached)
@@ -439,7 +440,7 @@ class BaseModel:
         if not self.cached_info:
             with open(f"{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
-                print(type(self.start_date), self.end_date)
+
                 if not self.start_date in cached_info['Dates']:
                     raise ValueError("start is before or after `Dates` range")
                 elif not self.end_date in cached_info['Dates']:
@@ -465,19 +466,16 @@ class BaseModel:
             #delete first day and add new day.
             self.cached = np.concatenate((self.cached[1:], [day_data]))
 
-    def get_info_today(self, period: int=14) -> List[float]:
+    def get_info_today(self) -> np.ndarray:
         """
         This method will get the information for the stock today and the
         last relevant days to the stock.
 
         The cached_data is used so less data has to be retrieved from
         yf.finance as it is held to cached or something else.
-
-        Args:
-            period (int): The number of days to get the information for
         
         Returns:
-            list: The information for the stock today and the
+            np.array: The information for the stock today and the
                 last relevant days to the stock
         """
         try:
@@ -485,6 +483,9 @@ class BaseModel:
         except ConnectionError:
             warn("Stock data failed to download. Check your internet")
             self.update_cached_offline()
+
+        if self.cached is None:
+            raise RuntimeError('Neither the online or offline updating of `cached` worked')
 
         date_object = datetime.strptime(self.start_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
@@ -495,20 +496,19 @@ class BaseModel:
         self.end_date = next_day.strftime("%Y-%m-%d")
 
         #NOTE: 'Dates' and 'earnings dates' will never be in information_keys
-        
         self.cached = np.reshape(self.cached, (1, 60, self.cached.shape[1]))
         return self.cached
 
-    def predict(self, info: Optional[np.array] = None) -> np.array:
+    def predict(self, info: Optional[np.ndarray] = None) -> np.ndarray:
         """
         This method wraps the model's predict method using `info`.
 
         Args: 
-            info (Optional[np.array]): the information to predict on.
+            info (Optional[np.ndarray]): the information to predict on.
             If None, it will get the info from the last relevant days back.
         
         Returns:
-            np.array: the predictions of the model
+            np.ndarray: the predictions of the model
                 The length is determined by how many are put in.
                 So, you can predict for time frames or one day
                 depending on what you want.
@@ -533,7 +533,7 @@ class BaseModel:
         >>> print(len(temp))
         4
         """
-        if len(info) != 0:
+        if info is None:
             info = self.get_info_today()
         if self.model:
             return self.model.predict(info)
@@ -549,7 +549,7 @@ class DayTradeModel(BaseModel):
     It contains the information keys `Close`
     """
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-05-05",
+                 end_date: str = "2023-02-05",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
@@ -724,13 +724,14 @@ class SuperTrendsModel(BaseModel):
 
 if __name__ == "__main__":
     #[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
-    modelclasses = [BreakoutModel, RSIModel, RSIModel2]
+    modelclasses = [DayTradeModel]
 
     test_models = []
     for modelclass in modelclasses:
         model = modelclass()
         model.train(epochs=100)
         test_models.append(model)
+        model.save()
 
     for model in test_models:
         model.test()
