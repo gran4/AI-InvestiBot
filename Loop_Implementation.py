@@ -20,7 +20,6 @@ import numpy as np
 
 from models import DayTradeModel
 
-
 TIME_INTERVAL = 5#86400# number of secs in 24 hours
 TICKER = "AAPL"
 
@@ -32,6 +31,7 @@ def run_loop() -> None:
     while True:
         model.update_cached_offline()
         input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
+
         temp = model.predict(info=input_data_reshaped)
         print(type(temp[0]))
 

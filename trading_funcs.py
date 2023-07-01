@@ -272,7 +272,7 @@ def supertrends(data: pd.DataFrame, factor: int, period: int) -> pd.Series:
 def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,
                base_period: int=26, lagging_span2_period: int=52,
                displacement: int=26) -> np.ndarray:
-    """Gets a pd.Series of where `data['Close']` is above or bellow the kumo cloud"""
+    """Gets a np.ndarray of where `data['Close']` is above or bellow the kumo cloud"""
     # Calculate conversion line (Tenkan-sen)
     top_conversion = data['High'].rolling(window=conversion_period).max()
     bottom_conversion = data['Low'].rolling(window=conversion_period).min()

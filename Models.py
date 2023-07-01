@@ -408,6 +408,7 @@ class BaseModel:
                 cached_info[key].append(val)# NOTE DO IT FINISH
 
             day_data = self.indicators_today(cached_info, end_datetime, num_days)
+
             # make sure it is in correct order
             day_data = [day_data[key] for key in self.information_keys]
             #delete first day and add new day.

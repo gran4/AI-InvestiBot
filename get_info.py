@@ -112,7 +112,6 @@ def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
     # Calculate the number of days between the date and the reference date
     return (date_object - reference_date).days
 
-
 def earnings_since_time(dates: List, start_date: str) -> List[int]:
     """
     This function will return a list of earnings since the list of dates
@@ -259,6 +258,7 @@ def get_historical_info() -> None:
 
         bollinger_middle = stock_data['Close'].rolling(window=20, min_periods=1).mean()
         std_dev = stock_data['Close'].rolling(window=20, min_periods=1).std()
+
         bollinger_upper = bollinger_middle + (2 * std_dev)
         bollinger_lower = bollinger_middle - (2 * std_dev)
         above_bollinger = np.where(stock_data['Close'] > bollinger_upper, 1, 0)
@@ -281,7 +281,7 @@ def get_historical_info() -> None:
 
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
-        
+
         #Do more in the model since we do not know the start or end, yet
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
 
@@ -330,6 +330,7 @@ def get_historical_info() -> None:
             converted_data[key] = [(val - min_val) / (max_val - min_val) for val in values]
         with open(f'{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
+
 
 if __name__ == '__main__':
     get_historical_info()
