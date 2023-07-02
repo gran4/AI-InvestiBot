@@ -226,7 +226,7 @@ class BaseModel:
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
         print()
-        
+    
         print("Homogeneous(Should be True):")
         assert self.is_homogeneous(data)
 
@@ -236,7 +236,7 @@ class BaseModel:
 
         # Plot the actual and predicted prices
         plt.figure(figsize=(18, 6))
-        
+
         predicted_train = plt.plot(days_test, train_predictions, label='Predicted Train')
         actual_train = plt.plot(days_test, y_train, label='Actual Train')
 
@@ -247,8 +247,8 @@ class BaseModel:
         plt.xlabel('Date')
         plt.ylabel('Price')
         plt.legend(
-            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],
-            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']
+            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],#[real_data, actual_test[0], actual_train],
+            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']#['Real Data', 'Actual Test', 'Actual Train']
         )
         plt.show()
 
