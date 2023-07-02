@@ -82,7 +82,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
 
     # Find the table containing earnings history
     table = soup.find('table', {'data-test': 'historical-prices'})
-    rows = table.find_all('tr')
+    rows = table.find_all('tr') # type: ignore[union-attr]
 
     earnings_dates, earnings_diff = [], []
     for row in rows[1:]:
@@ -105,13 +105,12 @@ def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
     Args:
         date_object (datetime): Date to calculate the difference from.
         reference_date (datetime): Reference date to calculate the difference to.
-    
+
     Returns:
         int: Number of days between the two dates.
     """
     # Calculate the number of days between the date and the reference date
-    return date_object - reference_date
-
+    return (date_object - reference_date).days
 
 def earnings_since_time(dates: List, start_date: str) -> List[int]:
     """
@@ -205,6 +204,7 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
     momentum = data.diff(period)  # Calculate the difference between current and n periods ago
     percent_momentum = (momentum / data.shift(period)) * 100  # Calculate momentum as a percentage
 
+    # type: ignore[no-any-return]
     return percent_momentum.fillna(method='bfill')
 
 
@@ -242,24 +242,24 @@ def get_historical_info() -> None:
         momentum.fillna(momentum.iloc[1], inplace=True)
 
         #_________________Breakout Model______________________#
-        change = stock_data['Close'].diff()  # Price change from the previous day
         gain = change.apply(lambda x: x if x > 0 else 0)  # Positive changes
         loss = change.apply(lambda x: abs(x) if x < 0 else 0)  # Negative changes
         avg_gain = gain.rolling(window=14, min_periods=1).mean()  # 14-day average gain
         avg_loss = loss.rolling(window=14, min_periods=1).mean()  # 14-day average loss
 
         #RSI Strat
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-        rsi.fillna(rsi.iloc[1], inplace=True)
+        relative_strength = avg_gain / avg_loss
+        relative_strength_index = 100 - (100 / (1 + relative_strength))
+        relative_strength_index.fillna(relative_strength_index.iloc[1], inplace=True)
 
         volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
         # Calculate the initial TRAMA with the specified period
-        trama = stock_data['Close'].rolling(window=period).mean()
+        trama = stock_data['Close'].rolling(window=period, min_periods=1).mean()
         trama = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility
 
-        bollinger_middle = stock_data['Close'].rolling(window=20).mean()
-        std_dev = stock_data['Close'].rolling(window=20).std()
+        bollinger_middle = stock_data['Close'].rolling(window=20, min_periods=1).mean()
+        std_dev = stock_data['Close'].rolling(window=20, min_periods=1).std()
+
         bollinger_upper = bollinger_middle + (2 * std_dev)
         bollinger_lower = bollinger_middle - (2 * std_dev)
         above_bollinger = np.where(stock_data['Close'] > bollinger_upper, 1, 0)
@@ -282,9 +282,8 @@ def get_historical_info() -> None:
 
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
-        
-        #Do more in the model since
-        #we do not know the start or end, yet
+
+        #Do more in the model since we do not know the start or end, yet
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
 
 
@@ -306,7 +305,7 @@ def get_historical_info() -> None:
             'kumo_cloud': kumo_status.tolist(),
             'Momentum': momentum.values.tolist(),
             'Change': change.values.tolist(),
-            'RSI': rsi.values.tolist(),
+            'RSI': relative_strength_index.values.tolist(),
             'TRAMA': trama.values.tolist(),
             'volatility': volatility.values.tolist(),
             'Bollinger Middle': bollinger_middle.values.tolist(),
@@ -327,17 +326,12 @@ def get_historical_info() -> None:
             max_val = max(values)
             if min_val == max_val:
                 # Rare cases where nothing is indicated
-                # Extreme indicators, bools ussually.
+                # Extreme indicators, 0/1 ussually.
                 continue
             converted_data[key] = [(val - min_val) / (max_val - min_val) for val in values]
         with open(f'{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
-        
-        temp = {}
-        for key, val in converted_data.items():#????????
-            temp[key] = {'min': min(val), 'max': max(val)}
-        with open(f'{company_ticker}/min_max_data.json', 'w') as json_file:
-            json.dump(temp, json_file)
+
 
 if __name__ == '__main__':
     get_historical_info()

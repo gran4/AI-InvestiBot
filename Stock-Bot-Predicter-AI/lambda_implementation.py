@@ -17,8 +17,10 @@ from typing import Dict
 
 import boto3
 
+from trading_system import update_all
 
-time_interval = 86400# number of secs in 24 hours
+
+TIME_INTERVAL = 86400# number of secs in 24 hours
 
 
 def lambda_handler(event, context) -> Dict:
@@ -50,7 +52,7 @@ def start_lambda():
     #create Cloud watch event rules
     events_client = boto3.client('events')
     rule_name = 'StockTradingBotRules'
-    schedule_expression = f'rate({time_interval} seconds)'
+    schedule_expression = f'rate({TIME_INTERVAL} seconds)'
 
     events_client.client.put_rule(
         Name=rule_name,

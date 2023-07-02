@@ -16,7 +16,7 @@ See also:
 
 import json
 
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Union, Any
 from warnings import warn
 from datetime import datetime, timedelta
 
@@ -30,7 +30,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
 
-from trading_funcs import get_relavant_values, create_sequences, process_flips, excluded_values
+from trading_funcs import check_for_holidays, get_relavant_values, create_sequences, process_flips, excluded_values
 from get_info import calculate_momentum_oscillator, get_liquidity_spikes, get_earnings_history
 
 
@@ -61,28 +61,33 @@ class BaseModel:
         num_days (int): The number of days to use for the LSTM model
         information_keys (List[str]): The information keys that describe what the model uses
     """
+    start_date = "2021-01-01"
+    end_date = "2022-01-05"
+    stock_symbol = "AAPL"
+    num_days = 60
+    information_keys = ["Close"]
 
     def __init__(self, start_date: str = "2021-01-01",
                  end_date: str = "2022-01-05",
                  stock_symbol: str = "AAPL",
                  num_days: int = 60,
                  information_keys: List[str]=["Close"]) -> None:
-        self.start_date = start_date
-        self.end_date = end_date
+        self.set_dates(start_date, end_date)
+
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
         self.num_days = num_days
 
         self.model: Optional[Sequential] = None
-        self.data: Optional[Dict] = None
-        self.scaler_data: Optional[Dict] = None
+        self.data: Optional[Dict[str, Any]] = None
+        self.scaler_data: Optional[Dict[str, float]] = None
 
 #________For offline predicting____________#
-        self.cached: Optional[np.array] = None
+        self.cached: Optional[np.ndarray] = None
 
         # NOTE: cached_info is a pd.DateFrame online,
         # while it is a Dict offline
-        self.cached_info: Optional[Union[pd.DataFrame, Dict]] = None
+        self.cached_info: Optional[Union[pd.DataFrame, Dict[str, Any]]] = None
 
     def train(self, epochs: int=10) -> None:
         """
@@ -101,10 +106,14 @@ class BaseModel:
 
         #_________________ GET Data______________________#
         self.data, data, start_date, end_date = get_relavant_values(
-            start_date, end_date, stock_symbol, information_keys
+            start_date, end_date, stock_symbol, information_keys, None
         )
-        shape = data.shape[1]
 
+        #For predictions
+        self.scaler_data = {}
+        for key, val in self.data.items():
+            self.scaler_data[key] = {"min": min(val), "max": max(val)}
+        shape = data.shape[1]
         for key in self.data.keys():
             self.data[key] = list(self.data[key])
 
@@ -134,16 +143,14 @@ class BaseModel:
 
         self.model = model
 
-        #For predictions
-        self.scaler_data = {}
-        for key, val in self.data.items():
-            self.scaler_data[key] = {"min": min(val), "max": max(val)}
 
     def save(self) -> None:
         """
         This method will save the model using the tensorflow save method. It will also save the data
         into the `json` file format.
         """
+        if self.model is None:
+            raise LookupError("Compile or load model first")
         #_________________Save Model______________________#
         self.model.save(f"{self.stock_symbol}/model")
 
@@ -152,6 +159,9 @@ class BaseModel:
 
         with open(f"{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
+
+    def is_homogeneous(self, arr) -> bool:
+        return len(set(arr.dtype for arr in arr.flatten())) == 1
 
     def test(self) -> None:
         """
@@ -172,8 +182,8 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        _, data, start_date, end_date = get_relavant_values(
-            start_date, end_date, stock_symbol, information_keys
+        _, data, start_date, end_date = get_relavant_values( # type: ignore[arg-type]
+            start_date, end_date, stock_symbol, information_keys, self.scaler_data
         )
 
         #_________________Process Data for LSTM______________________#
@@ -212,9 +222,8 @@ class BaseModel:
         print('Train RMSSE:', train_rmsse)
         print('Test RMSSE:', test_rmsse)
         print()
-        def is_homogeneous(arr) -> bool:
-            return len(set(arr.dtype for arr in arr.flatten())) == 1
-        print("Homogeneous(Should be True):", is_homogeneous(data))
+        
+        print("Homogeneous(Should be True):", self.is_homogeneous(data))
 
         y_train_size = y_train.shape[0]
         days_test = list(range(y_train.shape[0]))
@@ -223,6 +232,9 @@ class BaseModel:
         # Plot the actual and predicted prices
         plt.figure(figsize=(18, 6))
 
+        temp = list(range(data.shape[0]))
+        real_data = plt.plot(temp, data, label='Real Data')
+        
         predicted_train = plt.plot(days_test, train_predictions, label='Predicted Train')
         actual_train = plt.plot(days_test, y_train, label='Actual Train')
 
@@ -233,8 +245,8 @@ class BaseModel:
         plt.xlabel('Date')
         plt.ylabel('Price')
         plt.legend(
-            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],
-            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']
+            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],#[real_data, actual_test[0], actual_train],
+            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']#['Real Data', 'Actual Test', 'Actual Train']
         )
         plt.show()
 
@@ -247,19 +259,20 @@ class BaseModel:
             BaseModel: The saved model if it was successfully saved
         """
         if self.model:
-            return
+            return None
         self.model = load_model(f"{self.stock_symbol}/model")
 
-        with open(f"{self.stock_symbol}/data.json") as file:
+        with open(f"{self.stock_symbol}/data.json", 'r') as file:
             self.data = json.load(file)
 
-        with open(f"{self.stock_symbol}/data.json") as file:
+        with open(f"{self.stock_symbol}/min_max_data.json", 'r') as file:
             self.scaler_data = json.load(file)
 
+        # type: ignore[no-any-return]
         return self.model
 
     def indicators_past_num_days(self, cached_info: pd.DataFrame,
-                                 end_date: datetime, num_days: int) -> Dict[str, Union[float, str]]:
+                                 num_days: int) -> Dict[str, Union[float, str]]:
         """
         This method will return the indicators for the past `num_days` days specified in the
         information keys. It will use the cached information to calculate the indicators
@@ -267,7 +280,6 @@ class BaseModel:
 
         Args:
             cached_info (pd.DataFrame): The cached information
-            end_date (datetime): The end date
             num_days (int): The number of days to calculate the indicators for
         
         Returns:
@@ -311,8 +323,8 @@ class BaseModel:
             loss = change.apply(lambda x: abs(x) if x < 0 else 0)
             avg_gain = gain.rolling(window=14, min_periods=1).mean().iloc[-num_days:]
             avg_loss = loss.rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            rs = avg_gain / avg_loss
-            stock_data['RSI'] = 100 - (100 / (1 + rs))
+            relative_strength = avg_gain / avg_loss
+            stock_data['RSI'] = 100 - (100 / (1 + relative_strength))
         if 'TRAMA' in information_keys:
             # TRAMA
             volatility = cached_info['Close'].diff().abs().iloc[-num_days:]
@@ -341,15 +353,16 @@ class BaseModel:
 
             # Calculate dates before the extracted date
             days_before = 3
+            end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
             for i in range(days_before):
-                day = end_date - timedelta(days=i+1)
+                day = end_datetime - timedelta(days=i+1)
                 all_dates.append(day.strftime('%Y-%m-%d'))
 
-            stock_data['earnings diff'] = []
-            low = self.scaler_data['earnings diffs']['min']
-            high = self.scaler_data['earnings diffs']['max']
+            stock_data['earnings diff'] = [] # type: ignore[attr]
+            low = self.scaler_data['earnings diffs']['min'] # type: ignore[index]
+            high = self.scaler_data['earnings diffs']['max'] # type: ignore[index]
             for date in all_dates:
-                if not end_date in earnings_dates:
+                if not self.end_date in earnings_dates:
                     stock_data['earnings diff'].append(0)
                     continue
                 i = earnings_dates.index(date)
@@ -360,8 +373,8 @@ class BaseModel:
         for column in self.information_keys:
             if column in excluded_values:
                 continue
-            low = self.scaler_data[column]['min']
-            high = self.scaler_data[column]['max']
+            low = self.scaler_data[column]['min'] # type: ignore[index]
+            high = self.scaler_data[column]['max'] # type: ignore[index]
             column_values = stock_data[column]
             scaled_values = (column_values - low) / (high - low)
             stock_data[column] = scaled_values
@@ -390,39 +403,45 @@ class BaseModel:
         cached_info = self.cached_info
         cached = self.cached
         num_days = self.num_days
-        end_date = self.end_date
+        end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
 
         #_________________ GET Data______________________#
         ticker = yf.Ticker(self.stock_symbol)
         if self.cached_info: #is more than 0
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
-            day_data = ticker.history(start=end_date, end=end_date, interval="1d")
+            # Only get one day's info
+            day_data = ticker.history(start=self.end_date, end=self.end_date, interval="1d")
 
-            if not len(day_data):
+            if len(day_data) == 0:
                 raise ConnectionError("Stock data failed to load. Check your internet")
 
             for key, val in day_data.items():
                 cached_info[key].pop()######## NOTE NOTE NOTE
                 cached_info[key].append(val)# NOTE DO IT FINISH
 
-            day_data = self.indicators_today(cached_info, end_date, num_days)
+            day_data = self.indicators_today(cached_info, end_datetime, num_days)
+
             # make sure it is in correct order
             day_data = [day_data[key] for key in self.information_keys]
             #delete first day and add new day.
             cached = np.concatenate((cached[1:], [day_data]))
         else:
-            end_date = datetime.strptime(end_date, "%Y-%m-%d")
-            start_date = end_date - timedelta(days=260)
-            cached_info = ticker.history(start=start_date, end=end_date, interval="1d")
+            start_date = end_datetime - timedelta(days=260)
+            cached_info = ticker.history(start=start_date, end=self.end_date, interval="1d")
 
-            if not len(cached_info):
+            if len(cached_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
-            cached = self.indicators_past_num_days(cached_info, end_date, num_days)
+            cached = self.indicators_past_num_days(cached_info, num_days)
 
             cached = [cached[key] for key in self.information_keys]
             cached = np.transpose(cached)
         self.cached_info = cached_info
         self.cached = cached
+
+    def set_dates(self, start_date: str, end_date: str) -> None:
+        """Wrapper to setting dates that checks for holidays"""
+        self.start_date, self.end_date = check_for_holidays(
+            start_date, end_date
+        )
 
     def update_cached_offline(self) -> None:
         """This method updates the cached data without using the internet."""
@@ -433,11 +452,11 @@ class BaseModel:
         if not self.cached_info:
             with open(f"{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
-                #if not self.start_date in cached_info['Dates']:
-                #    raise ValueError("start is before or after `Dates` range")
-                #elif not self.end_date in cached_info['Dates']:
-                #    raise ValueError("end is before or after `Dates` range")
-    
+
+                if not self.start_date in cached_info['Dates']:
+                    raise ValueError("start is before or after `Dates` range")
+                if not self.end_date in cached_info['Dates']:
+                    raise ValueError("end is before or after `Dates` range")
 
                 end_index = cached_info["Dates"].index(self.end_date)
                 cached = []
@@ -459,26 +478,26 @@ class BaseModel:
             #delete first day and add new day.
             self.cached = np.concatenate((self.cached[1:], [day_data]))
 
-    def get_info_today(self, period: int=14) -> List[float]:
+    def get_info_today(self) -> np.ndarray:
         """
         This method will get the information for the stock today and the
         last relevant days to the stock.
 
         The cached_data is used so less data has to be retrieved from
         yf.finance as it is held to cached or something else.
-
-        Args:
-            period (int): The number of days to get the information for
         
         Returns:
-            list: The information for the stock today and the
+            np.array: The information for the stock today and the
                 last relevant days to the stock
         """
         try:
-            self.update_cached_online(period=period)
+            self.update_cached_online()
         except ConnectionError:
             warn("Stock data failed to download. Check your internet")
             self.update_cached_offline()
+
+        if self.cached is None:
+            raise RuntimeError('Neither the online or offline updating of `cached` worked')
 
         date_object = datetime.strptime(self.start_date, "%Y-%m-%d")
         next_day = date_object + timedelta(days=1)
@@ -489,20 +508,19 @@ class BaseModel:
         self.end_date = next_day.strftime("%Y-%m-%d")
 
         #NOTE: 'Dates' and 'earnings dates' will never be in information_keys
-        
         self.cached = np.reshape(self.cached, (1, 60, self.cached.shape[1]))
         return self.cached
 
-    def predict(self, info: Optional[np.array] = None) -> np.array:
+    def predict(self, info: Optional[np.ndarray] = None) -> np.ndarray:
         """
         This method wraps the model's predict method using `info`.
 
         Args: 
-            info (Optional[np.array]): the information to predict on.
+            info (Optional[np.ndarray]): the information to predict on.
             If None, it will get the info from the last relevant days back.
         
         Returns:
-            np.array: the predictions of the model
+            np.ndarray: the predictions of the model
                 The length is determined by how many are put in.
                 So, you can predict for time frames or one day
                 depending on what you want.
@@ -527,10 +545,10 @@ class BaseModel:
         >>> print(len(temp))
         4
         """
-        if len(info) != 0:
+        if info is None:
             info = self.get_info_today()
         if self.model:
-            return self.model.predict(info)
+            return self.model.predict(info) # typing: ignore[return]
         raise LookupError("Compile or load model first")
 
 
@@ -543,7 +561,7 @@ class DayTradeModel(BaseModel):
     It contains the information keys `Close`
     """
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-06-05",
+                 end_date: str = "2023-02-05",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
@@ -718,12 +736,14 @@ class SuperTrendsModel(BaseModel):
 
 if __name__ == "__main__":
     #[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
-    modelclasses = [BreakoutModel, RSIModel, RSIModel2]
+    modelclasses = [DayTradeModel]
 
     test_models = []
     for modelclass in modelclasses:
         model = modelclass()
-        model.train(epochs=100)
+        model.train(epochs=20)
+        model.save()
+        model.load()
         test_models.append(model)
 
     for model in test_models:

@@ -17,7 +17,7 @@ See also:
 
 import json
 
-from typing import List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict
 from datetime import datetime, timedelta
 
 from pandas_market_calendars import get_calendar
@@ -31,6 +31,7 @@ __all__ = (
     'create_sequences',
     'process_earnings',
     'process_flips',
+    'check_for_holidays',
     'get_relavant_values',
     'get_scaler',
     'supertrends',
@@ -52,14 +53,14 @@ company_symbols = (
 )
 
 
-def create_sequences(data: np.array, num_days: int) -> Tuple[np.array, np.array]:
+def create_sequences(data: np.ndarray, num_days: int) -> Tuple[np.ndarray, np.ndarray]:
     """
     The purpose of this function is to create sequences and labels which are implemented
     into the model during fitting. This is done by iterating through the data and appending
     the data to the sequences and labels list.
 
     Args:
-        data (np.array): The data which is used to create the sequences and labels
+        data (np.ndarray): The data which is used to create the sequences and labels
         num_days (int): The number of days which is used to create the sequences
 
     Returns:
@@ -94,28 +95,21 @@ def process_earnings(dates: List, diffs: List, start_date: str,
             and actual earnings per share
     """
     #_________________deletes earnings before start and after end______________________#
-    start = 0
-    end = len(dates)
-    for day in dates:
-        if day < start_date:
-            start += 1
-        elif day > end_date:
-            end += 1
+    start = dates.index(start_date)
+    end = dates.index(end_date)
     dates = dates[start:end]
     diffs = diffs[start:end]
-
 
     #_________________Fill Data out with 0s______________________#
     filled_dates = []
     filled_earnings = []
 
-    start_date = datetime.strptime(start_date, "%Y-%m-%d")
-    end_date = datetime.strptime(end_date, "%Y-%m-%d")
+    current_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
 
     # Fill out the list to match the start and end date
     dates = [datetime.strptime(date_str, "%b %d, %Y") for date_str in dates]
-    current_date = start_date
-    while current_date <= end_date:
+    while current_date <= end_datetime:
         filled_dates.append(current_date)
         if current_date in dates:
             existing_index = dates.index(current_date)
@@ -126,38 +120,54 @@ def process_earnings(dates: List, diffs: List, start_date: str,
     return dates, diffs
 
 
-def process_flips(ema12: pd.Series, ema26: pd.Series) -> pd.Series:
+def process_flips(ema12: pd.Series, ema26: pd.Series) -> List[int]:
     """
     The purpose of this function is to return a list of the 12 and 26 ema flips. It
     is primarily used for the MACD Model.
 
     Args:
-        ema12 (np.array): The 12-day ema which is used to get the flips
-        ema26 (np.array): The 26-day ema which is used to get the flips
+        ema12 (np.ndarray): The 12-day ema which is used to get the flips
+        ema26 (np.ndarray): The 26-day ema which is used to get the flips
 
     Returns:
         list: The list of flips between the 12-day ema and 26-day ema.
         0 is considered as no flip and 1 is considered as a flip.
     """
     temp = []
-    shortmore = None
+    shortmore = ema12[0] > ema26[0]
+
     for short, mid in zip(ema12, ema26):
-        if shortmore is None:
-            shortmore = short>mid
-        elif shortmore and short<mid:
+        if (shortmore and short<mid) or (not shortmore and short>mid):
             temp.append(1)
-            shortmore = False
-            continue
-        elif not shortmore and short>mid:
-            temp.append(1)
-            shortmore = True
-            continue
-        temp.append(0)
+            shortmore = not shortmore # flip
+        else:
+            temp.append(0)
     return temp
 
 
+def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
+    """Shifts start and end so they are a stock trading day to stop errors"""
+    #_________________Check if start or end is holiday______________________#
+    nyse = get_calendar('NYSE')
+    schedule = nyse.schedule(start_date=start_date, end_date=end_date)
+
+    #_________________Change if it is a holiday______________________#
+    start_datetime = pd.to_datetime(start_date).date()
+    if start_datetime not in schedule.index:
+        # Find the next trading day
+        next_trading_day = nyse.valid_days(start_date=start_datetime, end_date=end_date)[0]
+        start_date = next_trading_day.date().strftime('%Y-%m-%d')
+
+    end_datetime = pd.to_datetime(end_date).date()
+    if end_datetime not in schedule.index:
+        end_date = schedule.index[-1].date().strftime('%Y-%m-%d')
+    
+    return start_date, end_date
+
+
 def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
-                        information_keys: List[str]) -> Tuple[Dict, np.array, str, str]:
+                        information_keys: List[str], scaler_data: Optional[Dict]
+                        ) -> Tuple[Dict, np.ndarray, str, str]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
     as well as the corrected dates.
@@ -169,27 +179,14 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
         information_keys (list[str]): The information keys which are used to get the relevant values
 
     Returns:
-        Tuple[dict, np.array, str, str]: The relevant indicators in the
+        Tuple[dict, np.ndarray, str, str]: The relevant indicators in the
         form of a dict, and list, start date, and end date
     """
-    #_________________Check if start or end is holiday______________________#
-    nyse = get_calendar('NYSE')
-    schedule = nyse.schedule(start_date=start_date, end_date=end_date)
-
-    #_________________Change if it is a holiday______________________#
-    start_date = pd.to_datetime(start_date).date()
-    if start_date not in schedule.index:
-        # Find the next trading day
-        next_trading_day = nyse.valid_days(start_date=start_date, end_date=end_date)[0]
-        start_date = next_trading_day.date().strftime('%Y-%m-%d')
-
-    end_date = pd.to_datetime(end_date).date()
-    if end_date not in schedule.index:
-        end_date = schedule.index[-1].date().strftime('%Y-%m-%d')
+    start_date, end_date = check_for_holidays(start_date, end_date)
 
     #_________________Load info______________________#
-    with open(f'{stock_symbol}/info.json') as file:
-        other_vals = json.load(file)
+    with open(f'{stock_symbol}/info.json', 'r') as file:
+        other_vals: Dict = json.load(file)
 
     #_________________Make Data fit between start and end date______________________#
     if start_date in other_vals['Dates']:
@@ -220,25 +217,27 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
         other_vals['earnings dates'] = dates
         other_vals['earnings diff'] = diffs
 
-    #_________________Scales Data______________________#
+    #_________________Scale Data______________________#
     for key in information_keys:
-        if pd.api.types.is_numeric_dtype(other_vals[key]):
+        if not pd.api.types.is_numeric_dtype(other_vals[key]):
             continue
         other_vals[key] = np.array(other_vals[key])
 
-        # Calculate the minimum and maximum values
-        min_value = np.min(other_vals[key])
-        max_value = np.max(other_vals[key])
+        if scaler_data is None:
+            min_value = min(other_vals[key])
+            max_value = max(other_vals[key])
+        else:
+            min_value = scaler_data[key]['min']
+            max_value = scaler_data[key]['max']
 
-        if max_value - min_value != 0:
-            # Scale the data
+        if max_value - min_value != 0: # Rare, extreme cases
             other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)
 
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
+    filtered = np.transpose(filtered) # type: ignore[assignment]
 
-    filtered = np.transpose(filtered)
-    return other_vals, filtered, start_date, end_date
+    return other_vals, filtered, start_date, end_date # type: ignore[return-value]
 
 
 def get_scaler(num: float, data: List) -> float:
@@ -260,13 +259,17 @@ def get_scaler(num: float, data: List) -> float:
 def supertrends(data: pd.DataFrame, factor: int, period: int) -> pd.Series:
     """Returns the `supertrend` indicator"""
     atr = data['High'] - data['Low']
-    atr = atr.rolling(window=period).mean()
+    atr = atr.rolling(window=period, min_periods=1).mean()
 
     upper_band = data['Close'] + (factor * atr)
     lower_band = data['Close'] - (factor * atr)
 
-    trend = np.where(data['Close'] > lower_band, 1, 0)
-    trend = np.where(data['Close'] < upper_band, -1, trend)
+    conditions = [
+        data['Close'] > lower_band,
+        data['Close'] < upper_band
+    ]
+    choices = [1, -1]
+    trend = np.select(conditions, choices, default=0)
 
     signal = pd.Series(trend).diff()
     return signal
@@ -274,8 +277,8 @@ def supertrends(data: pd.DataFrame, factor: int, period: int) -> pd.Series:
 
 def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,
                base_period: int=26, lagging_span2_period: int=52,
-               displacement: int=26) -> pd.Series:
-    """Gets a pd.Series of where `data['Close']` is above or bellow the kumo cloud"""
+               displacement: int=26) -> np.ndarray:
+    """Gets a np.ndarray of where `data['Close']` is above or bellow the kumo cloud"""
     # Calculate conversion line (Tenkan-sen)
     top_conversion = data['High'].rolling(window=conversion_period).max()
     bottom_conversion = data['Low'].rolling(window=conversion_period).min()
