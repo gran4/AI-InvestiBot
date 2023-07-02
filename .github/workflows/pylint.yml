@@ -10,24 +10,29 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pylint
-        pip install numpy
-        pip install matplotlib
-        pip install pandas
-        pip install yfinance
-        pip install tensorflow
-        pip install scikit-learn
-        pip install bs4
-        pip install boto3
-        pip install typing_extensions
-    - name: Analysing the code with pylint
-      run: |
-        pylint --rcfile=.pylintrc $(git ls-files '*.py')
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint
+          pip install numpy
+          pip install matplotlib
+          pip install pandas
+          pip install yfinance
+          pip install tensorflow
+          pip install scikit-learn
+          pip install bs4
+          pip install boto3
+          pip install typing_extensions
+      - name: Analysing the code with pylint
+        run: |
+          files=$(git diff --name-only ${{ github.base_ref }}...${{ github.sha }} -- '*.py')
+          pylint --rcfile=.pylintrc $files
