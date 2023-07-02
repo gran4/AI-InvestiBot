@@ -1,0 +1,2 @@
+[pylint.messages control]
+disable = too-many-locals, too-many-statements, too-many-instance-attributes
