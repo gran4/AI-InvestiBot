@@ -30,6 +30,5 @@ jobs:
           pip install typing_extensions
       - name: Analysing the code with pylint
         run: |
-          git fetch --no-tags --prune --depth=1 origin +refs/pull/:refs/remotes/origin/pull/
-          files=$(git diff --name-only ${{ github.base_ref }}...${{ github.head_ref }} -- '*.py')
+          files=$(git diff --name-only HEAD $(git merge-base HEAD origin/main))
           pylint --rcfile=.pylintrc $files
