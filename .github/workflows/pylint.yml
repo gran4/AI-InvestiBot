@@ -29,6 +29,5 @@ jobs:
         pip install typing_extensions
     - name: Analysing the code with pylint
       run: |
-        git fetch --no-tags --prune --depth=1 origin ${{ github.sha }}
         files=$(git diff --name-only ${{ github.base_ref }}...${{ github.sha }} -- '*.py')
         pylint --rcfile=.pylintrc $files
