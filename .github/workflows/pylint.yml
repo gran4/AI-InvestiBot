@@ -1,6 +1,7 @@
 name: Pylint
 
-on: [push]
+on:
+  push:
 
 jobs:
   build:
@@ -29,5 +30,4 @@ jobs:
         pip install typing_extensions
     - name: Analysing the code with pylint
       run: |
-        files=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} -- '*.py')
-        pylint --rcfile=.pylintrc $files
+        pylint --rcfile=.pylintrc $(git ls-files '*.py')
