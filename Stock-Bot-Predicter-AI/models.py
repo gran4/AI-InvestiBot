@@ -190,7 +190,7 @@ class BaseModel:
         # Split the data into training and testing sets
         train_size = int(len(data) * 0.8)
         train_data = data[:train_size]
-        test_data = data[train_size:]
+        test_data = data[train_size-num_days:]
 
         x_train, y_train = create_sequences(train_data, num_days)
         x_test, y_test = create_sequences(test_data, num_days)
@@ -198,13 +198,18 @@ class BaseModel:
         train_predictions = self.model.predict(x_train)
         test_predictions = self.model.predict(x_test)
 
-        train_data = train_data[num_days:]
-        test_data = test_data[num_days:]
+        # CUT data at the start to account for `num_days`
+        # NOTE: num days results in some values being cut
+        train_data = data[num_days:train_size]
+        test_data = data[train_size:]
+
+        assert len(train_predictions) == len(train_data)
+        assert len(test_predictions) == len(test_data)
+
 
         #Get first collumn
         temp_train = train_data[:, 0]
         temp_test = test_data[:, 0]
-
 
         # Calculate RMSSE for training predictions
         train_rmse = np.sqrt(mean_squared_error(temp_train, train_predictions))
@@ -223,7 +228,8 @@ class BaseModel:
         print('Test RMSSE:', test_rmsse)
         print()
         
-        print("Homogeneous(Should be True):", self.is_homogeneous(data))
+        print("Homogeneous(Should be True):")
+        assert self.is_homogeneous(data)
 
         y_train_size = y_train.shape[0]
         days_test = list(range(y_train.shape[0]))
@@ -231,9 +237,6 @@ class BaseModel:
 
         # Plot the actual and predicted prices
         plt.figure(figsize=(18, 6))
-
-        temp = list(range(data.shape[0]))
-        real_data = plt.plot(temp, data, label='Real Data')
         
         predicted_train = plt.plot(days_test, train_predictions, label='Predicted Train')
         actual_train = plt.plot(days_test, y_train, label='Actual Train')
@@ -245,8 +248,8 @@ class BaseModel:
         plt.xlabel('Date')
         plt.ylabel('Price')
         plt.legend(
-            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],#[real_data, actual_test[0], actual_train],
-            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']#['Real Data', 'Actual Test', 'Actual Train']
+            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],
+            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']
         )
         plt.show()
 
@@ -552,7 +555,6 @@ class BaseModel:
         raise LookupError("Compile or load model first")
 
 
-
 class DayTradeModel(BaseModel):
     """
     This is the DayTrade child class that inherits from
@@ -741,7 +743,7 @@ if __name__ == "__main__":
     test_models = []
     for modelclass in modelclasses:
         model = modelclass()
-        model.train(epochs=20)
+        model.train(epochs=100)
         model.save()
         model.load()
         test_models.append(model)
