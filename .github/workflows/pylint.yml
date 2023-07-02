@@ -10,11 +10,7 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 1
+      - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v3
         with:
@@ -34,5 +30,6 @@ jobs:
           pip install typing_extensions
       - name: Analysing the code with pylint
         run: |
-          files=$(git diff --name-only ${{ github.base_ref }}...${{ github.sha }} -- '*.py')
+          git fetch --no-tags --prune --depth=1 origin +refs/pull/:refs/remotes/origin/pull/
+          files=$(git diff --name-only ${{ github.base_ref }}...${{ github.head_ref }} -- '*.py')
           pylint --rcfile=.pylintrc $files
