@@ -104,16 +104,15 @@ class BaseModel:
         information_keys = self.information_keys
         num_days = self.num_days
 
+        #_________________ GET Data______________________#
+        self.data, data, start_date, end_date = get_relavant_values(
+            start_date, end_date, stock_symbol, information_keys, None
+        )
 
         #For predictions
         self.scaler_data = {}
         for key, val in self.data.items():
             self.scaler_data[key] = {"min": min(val), "max": max(val)}
-
-        #_________________ GET Data______________________#
-        self.data, data, start_date, end_date = get_relavant_values(
-            start_date, end_date, stock_symbol, information_keys, self.scaler_data
-        )
         shape = data.shape[1]
         for key in self.data.keys():
             self.data[key] = list(self.data[key])
@@ -233,11 +232,9 @@ class BaseModel:
         # Plot the actual and predicted prices
         plt.figure(figsize=(18, 6))
 
-        temp = days_train+days_test
+        temp = list(range(data.shape[0]))
         real_data = plt.plot(temp, data, label='Real Data')
-        #actual_train = plt.plot(days_test, y_train, label='Actual Train')
-
-
+        
         predicted_train = plt.plot(days_test, train_predictions, label='Predicted Train')
         actual_train = plt.plot(days_test, y_train, label='Actual Train')
 
@@ -248,8 +245,8 @@ class BaseModel:
         plt.xlabel('Date')
         plt.ylabel('Price')
         plt.legend(
-            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0], real_data],
-            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train', 'Real Data']
+            [predicted_test[0], actual_test[0], predicted_train[0], actual_train[0]],#[real_data, actual_test[0], actual_train],
+            ['Predicted Test', 'Actual Test', 'Predicted Train', 'Actual Train']#['Real Data', 'Actual Test', 'Actual Train']
         )
         plt.show()
 
@@ -744,9 +741,10 @@ if __name__ == "__main__":
     test_models = []
     for modelclass in modelclasses:
         model = modelclass()
-        model.train(epochs=100)
-        test_models.append(model)
+        model.train(epochs=20)
         model.save()
+        model.load()
+        test_models.append(model)
 
     for model in test_models:
         model.test()

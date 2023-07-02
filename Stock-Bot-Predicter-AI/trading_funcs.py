@@ -17,7 +17,7 @@ See also:
 
 import json
 
-from typing import List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict
 from datetime import datetime, timedelta
 
 from pandas_market_calendars import get_calendar
@@ -146,6 +146,7 @@ def process_flips(ema12: pd.Series, ema26: pd.Series) -> List[int]:
 
 
 def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
+    """Shifts start and end so they are a stock trading day to stop errors"""
     #_________________Check if start or end is holiday______________________#
     nyse = get_calendar('NYSE')
     schedule = nyse.schedule(start_date=start_date, end_date=end_date)
@@ -165,7 +166,7 @@ def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
 
 
 def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
-                        information_keys: List[str], scaler_data: Dict
+                        information_keys: List[str], scaler_data: Optional[Dict]
                         ) -> Tuple[Dict, np.ndarray, str, str]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
@@ -218,12 +219,16 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
 
     #_________________Scale Data______________________#
     for key in information_keys:
-        if pd.api.types.is_numeric_dtype(other_vals[key]):
+        if not pd.api.types.is_numeric_dtype(other_vals[key]):
             continue
         other_vals[key] = np.array(other_vals[key])
 
-        min_value = scaler_data[key]['min']
-        max_value = scaler_data[key]['max']
+        if scaler_data is None:
+            min_value = min(other_vals[key])
+            max_value = max(other_vals[key])
+        else:
+            min_value = scaler_data[key]['min']
+            max_value = scaler_data[key]['max']
 
         if max_value - min_value != 0: # Rare, extreme cases
             other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)

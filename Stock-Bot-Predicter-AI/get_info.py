@@ -190,7 +190,7 @@ def get_liquidity_spikes(data, z_score_threshold: float=2.0,
     return abnormal_spikes
 
 
-def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series[float]:
+def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
     """
     Calculates the momentum oscillator for the given data series.
 
