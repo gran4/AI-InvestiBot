@@ -189,8 +189,8 @@ class BaseModel:
         #_________________Process Data for LSTM______________________#
         # Split the data into training and testing sets
         train_size = int(len(data) * 0.8)
-        train_data = data[:train_size]
-        test_data = data[train_size-num_days:]
+        train_data = data[:train_size] # First `num_days` not in predictions
+        test_data = data[train_size-num_days:] # minus by `num_days` to get full range of values during the test period 
 
         x_train, y_train = create_sequences(train_data, num_days)
         x_test, y_test = create_sequences(test_data, num_days)
@@ -198,8 +198,7 @@ class BaseModel:
         train_predictions = self.model.predict(x_train)
         test_predictions = self.model.predict(x_test)
 
-        # CUT data at the start to account for `num_days`
-        # NOTE: num days results in some values being cut
+        # NOTE: This cuts data at the start to account for `num_days`
         train_data = data[num_days:train_size]
         test_data = data[train_size:]
 
@@ -738,12 +737,12 @@ class SuperTrendsModel(BaseModel):
 
 if __name__ == "__main__":
     #[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
-    modelclasses = [DayTradeModel]
+    modelclasses = [ImpulseMACDModel]
 
     test_models = []
     for modelclass in modelclasses:
         model = modelclass()
-        model.train(epochs=100)
+        model.train(epochs=10)
         model.save()
         model.load()
         test_models.append(model)
