@@ -2,6 +2,8 @@ name: Pylint
 
 on:
   push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -30,5 +32,7 @@ jobs:
           pip install typing_extensions
       - name: Analysing the code with pylint
         run: |
+          git remote set-branches --add origin main
+          git fetch origin
           files=$(git diff --name-only HEAD $(git merge-base HEAD origin/main))
           pylint --rcfile=.pylintrc $files
