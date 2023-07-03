@@ -185,7 +185,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     start_date, end_date = check_for_holidays(start_date, end_date)
 
     #_________________Load info______________________#
-    with open(f'{stock_symbol}/info.json', 'r') as file:
+    with open(f'Stock-Bot-Predicter-AI/{stock_symbol}/info.json', 'r') as file:
         other_vals: Dict = json.load(file)
 
     #_________________Make Data fit between start and end date______________________#

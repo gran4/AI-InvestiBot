@@ -329,7 +329,7 @@ def get_historical_info() -> None:
                 # Extreme indicators, 0/1 ussually.
                 continue
             converted_data[key] = [(val - min_val) / (max_val - min_val) for val in values]
-        with open(f'{company_ticker}/info.json', 'w') as json_file:
+        with open(f'Stock-Bot-Predicter-AI/{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
 
 
