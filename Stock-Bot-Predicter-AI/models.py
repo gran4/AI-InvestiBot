@@ -24,6 +24,7 @@ from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
+from pandas_market_calendars import get_calendar
 
 import numpy as np
 import pandas as pd
@@ -152,12 +153,12 @@ class BaseModel:
         if self.model is None:
             raise LookupError("Compile or load model first")
         #_________________Save Model______________________#
-        self.model.save(f"{self.stock_symbol}/model")
+        self.model.save(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/model")
 
-        with open(f"{self.stock_symbol}/data.json", "w") as json_file:
+        with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/data.json", "w") as json_file:
             json.dump(self.data, json_file)
 
-        with open(f"{self.stock_symbol}/min_max_data.json", "w") as json_file:
+        with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
 
     def is_homogeneous(self, arr) -> bool:
@@ -262,12 +263,12 @@ class BaseModel:
         """
         if self.model:
             return None
-        self.model = load_model(f"{self.stock_symbol}/model")
+        self.model = load_model(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/model")
 
-        with open(f"{self.stock_symbol}/data.json", 'r') as file:
+        with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/data.json", 'r') as file:
             self.data = json.load(file)
 
-        with open(f"{self.stock_symbol}/min_max_data.json", 'r') as file:
+        with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/min_max_data.json", 'r') as file:
             self.scaler_data = json.load(file)
 
         # type: ignore[no-any-return]
@@ -292,6 +293,7 @@ class BaseModel:
         stock_data = {}
         information_keys = self.information_keys
 
+        stock_data['Close'] = cached_info['Close'].iloc[-num_days:]
         if '12-day EMA' in information_keys:
             ewm12 = cached_info['Close'].ewm(span=12, adjust=False)
             ema12 = ewm12.mean().iloc[-num_days:]
@@ -382,26 +384,14 @@ class BaseModel:
             stock_data[column] = scaled_values
         return stock_data
 
-    def indicators_today(self, day_info: pd.DataFrame,
-                         end_date: datetime, num_days: int
-                         ) -> Dict[str, Union[float, str]]:
+    def update_cached_online(self) -> bool:
         """
-        This method calculates the indicators for the stock data for the current day. 
-        It will use the current day_info to calculate the indicators until the `end_date`.
-
-        Args:
-            day_info (pd.DataFrame): The stock data for the current day
-            end_date (datetime): The date to stop calculating the indicators
-            num_days (int): The number of days to calculate the indicators for
+        This method updates the cached data using the internet.
         
-        Returns: 
-            dict: A dictionary of the indicators for the stock data
-                Values will be floats except some expections tht need to be processed during run time
+        Returns:
+            False: if it is a holiday
+            True: if it is a working day
         """
-        raise NotImplementedError("Will be added soon")
-
-    def update_cached_online(self) -> None:
-        """This method updates the cached data using the internet."""
         cached_info = self.cached_info
         cached = self.cached
         num_days = self.num_days
@@ -409,35 +399,38 @@ class BaseModel:
 
         #_________________ GET Data______________________#
         ticker = yf.Ticker(self.stock_symbol)
-        if self.cached_info: #is more than 0
-            # Only get one day's info
-            day_data = ticker.history(start=self.end_date, end=self.end_date, interval="1d")
-
-            if len(day_data) == 0:
-                raise ConnectionError("Stock data failed to load. Check your internet")
-
-            for key, val in day_data.items():
-                cached_info[key].pop()######## NOTE NOTE NOTE
-                cached_info[key].append(val)# NOTE DO IT FINISH
-
-            day_data = self.indicators_today(cached_info, end_datetime, num_days)
-
-            # make sure it is in correct order
-            day_data = [day_data[key] for key in self.information_keys]
-            #delete first day and add new day.
-            cached = np.concatenate((cached[1:], [day_data]))
-        else:
-            start_date = end_datetime - timedelta(days=260)
-            cached_info = ticker.history(start=start_date, end=self.end_date, interval="1d")
-
+        
+        #NOTE: optimize bettween
+        if self.cached_info is None:
+            start_datetime = end_datetime - timedelta(days=280)
+            cached_info = ticker.history(start=start_datetime, end=self.end_date, interval="1d")
             if len(cached_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
-            cached = self.indicators_past_num_days(cached_info, num_days)
+            # Filter the historical data to get the desired number of trading days
+            cached_info = cached_info.tail(num_days)
+        else:
+            start_datetime = end_datetime - timedelta(days=1)
+            nyse = get_calendar('NYSE')
+            schedule = nyse.schedule(start_date=start_datetime, end_date=self.end_date)
+            if self.end_date not in schedule.index:
+                return False
 
-            cached = [cached[key] for key in self.information_keys]
-            cached = np.transpose(cached)
+            temp = end_datetime + timedelta(days=1)
+            day_info = ticker.history(start=self.end_date, end=temp, interval="1d")
+            if len(day_info) == 0: # type: ignore[arg-type]
+                raise ConnectionError("Stock data failed to load. Check your internet")
+
+            cached_info = cached_info.drop(cached_info.index[0])
+            cached_info = pd.concat((cached_info, day_info))
+
+
+        cached = self.indicators_past_num_days(cached_info, num_days)
+        cached = [cached[key] for key in self.information_keys]
+        cached = np.transpose(cached)
+
         self.cached_info = cached_info
         self.cached = cached
+        return True # Working Day
 
     def set_dates(self, start_date: str, end_date: str) -> None:
         """Wrapper to setting dates that checks for holidays"""
@@ -452,7 +445,7 @@ class BaseModel:
         end_date = self.end_date
         #_________________ GET Data______________________#
         if not self.cached_info:
-            with open(f"{self.stock_symbol}/info.json", 'r') as file:
+            with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
 
                 if not self.start_date in cached_info['Dates']:
@@ -562,7 +555,7 @@ class DayTradeModel(BaseModel):
     It contains the information keys `Close`
     """
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-02-05",
+                 end_date: str = "2023-07-02",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
