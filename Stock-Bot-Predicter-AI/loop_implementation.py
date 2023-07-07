@@ -64,8 +64,6 @@ def run_loop() -> None:
             i += 1
 
 
-
-
 if __name__ == "__main__":
     # Create a new thread
     thread = Thread(target=run_loop)

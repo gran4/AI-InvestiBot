@@ -410,7 +410,6 @@ class BaseModel:
             cached_info = cached_info.tail(num_days)
         else:
             start_datetime = end_datetime - timedelta(days=1)
-
             temp = end_datetime + timedelta(days=1)
             day_info = ticker.history(start=self.end_date, end=temp, interval="1d")
             if len(day_info) == 0: # type: ignore[arg-type]
@@ -734,7 +733,7 @@ class SuperTrendsModel(BaseModel):
 
 if __name__ == "__main__":
     #[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, BreakoutModel]
-    modelclasses = [DayTradeModel]
+    modelclasses = [ImpulseMACDModel]
 
     test_models = []
     for modelclass in modelclasses:
