@@ -65,7 +65,7 @@ class ResourceManager:
         # Calculate the total value of your account (including stock)
         self.total = equity + buying_power
 
-    def check(self, stock: str, cost: Optional[float]=None) -> float:
+    def check(self, symbol: str, balance: Optional[float]=None) -> float:
         """
         The purpose of this method is to determine how much money can be used
         for a stock. It takes into account the max, max_percent, and ratio to
@@ -73,26 +73,26 @@ class ResourceManager:
 
         Args:
             stock (str): The stock ticker
-            money (float): The amount of money you want to use
+            balance (float): The amount of money you want to use
         
         Returns:
-            float: The amount of money you can use
+            int: The amount of stock you can buy
         """
 
-    def check_stock_price(self, symbol):
         stock_to_money_ratio = self.ratio
         max_qty_in_stock = self.qty
         max_percent_in_stock = self.max_percent
 
         # Get account information
         account = self.get_account()
-        cash_balance = float(account.buying_power)
+        if balance is None:
+            balance = float(account.buying_power)
 
         # Get the current market price
         market_price = self.get_market_price(symbol)
 
         # Calculate the maximum quantity to buy based on the stock-to-money ratio
-        max_qty_based_on_ratio = int(cash_balance / market_price * stock_to_money_ratio)
+        max_qty_based_on_ratio = int(balance / market_price * stock_to_money_ratio)
 
         # Apply additional constraints
         max_qty = min(max_qty_based_on_ratio, max_qty_in_stock)
@@ -111,14 +111,18 @@ class ResourceManager:
 
         return max_qty
 
-    def buy(self, amount: int, ticker: str) -> None:
+    def buy(self, ticker: str, amount: Optional[int] = None) -> None:
         """
         This method will allow you to purchase a stock.
 
         Args:
-            amount (int): The amount of stock you want to buy
             ticker (str): The stock ticker
+            amount (Optional[int]): The amount of stock you want to buy,
+                if None, the `Resource` can calculate it for you
         """
+        if amount is None:
+            amount = self.check(ticker)
+
         self.api.submit_order(
             symbol=ticker,
             qty=amount,
@@ -143,4 +147,14 @@ class ResourceManager:
             time_in_force='day',
         )
 
+    def is_in_portfolio(self, symbol):
+        # Get positions
+        positions = self.get_positions()
+
+        # Check if the stock is in the portfolio
+        for position in positions:
+            if position.symbol == symbol:
+                return True
+
+        return False
 

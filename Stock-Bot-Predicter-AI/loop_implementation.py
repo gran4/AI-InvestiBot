@@ -23,41 +23,47 @@ from resource_manager import ResourceManager
 
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
-RISK_REWARD_RATIO = 1.01#min profit expected
-models = []
+RISK_REWARD_RATIO = 1.01#min profit expected per day to hold or buy
+TIME_INTERVAL = 0#86400# number of secs in 24 hours
+RESOURCE_MANAGER = ResourceManager()
+MAX_HOLD_INDEX = 10
+# if it is lower than `MAX_HOLD_INDEX` and more then
+# `RISK_TO_REWARD_RATIO`, hold it
 
-YOUR_API_KEY_ID = None
-YOUR_SECRET_KEY = None
+models = []
+model = DayTradeModel()
+model.load()
+models.append(model)
+
 if YOUR_API_KEY_ID is None:
     raise ValueError("Set your API key ID")
 if YOUR_SECRET_KEY is None:
     raise ValueError("Set your secret key")
-api = tradeapi.REST(YOUR_API_KEY_ID, YOUR_SECRET_KEY, base_url='https://paper-api.alpaca.markets')
-account = api.get_account()
-
-TIME_INTERVAL = 0#86400# number of secs in 24 hours
-TICKER = "AAPL"
-
-model = DayTradeModel()
-model.load()
-models.append(model)
-#model.get_stock_data_offline()
-
-RESOURCE_MANAGER = ResourceManager
 
 def run_loop() -> None:
     """Runs the stock bot in a loop"""
     while True:
-        if model.get_info_today() is None:
-            raise RuntimeError("`end_date` is past today")  
+        weights = []
+        for model in models:
+            if model.get_info_today() is None:
+                raise RuntimeError("`end_date` is past today")  
 
-        input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
-        prev_close = model.cached[-1][0]
-        temp = model.predict(info=input_data_reshaped)
+            input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
+            prev_close = model.cached[-1][0]
+            temp = model.predict(info=input_data_reshaped)
 
-        weight = temp/prev_close
-        if weight > RISK_REWARD_RATIO:
-            pass
+            weight = temp/prev_close
+            weights.append(weight)
+        i = 0
+        for weight, model in zip(weights, models):
+            if RESOURCE_MANAGER.is_in_portfolio(model.symbol) and i<MAX_HOLD_INDEX:
+                RESOURCE_MANAGER.sell()
+            if weight > RISK_REWARD_RATIO:
+                break
+            RESOURCE_MANAGER.buy(model.symbol)
+            i += 1
+
+
 
 
 if __name__ == "__main__":
