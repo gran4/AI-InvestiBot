@@ -143,8 +143,4 @@ class ResourceManager:
             time_in_force='day',
         )
 
-    def update(self):
-        portfolio = self.api.list_positions()
-        for position in portfolio:
-            self.sell(position.symbol)
 
