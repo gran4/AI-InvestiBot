@@ -410,10 +410,6 @@ class BaseModel:
             cached_info = cached_info.tail(num_days)
         else:
             start_datetime = end_datetime - timedelta(days=1)
-            nyse = get_calendar('NYSE')
-            schedule = nyse.schedule(start_date=start_datetime, end_date=self.end_date)
-            if self.end_date not in schedule.index:
-                return False
 
             temp = end_datetime + timedelta(days=1)
             day_info = ticker.history(start=self.end_date, end=temp, interval="1d")
@@ -473,7 +469,7 @@ class BaseModel:
             #delete first day and add new day.
             self.cached = np.concatenate((self.cached[1:], [day_data]))
 
-    def get_info_today(self) -> np.ndarray:
+    def get_info_today(self) -> Optional[np.ndarray]:
         """
         This method will get the information for the stock today and the
         last relevant days to the stock.
@@ -485,6 +481,14 @@ class BaseModel:
             np.array: The information for the stock today and the
                 last relevant days to the stock
         """
+        end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
+
+        start_datetime = end_datetime - timedelta(days=1)
+        nyse = get_calendar('NYSE')
+        schedule = nyse.schedule(start_date=start_datetime, end_date=self.end_date)
+        if self.end_date not in schedule.index:
+            return None
+
         try:
             self.update_cached_online()
         except ConnectionError:
@@ -555,7 +559,7 @@ class DayTradeModel(BaseModel):
     It contains the information keys `Close`
     """
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-07-02",
+                 end_date: str = "2023-05-02",
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             start_date=start_date,
