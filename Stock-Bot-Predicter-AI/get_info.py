@@ -277,6 +277,7 @@ def get_historical_info() -> None:
         super_trend1 = supertrends(stock_data, 3, 12)
         super_trend2 = supertrends(stock_data, 2, 11)
         super_trend3 = supertrends(stock_data, 1, 10)
+        print(super_trend1)
 
         kumo_status = kumo_cloud(stock_data)
 

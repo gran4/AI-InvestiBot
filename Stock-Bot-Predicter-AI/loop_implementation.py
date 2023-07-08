@@ -13,10 +13,7 @@ See also:
     Other modules related to running the stock bot -> resource_manager, lambda_implementation
 """
 from threading import Thread
-from datetime import datetime, timedelta
-
 import numpy as np
-import alpaca_trade_api as tradeapi, REST
 
 from models import DayTradeModel
 from resource_manager import ResourceManager
@@ -25,7 +22,6 @@ YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
 RISK_REWARD_RATIO = 1.01#min profit expected per day to hold or buy
 TIME_INTERVAL = 0#86400# number of secs in 24 hours
-RESOURCE_MANAGER = ResourceManager()
 MAX_HOLD_INDEX = 10
 # if it is lower than `MAX_HOLD_INDEX` and more then
 # `RISK_TO_REWARD_RATIO`, hold it
@@ -35,10 +31,14 @@ model = DayTradeModel()
 model.load()
 models.append(model)
 
+YOUR_API_KEY_ID = "CK12XB0M57U33N2RBD9L"
+YOUR_SECRET_KEY = "LDUfOeFq2SxPRAFMCSSfj7vAQ49mw7CmXAvg4GXZ"
 if YOUR_API_KEY_ID is None:
     raise ValueError("Set your API key ID")
 if YOUR_SECRET_KEY is None:
     raise ValueError("Set your secret key")
+
+RESOURCE_MANAGER = ResourceManager(api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
 
 def run_loop() -> None:
     """Runs the stock bot in a loop"""

@@ -40,7 +40,6 @@ class ResourceManager:
     Put restraints on your money.
     """
     def __init__(self,
-                 model: BaseModel,
                  maximum: Optional[float]=None,
                  max_percent: float=100.0,
                  stock_to_money_ratio: float= 1.0,

@@ -268,6 +268,7 @@ def supertrends(data: pd.DataFrame, period: int=10, factor: int=3):
     upper_band = data["Close"].rolling(period).mean() + (factor * atr)
     lower_band = data["Close"].rolling(period).mean() - (factor * atr)
 
+    print(lower_band[-1], data["Close"][-1], upper_band[-1])
     # Calculate the SuperTrend values using np.select()
     conditions = [
         data["Close"] > upper_band,
@@ -275,7 +276,7 @@ def supertrends(data: pd.DataFrame, period: int=10, factor: int=3):
     ]
     choices = [1, -1]
     super_trend = np.select(conditions, choices, default=0)
-    
+
     return super_trend
 
 
