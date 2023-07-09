@@ -109,6 +109,7 @@ class BaseModel:
         self.data, data, self.scaler_data, start_date, end_date = get_relavant_values(
             start_date, end_date, stock_symbol, information_keys, None
         )
+        print(type(self.data['earnings diffs']))
         shape = data.shape[1]
 
         #_________________Process Data for LSTM______________________#
@@ -148,12 +149,12 @@ class BaseModel:
         if self.model is None:
             raise LookupError("Compile or load model first")
         #_________________Save Model______________________#
-        self.model.save(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/model")
+        self.model.save(f"Stocks/{self.stock_symbol}/model")
 
-        with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/data.json", "w") as json_file:
+        with open(f"Stocks/{self.stock_symbol}/data.json", "w") as json_file:
             json.dump(self.data, json_file)
 
-        with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/min_max_data.json", "w") as json_file:
+        with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
 
     def is_homogeneous(self, arr) -> bool:
@@ -258,12 +259,12 @@ class BaseModel:
         """
         if self.model:
             return None
-        self.model = load_model(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/model")
+        self.model = load_model(f"Stocks/{self.stock_symbol}/model")
 
-        with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/data.json", 'r') as file:
+        with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
             self.data = json.load(file)
 
-        with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/min_max_data.json", 'r') as file:
+        with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
             self.scaler_data = json.load(file)
 
         # type: ignore[no-any-return]
@@ -438,7 +439,7 @@ class BaseModel:
         end_date = self.end_date
         #_________________ GET Data______________________#
         if not self.cached_info:
-            with open(f"Stock-Bot-Predicter-AI/{self.stock_symbol}/info.json", 'r') as file:
+            with open(f"Stocks/{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
 
                 if not self.start_date in cached_info['Dates']:
@@ -736,7 +737,7 @@ if __name__ == "__main__":
     test_models = []
     for modelclass in modelclasses:
         model = modelclass()
-        model.train(epochs=10)
+        model.train(epochs=1)
         model.save()
         model.load()
         test_models.append(model)

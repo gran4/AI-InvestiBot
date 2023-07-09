@@ -314,7 +314,7 @@ def get_historical_info() -> None:
             'earnings diff': earnings_diff
         }
 
-        with open(f'Stock-Bot-Predicter-AI/{company_ticker}/info.json', 'w') as json_file:
+        with open(f'Stocks/{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
 
 
