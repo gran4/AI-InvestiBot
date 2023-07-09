@@ -63,6 +63,7 @@ class ResourceManager:
 
         self.stock_mapping = {}
         self.api = REST(api_key, secret_key, base_url=base_url)
+
         account = self.api.get_account()
         cash = float(account.cash)
         buying_power = float(account.buying_power)
