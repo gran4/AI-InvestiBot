@@ -256,23 +256,29 @@ def get_scaler(num: float, data: List) -> float:
     return (num - low) / (high - low)
 
 
-def supertrends(data: pd.DataFrame, factor: int, period: int) -> pd.Series:
-    """Returns the `supertrend` indicator"""
-    atr = data['High'] - data['Low']
-    atr = atr.rolling(window=period, min_periods=1).mean()
+def supertrends(data: pd.DataFrame, period: int=10, factor: int=3):
+    # Calculate the average true range (ATR)
+    tr1 = data["High"] - data["Low"]
+    tr2 = abs(data["High"] - data.shift()["Close"])
+    tr3 = abs(data["Low"] - data.shift()["Close"])
+    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = true_range.rolling(period).mean()
+    
+    # Calculate the basic upper and lower bands
+    upper_band = data["Close"].rolling(period).mean() + (factor * atr)
+    lower_band = data["Close"].rolling(period).mean() - (factor * atr)
 
-    upper_band = data['Close'] + (factor * atr)
-    lower_band = data['Close'] - (factor * atr)
-
+    print(lower_band[-1], data["Close"][-1], upper_band[-1])
+    # Calculate the SuperTrend values using np.select()
     conditions = [
-        data['Close'] > lower_band,
-        data['Close'] < upper_band
+        data["Close"] > upper_band,
+        data["Close"] < lower_band
     ]
     choices = [1, -1]
-    trend = np.select(conditions, choices, default=0)
+    super_trend = np.select(conditions, choices, default=0)
 
-    signal = pd.Series(trend).diff()
-    return signal
+    return super_trend
+
 
 
 def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,

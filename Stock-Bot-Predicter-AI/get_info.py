@@ -277,6 +277,7 @@ def get_historical_info() -> None:
         super_trend1 = supertrends(stock_data, 3, 12)
         super_trend2 = supertrends(stock_data, 2, 11)
         super_trend3 = supertrends(stock_data, 1, 10)
+        print(super_trend1)
 
         kumo_status = kumo_cloud(stock_data)
 
@@ -299,9 +300,9 @@ def get_historical_info() -> None:
             'Histogram': histogram.values.tolist(),
             '200-day EMA': ema200.values.tolist(),
             'flips': flips,
-            'supertrend1': super_trend1.values.tolist(),
-            'supertrend2': super_trend2.values.tolist(),
-            'supertrend3': super_trend3.values.tolist(),
+            'supertrend1': super_trend1.tolist(),
+            'supertrend2': super_trend2.tolist(),
+            'supertrend3': super_trend3.tolist(),
             'kumo_cloud': kumo_status.tolist(),
             'Momentum': momentum.values.tolist(),
             'Change': change.values.tolist(),

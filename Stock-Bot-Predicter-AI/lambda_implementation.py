@@ -17,8 +17,6 @@ from typing import Dict
 
 import boto3
 
-from trading_system import update_all
-
 
 TIME_INTERVAL = 86400# number of secs in 24 hours
 
@@ -36,9 +34,7 @@ def lambda_handler(event, context) -> Dict:
         dict: A dictionary that contains the status code and body
         to indicate success or failure of the request
     """
-    update_all()
     print("Success!!!")
-
 
     #Optional
     return {

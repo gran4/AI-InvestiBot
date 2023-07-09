@@ -4,18 +4,18 @@ __pycache__/
 *$py.class
 
 #From project
-Stock-Bot-Predicter-AI/APPL/
-Stock-Bot-Predicter-AI/GOOG/
-Stock-Bot-Predicter-AI/META/
-Stock-Bot-Predicter-AI/AMZN/
-Stock-Bot-Predicter-AI/TSLA/
-Stock-Bot-Predicter-AI/NVIDIA/
-Stock-Bot-Predicter-AI/MSFT/
-Stock-Bot-Predicter-AI/XOM/
-Stock-Bot-Predicter-AI/GE/
-Stock-Bot-Predicter-AI/C/
-Stock-Bot-Predicter-AI/WMT/
-Stock-Bot-Predicter-AI/PFE/
+/Stock-Bot-Predicter-AI/APPL/
+/Stock-Bot-Predicter-AI/GOOG/
+/Stock-Bot-Predicter-AI/META/
+/Stock-Bot-Predicter-AI/AMZN/
+/Stock-Bot-Predicter-AI/TSLA/
+/Stock-Bot-Predicter-AI/NVIDIA/
+/Stock-Bot-Predicter-AI/MSFT/
+/Stock-Bot-Predicter-AI/XOM/
+/Stock-Bot-Predicter-AI/GE/
+/Stock-Bot-Predicter-AI/C/
+/Stock-Bot-Predicter-AI/WMT/
+/Stock-Bot-Predicter-AI/PFE/
 
 # C extensions
 *.so

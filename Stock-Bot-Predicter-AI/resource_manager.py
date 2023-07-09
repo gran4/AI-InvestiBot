@@ -15,6 +15,11 @@ See also:
 """
 
 from typing import Optional
+from datetime import datetime
+
+from alpaca_trade_api import REST
+
+from models import BaseModel
 
 __all__ = (
     'ResourceManager',
@@ -28,28 +33,38 @@ class ResourceManager:
 
     Args:
         Money (int): Money that you have
-        max_percent (float): Max percent of money you can use for a stock
+        max_percent (float): Max percent of money you can use for a single stock
         max (float): Max amount of money you can use for a stock
         stock_to_money_ratio (float): 0-1, 1 is all stock, 0 is all cash
 
     Put restraints on your money.
     """
-    def __init__(self, money: float, maximum: Optional[float]=None,
-                 max_percent: float=100.0, max: float=1000.0,
-                 stock_to_money_ratio: float= 1.0) -> None:
-        self.total = money
+    def __init__(self,
+                 maximum: Optional[float]=None,
+                 max_percent: float=100.0,
+                 stock_to_money_ratio: float= 1.0,
+                 api_key: str = "",
+                 secret_key: str = "",
+                 base_url: str = "https://paper-api.alpaca.markets"
+                 ) -> None:
         self.used = 0
         if not max_percent:
-            self.max_percent = 100
+            self.max_percent = 1
         if not maximum:
-            maximum = money
-        self.max_used = maximum
+            maximum = float("inf")
+        self.qty = maximum
         self.ratio = stock_to_money_ratio
 
         self.stock_mapping = {}
-        self.api = None
+        self.api = REST(api_key, secret_key, base_url=base_url)
+        
+        equity = float(self.api.equity)
+        buying_power = float(self.api.buying_power)
 
-    def check(self, stock: str, money: Optional[float]=None) -> float:
+        # Calculate the total value of your account (including stock)
+        self.total = equity + buying_power
+
+    def check(self, symbol: str, balance: Optional[float]=None) -> float:
         """
         The purpose of this method is to determine how much money can be used
         for a stock. It takes into account the max, max_percent, and ratio to
@@ -57,75 +72,88 @@ class ResourceManager:
 
         Args:
             stock (str): The stock ticker
-            money (float): The amount of money you want to use
+            balance (float): The amount of money you want to use
         
         Returns:
-            float: The amount of money you can use
+            int: The amount of stock you can buy
         """
-        if not money:
-            money = self.total - self.used
-        amount_acceptable = money
 
-        total = self.used+money
-        if total/self.total > self.max_percent:
-            percent_acceptable = total/money
-            percent_acceptable -= self.max_percent
-            percent_acceptable *= self.total
-            amount_acceptable = min(amount_acceptable, percent_acceptable)
+        stock_to_money_ratio = self.ratio
+        max_qty_in_stock = self.qty
+        max_percent_in_stock = self.max_percent
 
-        if stock in self.stock_mapping and self.stock_mapping[stock]+money > self.max_used:
-            temp = self.stock_mapping[stock]+money-self.max_used
-            #get lowest amount acceptable
-            amount_acceptable = min(amount_acceptable, temp)
+        # Get account information
+        account = self.get_account()
+        if balance is None:
+            balance = float(account.buying_power)
 
-        temp = amount_acceptable+self.used
-        if temp/self.total > self.ratio:
-            amount_acceptable = self.total * self.ratio
+        # Get the current market price
+        market_price = self.get_market_price(symbol)
 
-        #Has to be ok to use
-        return amount_acceptable
+        # Calculate the maximum quantity to buy based on the stock-to-money ratio
+        max_qty_based_on_ratio = int(balance / market_price * stock_to_money_ratio)
 
-    def buy(self, amount: int, money: float, ticker: str) -> None:
+        # Apply additional constraints
+        max_qty = min(max_qty_based_on_ratio, max_qty_in_stock)
+
+        positions = self.get_positions()
+        total_market_value = sum([float(position.market_value) for position in positions])
+
+        if total_market_value > 0:
+            current_allocation = float(positions[symbol].market_value) / total_market_value
+        else:
+            current_allocation = 0.0
+
+        # Check if the maximum percentage allocation is reached
+        if current_allocation >= max_percent_in_stock:
+            max_qty = 0
+
+        return max_qty
+
+    def buy(self, ticker: str, amount: Optional[int] = None) -> None:
         """
         This method will allow you to purchase a stock.
 
         Args:
-            amount (int): The amount of stock you want to buy
-            money (float): The amount of money you want to use
             ticker (str): The stock ticker
+            amount (Optional[int]): The amount of stock you want to buy,
+                if None, the `Resource` can calculate it for you
         """
-        #it doesn't update so it is reset every time it is sold
-        if ticker in self.stock_mapping:
-            self.stock_mapping[ticker] = amount
-        else:
-            self.stock_mapping[ticker] += amount
-        self.used += money
+        if amount is None:
+            amount = self.check(ticker)
 
         self.api.submit_order(
-                    symbol=ticker,
-                    qty=amount,
-                    side='buy',
-                    type='market',
-                    time_in_force='day',
-                )
+            symbol=ticker,
+            qty=amount,
+            side='buy',
+            type='market',
+            time_in_force='day',
+        )
 
-    def sell(self, amount: int, money: float, ticker: str) -> None:
+    def sell(self, amount: Optional[int], ticker: str) -> None:
         """
         This method will allow you to sell a stock.
 
         Args:
             amount (int): The amount of stock you want to sell
-            money (float): The amount of money you want to use
             ticker (str): The stock ticker
         """
-        #0 bc I want to reset it. Since, it doesn't update
-        self.stock_mapping[ticker] = 0
-        self.used -= money
-
         self.api.submit_order(
-                    symbol=ticker,
-                    qty=amount,
-                    side='sell',
-                    type='market',
-                    time_in_force='day',
-                )
+            symbol=ticker,
+            qty=amount,
+            side='sell',
+            type='market',
+            time_in_force='day',
+        )
+
+    def is_in_portfolio(self, symbol):
+        # Get positions
+        positions = self.get_positions()
+
+        # Check if the stock is in the portfolio
+        for position in positions:
+            if position.symbol == symbol:
+                return True
+
+        return False
+
