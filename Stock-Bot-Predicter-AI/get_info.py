@@ -71,6 +71,8 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
     Returns:
         Tuple: of 2 lists made of: Date and EPS_difference, respectively
     """
+    # API key is mine, OK since it is only for data retrieval
+    # and, I do not use it - gran4
     url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={company_ticker}&apikey=0VZ7ORHBEY9XJGXK"
     response = requests.get(url)
     data = response.json()
