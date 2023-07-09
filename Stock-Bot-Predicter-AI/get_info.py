@@ -15,6 +15,7 @@ See also:
 """
 
 import urllib.request
+import requests
 import ssl
 import json
 from typing import Optional, List, Tuple
@@ -70,30 +71,21 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
     Returns:
         Tuple: of 2 lists made of: Date and EPS_difference, respectively
     """
-    url = f"https://finance.yahoo.com/quote/{company_ticker}/history?p={company_ticker}"
+    url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={company_ticker}&apikey=0VZ7ORHBEY9XJGXK"
+    response = requests.get(url)
+    data = response.json()
 
-    # Send a GET request to the URL with certificate verification
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    response = urllib.request.urlopen(req, context=context)
-    html_content = response.read().decode('utf-8')
-
-    # Create a Beautiful Soup object for parsing
-    soup = BeautifulSoup(html_content, 'html.parser')
-
-    # Find the table containing earnings history
-    table = soup.find('table', {'data-test': 'historical-prices'})
-    rows = table.find_all('tr') # type: ignore[union-attr]
-
-    earnings_dates, earnings_diff = [], []
-    for row in rows[1:]:
-        columns = row.find_all('td')
-        if len(columns) == 7:
-            date = columns[0].text
-            actual_eps = columns[4].text
-            estimated_eps = columns[3].text
-            #list so info can be added
-            earnings_dates.append(date)
-            earnings_diff.append(float(actual_eps)-float(estimated_eps))
+    earnings_dates = []
+    earnings_diff = []
+    for quarter in data["quarterlyEarnings"]:
+        date = quarter["fiscalDateEnding"]
+        actual_eps = float(quarter["reportedEPS"])
+        if quarter["estimatedEPS"] != 'None':
+            estimated_eps = float(quarter["estimatedEPS"])
+        else:
+            estimated_eps = 0.0
+        earnings_dates.append(date)
+        earnings_diff.append(actual_eps-estimated_eps)
 
     return earnings_dates, earnings_diff
 
@@ -284,6 +276,7 @@ def get_historical_info() -> None:
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
 
+
         #Do more in the model since we do not know the start or end, yet
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
 
@@ -319,17 +312,6 @@ def get_historical_info() -> None:
             'earnings diff': earnings_diff
         }
 
-        #_________________Scale them 0-1______________________#
-        for key, values in converted_data.items():
-            if key in excluded_values:
-                continue
-            min_val = min(values)
-            max_val = max(values)
-            if min_val == max_val:
-                # Rare cases where nothing is indicated
-                # Extreme indicators, 0/1 ussually.
-                continue
-            converted_data[key] = [(val - min_val) / (max_val - min_val) for val in values]
         with open(f'Stock-Bot-Predicter-AI/{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
 

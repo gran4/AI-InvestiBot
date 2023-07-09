@@ -15,7 +15,7 @@ See also:
 from threading import Thread
 import numpy as np
 
-from models import DayTradeModel
+from models import EarningsModel
 from resource_manager import ResourceManager
 
 YOUR_API_KEY_ID = None
@@ -27,18 +27,18 @@ MAX_HOLD_INDEX = 10
 # `RISK_TO_REWARD_RATIO`, hold it
 
 models = []
-model = DayTradeModel()
+model = EarningsModel()
 model.load()
 models.append(model)
 
-YOUR_API_KEY_ID = "CK12XB0M57U33N2RBD9L"
-YOUR_SECRET_KEY = "LDUfOeFq2SxPRAFMCSSfj7vAQ49mw7CmXAvg4GXZ"
+YOUR_API_KEY_ID = "CKUHKQ7QAA0BOFG45QJT"
+YOUR_SECRET_KEY = "mrQc1eWvdncGVnacghNP7L4CxkiDLk7cyHkCo2Cc"
 if YOUR_API_KEY_ID is None:
     raise ValueError("Set your API key ID")
 if YOUR_SECRET_KEY is None:
     raise ValueError("Set your secret key")
 
-RESOURCE_MANAGER = ResourceManager(api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
+#RESOURCE_MANAGER = ResourceManager(api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
 
 def run_loop() -> None:
     """Runs the stock bot in a loop"""
@@ -47,12 +47,13 @@ def run_loop() -> None:
         for model in models:
             if model.get_info_today() is None:
                 raise RuntimeError("`end_date` is past today")  
-
+            print(model.cached)
             input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
             prev_close = model.cached[-1][0]
             temp = model.predict(info=input_data_reshaped)
 
             weight = temp/prev_close
+            print(weight)
             weights.append(weight)
         i = 0
         for weight, model in zip(weights, models):

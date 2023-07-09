@@ -36,6 +36,12 @@ class ResourceManager:
         max_percent (float): Max percent of money you can use for a single stock
         max (float): Max amount of money you can use for a stock
         stock_to_money_ratio (float): 0-1, 1 is all stock, 0 is all cash
+        api_key (str): api key to use
+        secret_key (str): secret key to use
+        base_url (str):
+            - 'https://api.alpaca.markets': Actual trading
+            - 'https://broker-api.sandbox.alpaca.markets': sandbox version
+
 
     Put restraints on your money.
     """
@@ -45,7 +51,7 @@ class ResourceManager:
                  stock_to_money_ratio: float= 1.0,
                  api_key: str = "",
                  secret_key: str = "",
-                 base_url: str = "https://paper-api.alpaca.markets"
+                 base_url: str = "https://broker-api.sandbox.alpaca.markets"
                  ) -> None:
         self.used = 0
         if not max_percent:
@@ -57,12 +63,12 @@ class ResourceManager:
 
         self.stock_mapping = {}
         self.api = REST(api_key, secret_key, base_url=base_url)
-        
-        equity = float(self.api.equity)
-        buying_power = float(self.api.buying_power)
+        account = self.api.get_account()
+        cash = float(account.cash)
+        buying_power = float(account.buying_power)
 
         # Calculate the total value of your account (including stock)
-        self.total = equity + buying_power
+        self.total = cash + buying_power
 
     def check(self, symbol: str, balance: Optional[float]=None) -> float:
         """
