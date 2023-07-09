@@ -17,7 +17,8 @@ See also:
 
 import json
 
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Iterable
+from numbers import Number
 from datetime import datetime, timedelta
 
 from pandas_market_calendars import get_calendar
@@ -95,8 +96,16 @@ def process_earnings(dates: List, diffs: List, start_date: str,
             and actual earnings per share
     """
     #_________________deletes earnings before start and after end______________________#
-    start = dates.index(start_date)
-    end = dates.index(end_date)
+    start = 0
+    end = -1 # till the end if nothing
+    for date in dates:
+        if date < start_date:
+            end = dates.index(date)
+            break
+    for date in dates:
+        if date > end_date:
+            start = dates.index(date)
+            break
     dates = dates[start:end]
     diffs = diffs[start:end]
 
@@ -108,7 +117,6 @@ def process_earnings(dates: List, diffs: List, start_date: str,
     end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
 
     # Fill out the list to match the start and end date
-    dates = [datetime.strptime(date_str, "%b %d, %Y") for date_str in dates]
     while current_date <= end_datetime:
         filled_dates.append(current_date)
         if current_date in dates:
@@ -120,23 +128,24 @@ def process_earnings(dates: List, diffs: List, start_date: str,
     return dates, diffs
 
 
-def process_flips(ema12: pd.Series, ema26: pd.Series) -> List[int]:
+def process_flips(series1: Iterable[Number], series2: Iterable[Number]) -> List[int]:
     """
-    The purpose of this function is to return a list of the 12 and 26 ema flips. It
-    is primarily used for the MACD Model.
+    The purpose of this function is to return a list of the flips bettween 2 Iterables. It
+    is used for the MACD Model and Impulse MACD Model for 12/26 day ema flips and
+    MACD/Signal line flips respectivly.
 
     Args:
-        ema12 (np.ndarray): The 12-day ema which is used to get the flips
-        ema26 (np.ndarray): The 26-day ema which is used to get the flips
+        series1 (Iterable[Number]): The 1st series which is used to get the flips
+        series2 (Iterable[Number]): The 2nd series which is used to get the flips
 
     Returns:
-        list: The list of flips between the 12-day ema and 26-day ema.
+        list: The list of flips between the 1st and 2nd series
         0 is considered as no flip and 1 is considered as a flip.
     """
     temp = []
-    shortmore = ema12[0] > ema26[0]
+    shortmore = series1[0] > series2[0]
 
-    for short, mid in zip(ema12, ema26):
+    for short, mid in zip(series1, series2):
         if (shortmore and short<mid) or (not shortmore and short>mid):
             temp.append(1)
             shortmore = not shortmore # flip
@@ -167,7 +176,7 @@ def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
 
 def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
                         information_keys: List[str], scaler_data: Optional[Dict]
-                        ) -> Tuple[Dict, np.ndarray, str, str]:
+                        ) -> Tuple[Dict, np.ndarray, Dict, str, str]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
     as well as the corrected dates.
@@ -185,7 +194,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     start_date, end_date = check_for_holidays(start_date, end_date)
 
     #_________________Load info______________________#
-    with open(f'Stock-Bot-Predicter-AI/{stock_symbol}/info.json', 'r') as file:
+    with open(f'Stocks/{stock_symbol}/info.json', 'r') as file:
         other_vals: Dict = json.load(file)
 
     #_________________Make Data fit between start and end date______________________#
@@ -212,32 +221,35 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     if "earnings diff" in information_keys:
         dates = other_vals['earnings dates']
         diffs = other_vals['earnings diff']
-
+ 
         dates, diffs = process_earnings(dates, diffs, start_date, end_date)
         other_vals['earnings dates'] = dates
         other_vals['earnings diff'] = diffs
 
     #_________________Scale Data______________________#
+    temp = {}
     for key in information_keys:
-        if not pd.api.types.is_numeric_dtype(other_vals[key]):
+        if len(other_vals[key]) == 0:
             continue
-        other_vals[key] = np.array(other_vals[key])
+        if type(other_vals[key][0]) != float:
+            continue
 
         if scaler_data is None:
-            min_value = min(other_vals[key])
-            max_value = max(other_vals[key])
+            min_val = min(other_vals[key])
+            diff = max(other_vals[key])-min_val
+            temp[key] = {'min': min_val, 'diff': diff}
         else:
-            min_value = scaler_data[key]['min']
-            max_value = scaler_data[key]['max']
-
-        if max_value - min_value != 0: # Rare, extreme cases
-            other_vals[key] = (other_vals[key] - min_value) / (max_value - min_value)
+            min_val = scaler_data[key]['min']
+            diff = scaler_data[key]['diff']
+        if diff != 0: # Rare, extreme cases
+            other_vals[key] = [(x - min_val) / diff for x in other_vals[key]]
+    scaler_data = temp # change it if value is `None`
 
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
     filtered = np.transpose(filtered) # type: ignore[assignment]
 
-    return other_vals, filtered, start_date, end_date # type: ignore[return-value]
+    return other_vals, filtered, scaler_data, start_date, end_date # type: ignore[return-value]
 
 
 def get_scaler(num: float, data: List) -> float:
@@ -268,7 +280,6 @@ def supertrends(data: pd.DataFrame, period: int=10, factor: int=3):
     upper_band = data["Close"].rolling(period).mean() + (factor * atr)
     lower_band = data["Close"].rolling(period).mean() - (factor * atr)
 
-    print(lower_band[-1], data["Close"][-1], upper_band[-1])
     # Calculate the SuperTrend values using np.select()
     conditions = [
         data["Close"] > upper_band,

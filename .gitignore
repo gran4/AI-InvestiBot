@@ -16,6 +16,7 @@ __pycache__/
 /Stock-Bot-Predicter-AI/C/
 /Stock-Bot-Predicter-AI/WMT/
 /Stock-Bot-Predicter-AI/PFE/
+Stocks/
 
 # C extensions
 *.so

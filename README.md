@@ -25,47 +25,48 @@ Currently impletmented:
       + It is the parent class for all other models
       + It has no data on its own unless specified
     - Day Trade Model 
-      + Train RMSE: 0.022040952764193555
-      + Test RMSE: 0.01761718200725566
-      
-      + Train RMSSE: 1.3980556690290633
-      + Test RMSSE: 1.2747887486868177
+      + Train RMSE: 0.02075242037941444
+      + Test RMSE: 0.026771371361829204
+
+      + Train RMSSE: 1.3539866279934776
+      + Test RMSSE: 1.3284154118165579
     - MACD Model
-      + Train RMSE: 0.02109060309388235
-      + Test RMSE: 0.020949530939790666
+      + Train RMSE: 0.023183201376227626
+      + Test RMSE: 0.02732382064489737
 
-      + Train RMSSE: 0.8495771704378083
-      + Test RMSSE: 0.5597532219707358
+      + Train RMSSE: 0.9503971603872557
+      + Test RMSSE: 0.8466967848854924
     - Impulse MACD Model
-      + Train RMSE: 0.021071730433130226
-      + Test RMSE: 0.021409005906004214
+      + Train RMSE: 0.021000604015479343
+      + Test RMSE: 0.03453818087008323
 
-      + Train RMSSE: 0.430748623349818
-      + Test RMSSE: 0.3854770536908599
+      + Train RMSSE: 0.36591660531622144
+      + Test RMSSE: 0.5035604190480721
     - Reversal Model
-      + Train RMSE: 0.02087958554162695
-      + Test RMSE: 0.0192081585935407
+      + Train RMSE: 0.021183699586844264
+      + Test RMSE: 0.028946277773079763
 
-      + Train RMSSE: 0.40873092330802707
-      + Test RMSSE: 0.42745412377982367
+      + Train RMSSE: 0.42088951956685866
+      + Test RMSSE: 0.5215137360642763
     - Earnings Model
-      + Train RMSE: 0.023500793525848787
-      + Test RMSE: 0.01964422511707269
+      + Train RMSE: 0.023398385228929293
+      + Test RMSE: 0.029933115015020682
 
-      + Train RMSSE: 0.6397388997572792
-      + Test RMSSE: 0.6214688759571487
+      + Train RMSSE: 0.6544155735754877
+      + Test RMSSE: 0.6228371371469489
     - Breakout Model
-      + Train RMSE: 0.024133705747590935
-      + Test RMSE: 0.025299479271081993
+      + Train RMSE: 0.02172262269810893
+      + Test RMSE: 0.028400576328573523
 
-      + Train RMSSE: 0.9638551303328443
-      + Test RMSSE: 1.0401114858071763
+      + Train RMSSE: 0.8791136390349061
+      + Test RMSSE: 1.0664367975707776
   + Alot of information for you to choose from
     - earnings dates(processed in runtime)
     - earnings diffs(processed in runtime)
     - 12-day EMA
     - 26-day EMA
-    - flips(bettween 12 and 26 day EMA)
+    - ema_flips(bettween 12 and 26 day EMA)
+    - signal_flips(bettween MACD and Signal line)
     - 200-day EMA
     - MACD
     - Signal Line
@@ -86,12 +87,14 @@ Currently impletmented:
     - kumo_cloud
 
 P.S:
-  + Model trained for 20 epochs
+  + Model trained for 100 epochs
   + RMSE stands for Root Mean Squared Error
+    - Shows the absolute errors(How far away the prediction is from the expected)
     - It provides a single value that represents the average magnitude of the errors
     - Easily interpretable.
   + RMSSE stands for Root Mean Squared Scaled Error
     - It accounts for variations in the scale and magnitude of different stocks
     - Allows for more meaningful comparisons across different time series.
+    - more reliable evaluation metric(a bot with a higher RMSE is better then a bot with higher RMSSE)
   + The lower the better.
-
+  + Not trained on train data
