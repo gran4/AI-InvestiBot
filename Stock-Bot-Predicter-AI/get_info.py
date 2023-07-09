@@ -224,9 +224,9 @@ def get_historical_info() -> None:
         #_________________MACD Data______________________#
         ema12 = stock_data['Close'].ewm(span=12).mean()
         ema26 = stock_data['Close'].ewm(span=26).mean()
-        signal_line = ema12 - ema26
-        signal_line = signal_line.ewm(span=9).mean()
-        histogram = signal_line-signal_line
+        macd = ema12 - ema26
+        signal_line = macd.ewm(span=9).mean()
+        histogram = macd-signal_line
         ema200 = stock_data['Close'].ewm(span=200).mean()
 
         #_________________Basically Impulse MACD______________________#
@@ -264,14 +264,14 @@ def get_historical_info() -> None:
         liquidity_spike3 = get_liquidity_spikes(stock_data['Volume'], z_score_threshold=4)
         momentum_oscillator = calculate_momentum_oscillator(stock_data['Close'])
 
-        #_________________12 and 26 day Ema flips______________________#
-        flips = process_flips(ema12.values, ema26.values)
+        #_________________Process all flips______________________#
+        ema_flips = process_flips(ema12.values, ema26.values)
+        signal_flips = process_flips(macd, signal_line)
 
         #_______________SuperTrendsModel______________#
         super_trend1 = supertrends(stock_data, 3, 12)
         super_trend2 = supertrends(stock_data, 2, 11)
         super_trend3 = supertrends(stock_data, 1, 10)
-        print(super_trend1)
 
         kumo_status = kumo_cloud(stock_data)
 
@@ -294,7 +294,8 @@ def get_historical_info() -> None:
             'Signal Line': signal_line.values.tolist(),
             'Histogram': histogram.values.tolist(),
             '200-day EMA': ema200.values.tolist(),
-            'flips': flips,
+            'ema_flips': ema_flips,
+            'signal_flips':signal_flips,
             'supertrend1': super_trend1.tolist(),
             'supertrend2': super_trend2.tolist(),
             'supertrend3': super_trend3.tolist(),

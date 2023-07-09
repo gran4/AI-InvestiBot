@@ -17,7 +17,8 @@ See also:
 
 import json
 
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Iterable
+from numbers import Number
 from datetime import datetime, timedelta
 
 from pandas_market_calendars import get_calendar
@@ -127,23 +128,24 @@ def process_earnings(dates: List, diffs: List, start_date: str,
     return dates, diffs
 
 
-def process_flips(ema12: pd.Series, ema26: pd.Series) -> List[int]:
+def process_flips(series1: Iterable[Number], series2: Iterable[Number]) -> List[int]:
     """
-    The purpose of this function is to return a list of the 12 and 26 ema flips. It
-    is primarily used for the MACD Model.
+    The purpose of this function is to return a list of the flips bettween 2 Iterables. It
+    is used for the MACD Model and Impulse MACD Model for 12/26 day ema flips and
+    MACD/Signal line flips respectivly.
 
     Args:
-        ema12 (np.ndarray): The 12-day ema which is used to get the flips
-        ema26 (np.ndarray): The 26-day ema which is used to get the flips
+        series1 (Iterable[Number]): The 1st series which is used to get the flips
+        series2 (Iterable[Number]): The 2nd series which is used to get the flips
 
     Returns:
-        list: The list of flips between the 12-day ema and 26-day ema.
+        list: The list of flips between the 1st and 2nd series
         0 is considered as no flip and 1 is considered as a flip.
     """
     temp = []
-    shortmore = ema12[0] > ema26[0]
+    shortmore = series1[0] > series2[0]
 
-    for short, mid in zip(ema12, ema26):
+    for short, mid in zip(series1, series2):
         if (shortmore and short<mid) or (not shortmore and short>mid):
             temp.append(1)
             shortmore = not shortmore # flip
@@ -228,7 +230,6 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     temp = {}
     for key in information_keys:
         if len(other_vals[key]) == 0:
-            print(key)
             continue
         if type(other_vals[key][0]) != float:
             continue
@@ -240,10 +241,8 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
         else:
             min_val = scaler_data[key]['min']
             diff = scaler_data[key]['diff']
-        other_vals[key] = np.array(other_vals[key])
         if diff != 0: # Rare, extreme cases
             other_vals[key] = [(x - min_val) / diff for x in other_vals[key]]
-    print("temp", temp)
     scaler_data = temp # change it if value is `None`
 
     # Convert the dictionary of lists to a NumPy array
