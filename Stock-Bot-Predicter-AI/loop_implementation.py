@@ -24,14 +24,20 @@ from trading_funcs import company_symbols
 
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
-RISK_REWARD_RATIO = 1.01#min profit expected per day to hold or buy
-TIME_INTERVAL = 0#86400# number of secs in 24 hours
-MAX_HOLD_INDEX = 10
+
+# The min predicted profit that every model has to have
+# For us to consider buying in. Each has to predict it
+# will go in % up more then `PREDICTION_THRESHOLD`
+PREDICTION_THRESHOLD = 1
+
+RISK_REWARD_RATIO = 1.01# min profit expected in a stock over a day to hold or buy
+TIME_INTERVAL = 0# 86400# number of secs in 24 hours
+
 # if it is lower than `MAX_HOLD_INDEX` and 
 # meets all other requirements, hold it
+MAX_HOLD_INDEX = 10
 
 models = []
-
 for company in company_symbols:
     model = ImpulseMACDModel(stock_symbol=company)
     model.load()
@@ -82,8 +88,14 @@ def run_loop() -> None:
         if skip:
             time.sleep(TIME_INTERVAL)
             continue
-
-        model_weights = list(zip(models, profits))
+        
+        processed_profits = []
+        for profit in profits:
+            # If it is good enough, it can possibly be bought even if one model is lower then the PREDICTION_THRESHOLD
+            filtered_profit = [0 if model_prediction < PREDICTION_THRESHOLD else model_prediction for model_prediction in profit]
+            average_profit = sum(filtered_profit) / len(filtered_profit)
+            processed_profits.append(average_profit)
+        model_weights = list(zip(models, processed_profits))
         sorted_models = sorted(model_weights, key=lambda x: x[1], reverse=True)
         i = 0
         for model, profit in sorted_models:
