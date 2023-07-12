@@ -53,8 +53,8 @@ excluded_values = (
 
 
 company_symbols = (
-    "AAPL",
-    "GOOG",
+    #"AAPL",
+    #"GOOG",
     "TLSA",
     "META",
     "AMZN",

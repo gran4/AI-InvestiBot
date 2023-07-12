@@ -50,8 +50,7 @@ __all__ = (
 )
 
 
-def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] = None
-                         ) -> Tuple[List[str], List[float]]:
+def get_earnings_history(company_ticker: str) -> Tuple[List[str], List[float]]:
     """
     Gets earning history of a company as a list.
 
@@ -60,18 +59,7 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
         context Optional[ssl certificate]: ssl certificate to use
 
     Warning:
-        IF YOU GET ERROR:
-            urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate
-            verify failed: unable to get local issuer certificate (_ssl.c:1002)>
-
-        Go to Python3.6 folder (or whatever version of python you're using) > double click
-        on "Install Certificates.command" file. :D
-
-        NOTE: ON macOS go to Macintosh HD > Applications > Python3.6
-        (or whatever version of python you're using), then follow above
-
-    Warning:
-        YOU are probably looking to use get_corrected_earnings_history not this
+        YOU need to process this data later in runtime
 
     Returns:
         Tuple: of 2 lists made of: Date and EPS_difference, respectively
