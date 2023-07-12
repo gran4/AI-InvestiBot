@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 
 #From project
-# Stocks/
+Stocks/
 
 # C extensions
 *.so
