@@ -704,15 +704,20 @@ class SuperTrendsModel(BaseModel):
 
 
 if __name__ == "__main__":
-    modelclasses = [ImpulseMACDModel, EarningsModel, RSIModel]
+    modelclasses = [ImpulseMACDModel]#, EarningsModel, RSIModel]
 
     test_models = []
     for company in company_symbols:
         for modelclass in modelclasses:
             model = modelclass(stock_symbol=company)
-            model.train(epochs=200)
-            model.save()
-            model.load()
+            model.train(epochs=50)
+            #model.save()
+            #model.load()
+            print(model.stock_symbol)
+            print(model.__class__.__name__)
+            model.test()
+            import time
+            time.sleep(12312)
             test_models.append(model)
 
         #for model in test_models:

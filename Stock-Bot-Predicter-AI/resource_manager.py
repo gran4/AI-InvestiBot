@@ -48,7 +48,7 @@ class ResourceManager:
                  stock_to_money_ratio: float= 1.0,
                  api_key: str = "",
                  secret_key: str = "",
-                 base_url: str = "https://broker-api.sandbox.alpaca.markets"
+                 base_url: str = "https://paper-api.alpaca.markets"
                  ) -> None:
         self.used = 0
         self.max_percent = max_percent

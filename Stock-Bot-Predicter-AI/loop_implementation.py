@@ -53,7 +53,7 @@ if YOUR_API_KEY_ID is None:
 if YOUR_SECRET_KEY is None:
     raise ValueError("Set your secret key")
 
-RESOURCE_MANAGER = ResourceManager(api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
+RESOURCE_MANAGER = ResourceManager(max_percent=30, api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
 
 def run_loop() -> None:
     """Runs the stock bot in a loop"""
