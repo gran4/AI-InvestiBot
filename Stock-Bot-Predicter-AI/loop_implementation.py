@@ -75,7 +75,6 @@ def run_loop() -> None:
         for model in models:
             info = model.get_info_today()
             if info is None:
-                time.sleep(TIME_INTERVAL)
                 skip = True
                 break
             elif len(info) == 0:
