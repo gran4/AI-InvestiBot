@@ -271,6 +271,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
 
     #_________________Scale Data______________________#
     temp = {}
+    temp = {}
     for key in information_keys:
         if len(other_vals[key]) == 0:
             continue
@@ -281,7 +282,14 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
             min_val = min(other_vals[key])
             diff = max(other_vals[key])-min_val
             temp[key] = {'min': min_val, 'diff': diff}
+            min_val = min(other_vals[key])
+            diff = max(other_vals[key])-min_val
+            temp[key] = {'min': min_val, 'diff': diff}
         else:
+            min_val = scaler_data[key]['min']
+            diff = scaler_data[key]['diff']
+        if diff != 0: # Rare, extreme cases
+            other_vals[key] = [(x - min_val) / diff for x in other_vals[key]]
             min_val = scaler_data[key]['min']
             diff = scaler_data[key]['diff']
         if diff != 0: # Rare, extreme cases

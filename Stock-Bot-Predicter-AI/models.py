@@ -279,7 +279,6 @@ class BaseModel:
         name = self.__class__.__name__
 
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
-
         with open(f"Stocks/{self.stock_symbol}/{name}_data.json", 'r') as file:
             self.data = json.load(file)
 
@@ -707,7 +706,7 @@ class SuperTrendsModel(BaseModel):
 
 
 if __name__ == "__main__":
-    modelclasses = [ImpulseMACDModel]#, EarningsModel, RSIModel]
+    modelclasses = [ImpulseMACDModel, EarningsModel, RSIModel]
 
     test_models = []
     for company in company_symbols:
