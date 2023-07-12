@@ -38,10 +38,12 @@ TIME_INTERVAL = 0# 86400# number of secs in 24 hours
 MAX_HOLD_INDEX = 10
 
 models = []
+model_classes = [ImpulseMACDModel, EarningsModel, RSIModel]
 for company in company_symbols:
-    model = ImpulseMACDModel(stock_symbol=company)
-    model.load()
-    models.append(model)
+    for model_class in model_classes:
+        model = model_class(stock_symbol=company)
+        model.load()
+        models.append(model)
 
 
 YOUR_API_KEY_ID = "PKJWNCBFPYBEFZ9GLA5B"
@@ -83,12 +85,11 @@ def run_loop() -> None:
             prev_close = float(info[0][-1][0])
             temp = model.predict(info=info)[0][0]
             profit = float(temp/prev_close)
-            print('company: ', profit)
             profits.append(profit)
         if skip:
             time.sleep(TIME_INTERVAL)
             continue
-        
+
         processed_profits = []
         for profit in profits:
             # If it is good enough, it can possibly be bought even if one model is lower then the PREDICTION_THRESHOLD

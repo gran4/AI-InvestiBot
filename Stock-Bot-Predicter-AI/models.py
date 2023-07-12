@@ -576,7 +576,6 @@ class DayTradeModel(BaseModel):
     It contains the information keys `Close`
     """
     def __init__(self,
-    def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
@@ -591,9 +590,7 @@ class MACDModel(BaseModel):
 
     It contains the information keys `Close`, `MACD`,
     `Signal Line`, `Histogram`, `ema_flips`, `200-day EMA`
-    `Signal Line`, `Histogram`, `ema_flips`, `200-day EMA`
     """
-    def __init__(self,
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
@@ -615,7 +612,6 @@ class ImpulseMACDModel(BaseModel):
     `Change`, `Histogram`, `ema_flips`, `signal_flips`, `200-day EMA`
     """
     def __init__(self,
-    def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
@@ -632,7 +628,6 @@ class ReversalModel(BaseModel):
     It contains the information keys `Close`, `gradual-liquidity spike`,
     `3-liquidity spike`, `momentum_oscillator`
     """
-    def __init__(self,
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
@@ -653,7 +648,6 @@ class EarningsModel(BaseModel):
     `earning diffs`, `Momentum`
     """
     def __init__(self,
-    def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
@@ -668,7 +662,6 @@ class BreakoutModel(BaseModel):
 
     It contains the information keys `Close`, `RSI`, `TRAMA`
     """
-    def __init__(self,
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
@@ -703,7 +696,6 @@ class SuperTrendsModel(BaseModel):
 
     It contains the information keys `Close`, `RSI`, `TRAMA`
     """
-    def __init__(self,
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         raise Warning("BUGGED, NOT WORKING")
