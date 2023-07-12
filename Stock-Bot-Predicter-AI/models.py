@@ -24,6 +24,7 @@ from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.callbacks import EarlyStopping
 from pandas_market_calendars import get_calendar
 
 import numpy as np
@@ -143,10 +144,12 @@ class BaseModel:
         model.add(Dense(1))
         model.compile(optimizer='adam', loss='mean_squared_error')
 
+
+        early_stopping = EarlyStopping(monitor='val_loss', patience=10)
         # Train the model
-        model.fit(x_test, y_test, batch_size=32, epochs=epochs)
-        model.fit(x_train, y_train, batch_size=32, epochs=epochs)
-        model.fit(x_total, y_total, batch_size=32, epochs=epochs)
+        model.fit(x_test, y_test, validation_data=(x_test, y_test), callbacks=[early_stopping], batch_size=32, epochs=epochs)
+        model.fit(x_train, y_train, validation_data=(x_train, y_train), callbacks=[early_stopping], batch_size=32, epochs=epochs)
+        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=32, epochs=epochs)
 
         self.model = model
 
@@ -710,15 +713,9 @@ if __name__ == "__main__":
     for company in company_symbols:
         for modelclass in modelclasses:
             model = modelclass(stock_symbol=company)
-            model.train(epochs=50)
-            #model.save()
-            #model.load()
-            print(model.stock_symbol)
-            print(model.__class__.__name__)
-            model.test()
-            import time
-            time.sleep(12312)
-            test_models.append(model)
+            model.train(epochs=100)
+            model.save()
+            #test_models.append(model)
 
         #for model in test_models:
         #    model.test()
