@@ -100,7 +100,6 @@ class BaseModel:
         self.cached_info: Optional[Union[pd.DataFrame, Dict[str, Any]]] = None
 
     def train(self, epochs: int=100) -> None:
-    def train(self, epochs: int=100) -> None:
         """
         Trains Model off `information_keys`
 
@@ -116,7 +115,6 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        self.data, data, self.scaler_data, start_date, end_date = get_relavant_values(
         self.data, data, self.scaler_data, start_date, end_date = get_relavant_values(
             start_date, end_date, stock_symbol, information_keys, None
         )
@@ -146,7 +144,7 @@ class BaseModel:
         model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train the model
-        #model.fit(x_test, y_test, batch_size=32, epochs=epochs)
+        model.fit(x_test, y_test, batch_size=32, epochs=epochs)
         model.fit(x_train, y_train, batch_size=32, epochs=epochs)
         model.fit(x_total, y_total, batch_size=32, epochs=epochs)
 
@@ -195,7 +193,6 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        _, data, _, start_date, end_date = get_relavant_values( # type: ignore[arg-type]
         _, data, _, start_date, end_date = get_relavant_values( # type: ignore[arg-type]
             start_date, end_date, stock_symbol, information_keys, self.scaler_data
         )
