@@ -165,7 +165,6 @@ def process_earnings(dates: List, diffs: List, start_date: str,
 
 
 def process_flips(series1: Iterable[Number], series2: Iterable[Number]) -> List[int]:
-def process_flips(series1: Iterable[Number], series2: Iterable[Number]) -> List[int]:
     """
     The purpose of this function is to return a list of the flips bettween 2 Iterables. It
     is used for the MACD Model and Impulse MACD Model for 12/26 day ema flips and
@@ -189,7 +188,6 @@ def process_flips(series1: Iterable[Number], series2: Iterable[Number]) -> List[
     shortmore = series1[0] > series2[0]
     shortmore = series1[0] > series2[0]
 
-    for short, mid in zip(series1, series2):
     for short, mid in zip(series1, series2):
         if (shortmore and short<mid) or (not shortmore and short>mid):
             temp.append(1)
@@ -222,7 +220,6 @@ def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
 def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
                         information_keys: List[str], scaler_data: Optional[Dict]
                         ) -> Tuple[Dict, np.ndarray, Dict, str, str]:
-                        ) -> Tuple[Dict, np.ndarray, Dict, str, str]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
     as well as the corrected dates.
@@ -240,7 +237,6 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     start_date, end_date = check_for_holidays(start_date, end_date)
 
     #_________________Load info______________________#
-    with open(f'Stocks/{stock_symbol}/info.json', 'r') as file:
     with open(f'Stocks/{stock_symbol}/info.json', 'r') as file:
         other_vals: Dict = json.load(file)
 
@@ -294,7 +290,6 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
             diff = scaler_data[key]['diff']
         if diff != 0: # Rare, extreme cases
             other_vals[key] = [(x - min_val) / diff for x in other_vals[key]]
-    scaler_data = temp # change it if value is `None`
             min_val = scaler_data[key]['min']
             diff = scaler_data[key]['diff']
         if diff != 0: # Rare, extreme cases
@@ -305,7 +300,6 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
     filtered = np.transpose(filtered) # type: ignore[assignment]
 
-    return other_vals, filtered, scaler_data, start_date, end_date # type: ignore[return-value]
     return other_vals, filtered, scaler_data, start_date, end_date # type: ignore[return-value]
 
 

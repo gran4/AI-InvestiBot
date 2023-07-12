@@ -353,11 +353,9 @@ class BaseModel:
                 cached_info['Volume'], gradual=True
             ).iloc[-num_days:]
         if '3-liquidity spike' in information_keys:
-        if '3-liquidity spike' in information_keys:
             stock_data['3-liquidity spike'] = get_liquidity_spikes(
                 cached_info['Volume'], z_score_threshold=4
             ).iloc[-num_days:]
-        if 'momentum_oscillator' in information_keys:
         if 'momentum_oscillator' in information_keys:
             stock_data['momentum_oscillator'] = calculate_momentum_oscillator(
                 cached_info['Close']
@@ -448,7 +446,6 @@ class BaseModel:
         end_date = self.end_date
         #_________________ GET Data______________________#
         if not self.cached_info:
-            with open(f"Stocks/{self.stock_symbol}/info.json", 'r') as file:
             with open(f"Stocks/{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
 
@@ -596,7 +593,6 @@ class MACDModel(BaseModel):
         super().__init__(
             stock_symbol=stock_symbol,
             information_keys=['Close', 'MACD', 'Histogram', 'ema_flips', '200-day EMA']
-            information_keys=['Close', 'MACD', 'Histogram', 'ema_flips', '200-day EMA']
         )
 
 
@@ -615,7 +611,6 @@ class ImpulseMACDModel(BaseModel):
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
-            information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
             information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
         )
 
