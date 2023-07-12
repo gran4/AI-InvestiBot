@@ -30,22 +30,39 @@ Currently impletmented:
 
       + Train RMSSE: 1.3539866279934776
       + Test RMSSE: 1.3284154118165579
+      + Train RMSE: 0.02075242037941444
+      + Test RMSE: 0.026771371361829204
+
+      + Train RMSSE: 1.3539866279934776
+      + Test RMSSE: 1.3284154118165579
     - MACD Model
+      + Train RMSE: 0.023183201376227626
+      + Test RMSE: 0.02732382064489737
       + Train RMSE: 0.023183201376227626
       + Test RMSE: 0.02732382064489737
 
       + Train RMSSE: 0.9503971603872557
       + Test RMSSE: 0.8466967848854924
+      + Train RMSSE: 0.9503971603872557
+      + Test RMSSE: 0.8466967848854924
     - Impulse MACD Model
+      + Train RMSE: 0.021000604015479343
+      + Test RMSE: 0.03453818087008323
       + Train RMSE: 0.021000604015479343
       + Test RMSE: 0.03453818087008323
 
       + Train RMSSE: 0.36591660531622144
       + Test RMSSE: 0.5035604190480721
+      + Train RMSSE: 0.36591660531622144
+      + Test RMSSE: 0.5035604190480721
     - Reversal Model
       + Train RMSE: 0.021183699586844264
       + Test RMSE: 0.028946277773079763
+      + Train RMSE: 0.021183699586844264
+      + Test RMSE: 0.028946277773079763
 
+      + Train RMSSE: 0.42088951956685866
+      + Test RMSSE: 0.5215137360642763
       + Train RMSSE: 0.42088951956685866
       + Test RMSSE: 0.5215137360642763
     - Earnings Model
@@ -54,17 +71,30 @@ Currently impletmented:
 
       + Train RMSSE: 0.6544155735754877
       + Test RMSSE: 0.6228371371469489
+    - RSI Model
+      + Train RMSE: 0.025379195809305734
+      + Test RMSE: 0.030050545088518107
+
+      + Train RMSSE: 0.6776019152138987
+      + Test RMSSE: 0.8600297293130289
     - Breakout Model
+      + Train RMSE: 0.02172262269810893
+      + Test RMSE: 0.028400576328573523
       + Train RMSE: 0.02172262269810893
       + Test RMSE: 0.028400576328573523
 
       + Train RMSSE: 0.8791136390349061
       + Test RMSSE: 1.0664367975707776
+      + Train RMSSE: 0.8791136390349061
+      + Test RMSSE: 1.0664367975707776
   + Alot of information for you to choose from
     - earnings dates(processed in runtime)
-    - earnings diffs(processed in runtime)
+    - earning diffs
+    (processed in runtime)
     - 12-day EMA
     - 26-day EMA
+    - ema_flips(bettween 12 and 26 day EMA)
+    - signal_flips(bettween MACD and Signal line)
     - ema_flips(bettween 12 and 26 day EMA)
     - signal_flips(bettween MACD and Signal line)
     - 200-day EMA
@@ -88,7 +118,9 @@ Currently impletmented:
 
 P.S:
   + Model trained for 100 epochs
+  + Model trained for 100 epochs
   + RMSE stands for Root Mean Squared Error
+    - Shows the absolute errors(How far away the prediction is from the expected)
     - Shows the absolute errors(How far away the prediction is from the expected)
     - It provides a single value that represents the average magnitude of the errors
     - Easily interpretable.
@@ -96,5 +128,7 @@ P.S:
     - It accounts for variations in the scale and magnitude of different stocks
     - Allows for more meaningful comparisons across different time series.
     - more reliable evaluation metric(a bot with a higher RMSE is better then a bot with higher RMSSE)
+    - more reliable evaluation metric(a bot with a higher RMSE is better then a bot with higher RMSSE)
   + The lower the better.
+  + Not trained on train data
   + Not trained on train data

@@ -19,8 +19,6 @@ from datetime import datetime
 
 from alpaca_trade_api import REST
 
-from models import BaseModel
-
 __all__ = (
     'ResourceManager',
 )
@@ -38,15 +36,14 @@ class ResourceManager:
         stock_to_money_ratio (float): 0-1, 1 is all stock, 0 is all cash
         api_key (str): api key to use
         secret_key (str): secret key to use
-        base_url (str):
-            - 'https://api.alpaca.markets': Actual trading
-            - 'https://broker-api.sandbox.alpaca.markets': sandbox version
+        base_url (str): url decides whether of not it is
+            paper(pretend) trading
 
 
     Put restraints on your money.
     """
     def __init__(self,
-                 maximum: Optional[float]=None,
+                 maximum: float=float("inf"),
                  max_percent: float=100.0,
                  stock_to_money_ratio: float= 1.0,
                  api_key: str = "",
@@ -54,21 +51,19 @@ class ResourceManager:
                  base_url: str = "https://broker-api.sandbox.alpaca.markets"
                  ) -> None:
         self.used = 0
-        if not max_percent:
-            self.max_percent = 1
-        if not maximum:
-            maximum = float("inf")
-        self.qty = maximum
+        self.max_percent = max_percent
+        self.max_per = maximum
         self.ratio = stock_to_money_ratio
 
         self.stock_mapping = {}
         self.api = REST(api_key, secret_key, base_url=base_url)
 
         account = self.api.get_account()
-        cash = float(account.cash)
+        cash = float(account.equity) - float(account.buying_power)
         buying_power = float(account.buying_power)
 
         # Calculate the total value of your account (including stock)
+        self.total = cash + buying_power
         self.total = cash + buying_power
 
     def check(self, symbol: str, balance: Optional[float]=None) -> float:
@@ -86,16 +81,16 @@ class ResourceManager:
         """
 
         stock_to_money_ratio = self.ratio
-        max_qty_in_stock = self.qty
+        max_qty_in_stock = self.max_per
         max_percent_in_stock = self.max_percent
 
         # Get account information
-        account = self.get_account()
+        account = self.api.get_account()
         if balance is None:
             balance = float(account.buying_power)
 
         # Get the current market price
-        market_price = self.get_market_price(symbol)
+        market_price = float(self.api.get_latest_trade(symbol).price)
 
         # Calculate the maximum quantity to buy based on the stock-to-money ratio
         max_qty_based_on_ratio = int(balance / market_price * stock_to_money_ratio)
@@ -103,7 +98,7 @@ class ResourceManager:
         # Apply additional constraints
         max_qty = min(max_qty_based_on_ratio, max_qty_in_stock)
 
-        positions = self.get_positions()
+        positions = self.api.list_positions()
         total_market_value = sum([float(position.market_value) for position in positions])
 
         if total_market_value > 0:
@@ -155,7 +150,7 @@ class ResourceManager:
 
     def is_in_portfolio(self, symbol):
         # Get positions
-        positions = self.get_positions()
+        positions = self.api.list_positions()
 
         # Check if the stock is in the portfolio
         for position in positions:

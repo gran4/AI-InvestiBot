@@ -34,7 +34,8 @@ import yfinance as yf
 from trading_funcs import (
     check_for_holidays, get_relavant_values,
     create_sequences, process_flips,
-    excluded_values
+    excluded_values, is_floats,
+    company_symbols
 )
 from get_info import (
     calculate_momentum_oscillator,
@@ -72,10 +73,13 @@ class BaseModel:
     """
 
     def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-01-05",
+                 end_date: str = "2023-07-09",
                  stock_symbol: str = "AAPL",
                  num_days: int = 60,
                  information_keys: List[str]=["Close"]) -> None:
+        self.start_date, self.end_date = check_for_holidays(
+            start_date, end_date
+        )
         self.start_date, self.end_date = check_for_holidays(
             start_date, end_date
         )
@@ -86,7 +90,7 @@ class BaseModel:
 
         self.model: Optional[Sequential] = None
         self.data: Optional[Dict[str, Any]] = None
-        self.scaler_data: Optional[Dict[str, float]] = None
+        self.scaler_data: Dict[str, float] = {}
 
 #________For offline predicting____________#
         self.cached: Optional[np.ndarray] = None
@@ -128,6 +132,8 @@ class BaseModel:
 
         if len(test_data) < num_days:
             raise ValueError('The length of test_data must be more then num days \n increase the data or decrease the num days')
+        if len(test_data) < num_days:
+            raise ValueError('The length of test_data must be more then num days \n increase the data or decrease the num days')
 
         #_________________Train it______________________#
         # Build the LSTM model
@@ -138,7 +144,7 @@ class BaseModel:
         model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train the model
-        #model.fit(x_test, y_test, batch_size=32, epochs=epochs)
+        model.fit(x_test, y_test, batch_size=32, epochs=epochs)
         model.fit(x_train, y_train, batch_size=32, epochs=epochs)
         model.fit(x_total, y_total, batch_size=32, epochs=epochs)
 
@@ -151,16 +157,18 @@ class BaseModel:
         """
         if self.model is None:
             raise LookupError("Compile or load model first")
+        name = self.__class__.__name__
+
         #_________________Save Model______________________#
-        self.model.save(f"Stocks/{self.stock_symbol}/model")
+        self.model.save(f"Stocks/{self.stock_symbol}/{name}_model")
 
         for key, val in self.data.items():
             print(key)
             print(type(val))
-        with open(f"Stocks/{self.stock_symbol}/data.json", "w") as json_file:
+        with open(f"Stocks/{self.stock_symbol}/{name}_data.json", "w") as json_file:
             json.dump(self.data, json_file)
 
-        with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
+        with open(f"Stocks/{self.stock_symbol}/{name}_min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
 
     def is_homogeneous(self, arr) -> bool:
@@ -193,7 +201,7 @@ class BaseModel:
         # Split the data into training and testing sets
         train_size = int(len(data) * 0.8)
         train_data = data[:train_size] # First `num_days` not in predictions
-        test_data = data[train_size-num_days:] # minus by `num_days` to get full range of values during the test period 
+        test_data = data[train_size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
 
         x_train, y_train = create_sequences(train_data, num_days)
         x_test, y_test = create_sequences(test_data, num_days)
@@ -203,7 +211,7 @@ class BaseModel:
 
         # NOTE: This cuts data at the start to account for `num_days`
         train_data = data[num_days:train_size]
-        test_data = data[train_size:]
+        test_data = data[train_size-1:]
 
         assert len(train_predictions) == len(train_data)
         assert len(test_predictions) == len(test_data)
@@ -265,12 +273,14 @@ class BaseModel:
         """
         if self.model:
             return None
-        self.model = load_model(f"Stocks/{self.stock_symbol}/model")
+        name = self.__class__.__name__
 
-        with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
+        self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
+
+        with open(f"Stocks/{self.stock_symbol}/{name}_data.json", 'r') as file:
             self.data = json.load(file)
 
-        with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
+        with open(f"Stocks/{self.stock_symbol}/{name}_min_max_data.json", 'r') as file:
             self.scaler_data = json.load(file)
 
         # type: ignore[no-any-return]
@@ -297,39 +307,39 @@ class BaseModel:
 
         stock_data['Close'] = cached_info['Close'].iloc[-num_days:]
 
-        ewm12 = cached_info['Close'].ewm(span=12, adjust=False)
-        ema12 = ewm12.mean().iloc[-num_days:]
-        if '12-day EMA' in information_keys:
-            stock_data['12-day EMA'] = ema12
-        ewm26 = cached_info['Close'].ewm(span=26, adjust=False)
-        ema26 = ewm26.mean().iloc[-num_days:]
-        if '26-day EMA' in information_keys:
-            stock_data['26-day EMA'] = ema26
+        ema12 = cached_info['Close'].ewm(span=12, adjust=False).mean()
+        ema26 = cached_info['Close'].ewm(span=26, adjust=False).mean()
         macd = ema12 - ema26
+        span = 9
+        signal_line = macd.rolling(window=span, min_periods=1).mean().iloc[-num_days:]
+
+        change = cached_info['Close'].diff()
+        if '12-day EMA' in information_keys:
+            stock_data['12-day EMA'] = ema12.iloc[-num_days:]
+        if '26-day EMA' in information_keys:
+            stock_data['26-day EMA'] = ema26.iloc[-num_days:]
         if 'MACD' in information_keys:
-            stock_data['MACD'] = macd
+            stock_data['MACD'] = macd.iloc[-num_days:]
         if 'Signal Line' in information_keys:
-            span = 9
-            signal_line = macd.rolling(window=span).mean().iloc[-num_days:]
             stock_data['Signal Line'] = signal_line
         if 'Histogram' in information_keys:
             histogram = macd - signal_line
-            stock_data['Histogram'] = histogram
+            stock_data['Histogram'] = histogram.iloc[-num_days:]
         if '200-day EMA' in information_keys:
             ewm200 = cached_info['Close'].ewm(span=200, adjust=False)
             ema200 = ewm200.mean().iloc[-num_days:]
             stock_data['200-day EMA'] = ema200
         change = cached_info['Close'].diff().iloc[-num_days:]
         if 'Change' in information_keys:
-            stock_data['Change'] = change
+            stock_data['Change'] = change.iloc[-num_days:]
         if 'Momentum' in information_keys:
             momentum = change.rolling(window=10, min_periods=1).sum().iloc[-num_days:]
             stock_data['Momentum'] = momentum
         if 'RSI' in information_keys:
             gain = change.apply(lambda x: x if x > 0 else 0)
             loss = change.apply(lambda x: abs(x) if x < 0 else 0)
-            avg_gain = gain.rolling(window=14, min_periods=1).mean().iloc[-num_days:]
-            avg_loss = loss.rolling(window=14, min_periods=1).mean().iloc[-num_days:]
+            avg_gain = gain.rolling(window=14).mean().iloc[-num_days:]
+            avg_loss = loss.rolling(window=14).mean().iloc[-num_days:]
             relative_strength = avg_gain / avg_loss
             stock_data['RSI'] = 100 - (100 / (1 + relative_strength))
         if 'TRAMA' in information_keys:
@@ -348,34 +358,34 @@ class BaseModel:
             ).iloc[-num_days:]
         if 'momentum_oscillator' in information_keys:
             stock_data['momentum_oscillator'] = calculate_momentum_oscillator(
-                cached_info['Close']).iloc[-num_days:]
+                cached_info['Close']
+            ).iloc[-num_days:]
         if 'ema_flips' in information_keys:
             #_________________12 and 26 day Ema flips______________________#
             stock_data['ema_flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
+            stock_data['ema_flips'] = pd.Series(stock_data['ema_flips'])
         if 'signal_flips' in information_keys:
             stock_data['signal_flips'] = process_flips(macd[-num_days:], signal_line[-num_days:])
-        if 'earnings diff' in information_keys:
+            stock_data['signal_flips'] = pd.Series(stock_data['signal_flips'])
+        if 'earning diffs' in information_keys:
             #earnings stuffs
             earnings_dates, earnings_diff = get_earnings_history(self.stock_symbol)
-            all_dates = []
-
-            # Calculate dates before the extracted date
-            days_before = 3
+            
             end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
-            for i in range(days_before):
-                day = end_datetime - timedelta(days=i+1)
-                all_dates.append(day.strftime('%Y-%m-%d'))
+            date = end_datetime - timedelta(days=num_days)
 
-            stock_data['earnings diff'] = [] # type: ignore[attr]
-            low = self.scaler_data['earnings diffs']['min'] # type: ignore[index]
-            diff = self.scaler_data['earnings diffs']['diff'] # type: ignore[index]
-            for date in all_dates:
+            stock_data['earnings dates'] = []
+            stock_data['earning diffs'] = [] # type: ignore[attr]
+            low = self.scaler_data['earning diffs']['min'] # type: ignore[index]
+            diff = self.scaler_data['earning diffs']['diff'] # type: ignore[index]
+
+            for i in range(num_days):
                 if not self.end_date in earnings_dates:
-                    stock_data['earnings diff'].append(0)
+                    stock_data['earning diffs'].append(0)
                     continue
                 i = earnings_dates.index(date)
                 scaled = (earnings_diff[i]-low) / diff
-                stock_data['earnings diff'].append(scaled)
+                stock_data['earning diffs'].append(scaled)
 
         # Scale each column manually
         for column in self.information_keys:
@@ -383,7 +393,9 @@ class BaseModel:
                 continue
             low = self.scaler_data[column]['min'] # type: ignore[index]
             diff = self.scaler_data[column]['diff'] # type: ignore[index]
+            diff = self.scaler_data[column]['diff'] # type: ignore[index]
             column_values = stock_data[column]
+            scaled_values = (column_values - low) / diff
             scaled_values = (column_values - low) / diff
             stock_data[column] = scaled_values
         return stock_data
@@ -410,21 +422,17 @@ class BaseModel:
             cached_info = ticker.history(start=start_datetime, end=self.end_date, interval="1d")
             if len(cached_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
-            # Filter the historical data to get the desired number of trading days
-            cached_info = cached_info.tail(num_days)
         else:
             start_datetime = end_datetime - timedelta(days=1)
-            temp = end_datetime + timedelta(days=1)
-            day_info = ticker.history(start=self.end_date, end=temp, interval="1d")
+            day_info = ticker.history(start=start_datetime, end=self.end_date, interval="1d")
             if len(day_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
-
             cached_info = cached_info.drop(cached_info.index[0])
             cached_info = pd.concat((cached_info, day_info))
 
 
         cached = self.indicators_past_num_days(cached_info, num_days)
-        cached = [cached[key] for key in self.information_keys]
+        cached = [cached[key] for key in self.information_keys if is_floats(cached[key])]
         cached = np.transpose(cached)
 
         self.cached_info = cached_info
@@ -482,14 +490,18 @@ class BaseModel:
 
         start_datetime = end_datetime - timedelta(days=1)
         nyse = get_calendar('NYSE')
-        schedule = nyse.schedule(start_date=start_datetime, end_date=self.end_date)
+        schedule = nyse.schedule(start_date=start_datetime, end_date=end_datetime+timedelta(days=2))
         if self.end_date not in schedule.index:
             return None
 
         try:
+            if type(self.cached_info) is Dict:
+                raise ConnectionError("It has already failed to lead")
             self.update_cached_online()
         except ConnectionError:
             warn("Stock data failed to download. Check your internet")
+            if type(self.cached_info) is pd.DataFrame:
+                self.cached_info = None
             self.update_cached_offline()
 
         if self.cached is None:
@@ -524,6 +536,7 @@ class BaseModel:
 
         :Example:
         >>> obj = BaseModel(num_days=5)
+        >>> obj = BaseModel(num_days=5)
         >>> obj.num_days
         5
         >>> temp = obj.predict(info = np.array(
@@ -543,6 +556,10 @@ class BaseModel:
         """
         if info is None:
             info = self.get_info_today()
+        if info is None: # basically, if it is still None after get_info_today
+            raise RuntimeError(
+                "Could not get indicators for today. It may be that `end_date` is beyond today's date"
+            )
         if self.model:
             return self.model.predict(info) # typing: ignore[return]
         raise LookupError("Compile or load model first")
@@ -587,8 +604,8 @@ class ImpulseMACDModel(BaseModel):
     The difference between this class and the MACD model class is that the Impluse MACD model
     is more responsive to short-term market changes and can identify trends earlier. 
 
-    It contains the information keys `Close`, `MACD`,
-    `Signal Line`, `Histogram`, `ema_flips`, 'signal_flips', `200-day EMA`
+    It contains the information keys `Close`, `Histogram`, `Momentum`,
+    `Change`, `Histogram`, `ema_flips`, `signal_flips`, `200-day EMA`
     """
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
@@ -623,13 +640,13 @@ class EarningsModel(BaseModel):
     the BaseModel parent class.
 
     It contains the information keys `Close`, `earnings dates`,
-    `earnings diff`, `Momentum`
+    `earning diffs`, `Momentum`
     """
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
-            information_keys=['Close', 'earnings dates', 'earnings diff', 'Momentum']
+            information_keys=['Close', 'earnings dates', 'earning diffs', 'Momentum']
         )
 
 
@@ -653,25 +670,8 @@ class RSIModel(BaseModel):
     This is the Breakout child class that inherits from
     the BaseModel parent class.
 
-    It contains the information keys `Close`, `RSI`, `TRAMA`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=[
-                'Close', 'RSI', 'TRAMA', 'Bollinger Middle',
-                'Above Bollinger', 'Bellow Bollinger'
-            ]
-        )
-
-
-class RSIModel2(BaseModel):
-    """
-    This is the Breakout child class that inherits from
-    the BaseModel parent class.
-
-    It contains the information keys `Close`, `RSI`, `TRAMA`
+    It contains the information keys `Close`, `RSI`, `TRAMA`, `Bollinger Middle`,
+                `Above Bollinger`, `Bellow Bollinger`, `Momentum`
     """
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
@@ -693,6 +693,7 @@ class SuperTrendsModel(BaseModel):
     """
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
+        raise Warning("BUGGED, NOT WORKING")
         super().__init__(
             stock_symbol=stock_symbol,
             information_keys=[
@@ -703,16 +704,16 @@ class SuperTrendsModel(BaseModel):
 
 
 if __name__ == "__main__":
-    modelclasses = [EarningsModel]
+    modelclasses = [ImpulseMACDModel, EarningsModel, RSIModel]
 
     test_models = []
-    for modelclass in modelclasses:
-        model = modelclass()
-        model.train(epochs=100)
-        model.save()
-        model.load()
-        test_models.append(model)
+    for company in company_symbols:
+        for modelclass in modelclasses:
+            model = modelclass(stock_symbol=company)
+            model.train(epochs=200)
+            model.save()
+            model.load()
+            test_models.append(model)
 
-    for model in test_models:
-        print(model)
-        model.test()
+        #for model in test_models:
+        #    model.test()
