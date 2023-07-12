@@ -38,6 +38,7 @@ I forgot to touch Grante's butt. I want to touch his weine too
 - ALEX
 """
 
+
 __all__ = (
     'get_earnings_history',
     'date_time_since_ref',
@@ -242,6 +243,9 @@ def get_historical_info() -> None:
         macd = ema12 - ema26
         signal_line = macd.ewm(span=9).mean()
         histogram = macd-signal_line
+        macd = ema12 - ema26
+        signal_line = macd.ewm(span=9).mean()
+        histogram = macd-signal_line
         ema200 = stock_data['Close'].ewm(span=200).mean()
 
         #_________________Basically Impulse MACD______________________#
@@ -282,6 +286,9 @@ def get_historical_info() -> None:
         #_________________Process all flips______________________#
         ema_flips = process_flips(ema12.values, ema26.values)
         signal_flips = process_flips(macd, signal_line)
+        #_________________Process all flips______________________#
+        ema_flips = process_flips(ema12.values, ema26.values)
+        signal_flips = process_flips(macd, signal_line)
 
         #_______________SuperTrendsModel______________#
         super_trend1 = supertrends(stock_data, 3, 12)
@@ -292,6 +299,7 @@ def get_historical_info() -> None:
 
         #earnings stuffs
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
+
 
 
         #Do more in the model since we do not know the start or end, yet
@@ -309,6 +317,8 @@ def get_historical_info() -> None:
             'Signal Line': signal_line.values.tolist(),
             'Histogram': histogram.values.tolist(),
             '200-day EMA': ema200.values.tolist(),
+            'ema_flips': ema_flips,
+            'signal_flips':signal_flips,
             'ema_flips': ema_flips,
             'signal_flips':signal_flips,
             'supertrend1': super_trend1.tolist(),

@@ -48,7 +48,7 @@ class ResourceManager:
                  stock_to_money_ratio: float= 1.0,
                  api_key: str = "",
                  secret_key: str = "",
-                 base_url: str = "https://paper-api.alpaca.markets"
+                 base_url: str = "https://broker-api.sandbox.alpaca.markets"
                  ) -> None:
         self.used = 0
         self.max_percent = max_percent
@@ -63,6 +63,7 @@ class ResourceManager:
         buying_power = float(account.buying_power)
 
         # Calculate the total value of your account (including stock)
+        self.total = cash + buying_power
         self.total = cash + buying_power
 
     def check(self, symbol: str, balance: Optional[float]=None) -> float:

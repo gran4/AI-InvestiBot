@@ -80,6 +80,9 @@ class BaseModel:
         self.start_date, self.end_date = check_for_holidays(
             start_date, end_date
         )
+        self.start_date, self.end_date = check_for_holidays(
+            start_date, end_date
+        )
 
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
@@ -97,6 +100,7 @@ class BaseModel:
         self.cached_info: Optional[Union[pd.DataFrame, Dict[str, Any]]] = None
 
     def train(self, epochs: int=100) -> None:
+    def train(self, epochs: int=100) -> None:
         """
         Trains Model off `information_keys`
 
@@ -112,6 +116,7 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
+        self.data, data, self.scaler_data, start_date, end_date = get_relavant_values(
         self.data, data, self.scaler_data, start_date, end_date = get_relavant_values(
             start_date, end_date, stock_symbol, information_keys, None
         )
@@ -129,6 +134,8 @@ class BaseModel:
 
         if len(test_data) < num_days:
             raise ValueError('The length of test_data must be more then num days \n increase the data or decrease the num days')
+        if len(test_data) < num_days:
+            raise ValueError('The length of test_data must be more then num days \n increase the data or decrease the num days')
 
         #_________________Train it______________________#
         # Build the LSTM model
@@ -139,7 +146,7 @@ class BaseModel:
         model.compile(optimizer='adam', loss='mean_squared_error')
 
         # Train the model
-        model.fit(x_test, y_test, batch_size=32, epochs=epochs)
+        #model.fit(x_test, y_test, batch_size=32, epochs=epochs)
         model.fit(x_train, y_train, batch_size=32, epochs=epochs)
         model.fit(x_total, y_total, batch_size=32, epochs=epochs)
 
@@ -188,6 +195,7 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
+        _, data, _, start_date, end_date = get_relavant_values( # type: ignore[arg-type]
         _, data, _, start_date, end_date = get_relavant_values( # type: ignore[arg-type]
             start_date, end_date, stock_symbol, information_keys, self.scaler_data
         )
@@ -324,6 +332,7 @@ class BaseModel:
             ewm200 = cached_info['Close'].ewm(span=200, adjust=False)
             ema200 = ewm200.mean().iloc[-num_days:]
             stock_data['200-day EMA'] = ema200
+        change = cached_info['Close'].diff().iloc[-num_days:]
         if 'Change' in information_keys:
             stock_data['Change'] = change.iloc[-num_days:]
         if 'Momentum' in information_keys:
@@ -347,9 +356,11 @@ class BaseModel:
                 cached_info['Volume'], gradual=True
             ).iloc[-num_days:]
         if '3-liquidity spike' in information_keys:
+        if '3-liquidity spike' in information_keys:
             stock_data['3-liquidity spike'] = get_liquidity_spikes(
                 cached_info['Volume'], z_score_threshold=4
             ).iloc[-num_days:]
+        if 'momentum_oscillator' in information_keys:
         if 'momentum_oscillator' in information_keys:
             stock_data['momentum_oscillator'] = calculate_momentum_oscillator(
                 cached_info['Close']
@@ -387,7 +398,9 @@ class BaseModel:
                 continue
             low = self.scaler_data[column]['min'] # type: ignore[index]
             diff = self.scaler_data[column]['diff'] # type: ignore[index]
+            diff = self.scaler_data[column]['diff'] # type: ignore[index]
             column_values = stock_data[column]
+            scaled_values = (column_values - low) / diff
             scaled_values = (column_values - low) / diff
             stock_data[column] = scaled_values
         return stock_data
@@ -438,6 +451,7 @@ class BaseModel:
         end_date = self.end_date
         #_________________ GET Data______________________#
         if not self.cached_info:
+            with open(f"Stocks/{self.stock_symbol}/info.json", 'r') as file:
             with open(f"Stocks/{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
 
@@ -528,6 +542,7 @@ class BaseModel:
 
         :Example:
         >>> obj = BaseModel(num_days=5)
+        >>> obj = BaseModel(num_days=5)
         >>> obj.num_days
         5
         >>> temp = obj.predict(info = np.array(
@@ -564,6 +579,7 @@ class DayTradeModel(BaseModel):
     It contains the information keys `Close`
     """
     def __init__(self,
+    def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
@@ -578,11 +594,14 @@ class MACDModel(BaseModel):
 
     It contains the information keys `Close`, `MACD`,
     `Signal Line`, `Histogram`, `ema_flips`, `200-day EMA`
+    `Signal Line`, `Histogram`, `ema_flips`, `200-day EMA`
     """
+    def __init__(self,
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
+            information_keys=['Close', 'MACD', 'Histogram', 'ema_flips', '200-day EMA']
             information_keys=['Close', 'MACD', 'Histogram', 'ema_flips', '200-day EMA']
         )
 
@@ -599,9 +618,11 @@ class ImpulseMACDModel(BaseModel):
     `Change`, `Histogram`, `ema_flips`, `signal_flips`, `200-day EMA`
     """
     def __init__(self,
+    def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
+            information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
             information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
         )
 
@@ -614,6 +635,7 @@ class ReversalModel(BaseModel):
     It contains the information keys `Close`, `gradual-liquidity spike`,
     `3-liquidity spike`, `momentum_oscillator`
     """
+    def __init__(self,
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
@@ -634,6 +656,7 @@ class EarningsModel(BaseModel):
     `earning diffs`, `Momentum`
     """
     def __init__(self,
+    def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
             stock_symbol=stock_symbol,
@@ -648,6 +671,7 @@ class BreakoutModel(BaseModel):
 
     It contains the information keys `Close`, `RSI`, `TRAMA`
     """
+    def __init__(self,
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         super().__init__(
@@ -682,6 +706,7 @@ class SuperTrendsModel(BaseModel):
 
     It contains the information keys `Close`, `RSI`, `TRAMA`
     """
+    def __init__(self,
     def __init__(self,
                  stock_symbol: str = "AAPL") -> None:
         raise Warning("BUGGED, NOT WORKING")
