@@ -14,25 +14,29 @@ See also:
     Other modules that use the getInfo module -> Models.py, trading_funcs.py
 """
 
-import urllib.request
 import requests
 import ssl
 import json
+import os
+import time
 from typing import Optional, List, Tuple
 from datetime import datetime
 
-from bs4 import BeautifulSoup
 import yfinance as yf
 import numpy as np
 import pandas as pd
 
 from trading_funcs import (
-    excluded_values,
     company_symbols,
     process_flips,
     supertrends,
     kumo_cloud
 )
+"""
+I forgot to touch Grante's butt. I want to touch his weine too
+
+- ALEX
+"""
 
 __all__ = (
     'get_earnings_history',
@@ -76,16 +80,26 @@ def get_earnings_history(company_ticker: str, context: Optional[ssl.SSLContext] 
     url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={company_ticker}&apikey=0VZ7ORHBEY9XJGXK"
     response = requests.get(url)
     data = response.json()
+    if len(data.keys()) == 1:
+        print('Wait for alpha api to reset.')
+        time.sleep(60)
+        response = requests.get(url)
+        data = response.json()
+    if len(data.keys()) == 1:
+        raise RuntimeError("You exceded alpha's api limit of 500 calls per day")
 
     earnings_dates = []
     earnings_diff = []
     for quarter in data["quarterlyEarnings"]:
         date = quarter["fiscalDateEnding"]
-        actual_eps = float(quarter["reportedEPS"])
+
+        actual_eps = 0.0
+        if quarter["reportedEPS"] != 'None':
+            actual_eps = float(quarter["reportedEPS"])
+
+        estimated_eps = 0.0
         if quarter["estimatedEPS"] != 'None':
             estimated_eps = float(quarter["estimatedEPS"])
-        else:
-            estimated_eps = 0.0
         earnings_dates.append(date)
         earnings_diff.append(actual_eps-estimated_eps)
 
@@ -211,8 +225,9 @@ def get_historical_info() -> None:
     """
     period = 14
     start_date = '2015-01-01'
-    end_date = '2023-06-23'
+    end_date = '2023-07-08'
     for company_ticker in company_symbols:
+        print(company_ticker)
         ticker = yf.Ticker(company_ticker)
 
         #_________________ GET Data______________________#
@@ -312,8 +327,11 @@ def get_historical_info() -> None:
             '3-liquidity spike': liquidity_spike3.values.tolist(),
             'momentum_oscillator': momentum_oscillator.values.tolist(),
             'earnings dates': earnings_dates,
-            'earnings diff': earnings_diff
+            'earning diffs': earnings_diff
         }
+
+        if not os.path.exists(f'Stocks/{company_ticker}'):
+            os.makedirs(f'Stocks/{company_ticker}')
 
         with open(f'Stocks/{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)

@@ -54,6 +54,12 @@ Currently impletmented:
 
       + Train RMSSE: 0.6544155735754877
       + Test RMSSE: 0.6228371371469489
+    - RSI Model
+      + Train RMSE: 0.025379195809305734
+      + Test RMSE: 0.030050545088518107
+
+      + Train RMSSE: 0.6776019152138987
+      + Test RMSSE: 0.8600297293130289
     - Breakout Model
       + Train RMSE: 0.02172262269810893
       + Test RMSE: 0.028400576328573523
@@ -62,7 +68,8 @@ Currently impletmented:
       + Test RMSSE: 1.0664367975707776
   + Alot of information for you to choose from
     - earnings dates(processed in runtime)
-    - earnings diffs(processed in runtime)
+    - earning diffs
+    (processed in runtime)
     - 12-day EMA
     - 26-day EMA
     - ema_flips(bettween 12 and 26 day EMA)

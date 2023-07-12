@@ -30,6 +30,7 @@ jobs:
           pip install bs4
           pip install boto3
           pip install typing_extensions
+          pip install alpaca
       - name: Analysing the code with pylint
         run: |
           git remote set-branches --add origin main

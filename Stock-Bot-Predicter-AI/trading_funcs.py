@@ -36,7 +36,8 @@ __all__ = (
     'get_relavant_values',
     'get_scaler',
     'supertrends',
-    'kumo_cloud'
+    'kumo_cloud',
+    'is_floats'
 )
 
 
@@ -45,12 +46,35 @@ __all__ = (
 excluded_values = (
     "Dates",
     "earnings dates",
-    "earnings diff"
+    "earning diffs"
 )
 
 
 company_symbols = (
     "AAPL",
+    "GOOG",
+    "TLSA",
+    "META",
+    "AMZN",
+    "DIS",
+    "BRK-B",
+    "BA",
+    "HD",
+    "NKE",
+    "SBUX",
+    "NVDA",
+    "CVS",
+    "MSFT",
+    "NFLX",
+    "MCD",
+    "KO",
+    "V",
+    "IBM",
+    "WMT",
+    "XOM",
+    "ADBE",
+    "T",
+    "GE"
 )
 
 
@@ -92,7 +116,7 @@ def process_earnings(dates: List, diffs: List, start_date: str,
     Returns:
         tuple: A tuple containing two Lists.
             - dates (list): The dates which are used to align the earnings
-            - diffs (list) The earnings differences bettween the expected
+            - diffs (list) The earning diffserences bettween the expected
             and actual earnings per share
     """
     #_________________deletes earnings before start and after end______________________#
@@ -206,7 +230,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
                 continue
             other_vals[key] = other_vals[key][i:]
     else:
-        raise ValueError(f"Run getInfo.py with start date before {start_date}\n before {end_date}")
+        raise ValueError(f"Run getInfo.py with start date before {start_date} and {end_date}")
     if end_date in other_vals['Dates']:
         i = other_vals['Dates'].index(end_date)
         other_vals['Dates'] = other_vals['Dates'][:i]
@@ -215,23 +239,23 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
                 continue
             other_vals[key] = other_vals[key][:i]
     else:
-        raise ValueError(f"Run getInfo.py with end date after {start_date}\n and before {end_date}")
+        raise ValueError(f"Run getInfo.py with end date after {start_date} and {end_date}")
 
     #_________________Process earnings______________________#
-    if "earnings diff" in information_keys:
+    if "earning diffs" in information_keys:
         dates = other_vals['earnings dates']
-        diffs = other_vals['earnings diff']
+        diffs = other_vals['earning diffs']
  
         dates, diffs = process_earnings(dates, diffs, start_date, end_date)
         other_vals['earnings dates'] = dates
-        other_vals['earnings diff'] = diffs
+        other_vals['earning diffs'] = diffs
 
     #_________________Scale Data______________________#
     temp = {}
     for key in information_keys:
         if len(other_vals[key]) == 0:
             continue
-        if type(other_vals[key][0]) != float:
+        if type(other_vals[key][0]) not in (float, int):
             continue
 
         if scaler_data is None:
@@ -325,3 +349,10 @@ def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,
     cloud_status = np.where(data['Close'] > cloud_top, 1, cloud_status)
 
     return cloud_status
+
+
+def is_floats(array: List) -> bool:
+    """Checks if the list is made of floats"""
+    for i in array:
+        return type(i) == float
+    return False # for cases were the length is 0
