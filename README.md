@@ -77,7 +77,7 @@ The bot selects stocks based on the following criteria:
   - All models' profit ratios are above `PREDICTION_THRESHOLD`.
   - The average profit ratio exceeds the `RISK_REWARD_RATIO`.
 
-## Earnings Processing
+### Earnings Processing
 
 The project processes earnings in the following manner:
 
