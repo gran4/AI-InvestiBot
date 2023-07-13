@@ -1,154 +1,144 @@
 # Stock-Bot-Predicter-AI
 
-In dev stages. Stock Bots not completed yet.
-Just added bot for loops
+## Introduction
 
-Features other stock bots do not have(Already added):
-  - Unique indicators(look at get_info.py)
-  - Indicators that are not daily(EX. earnings)
-  - being able to create any model one wishes(using `information_keys`)
-  - A `ResourceManager` class to limit/direct money
-  - Predictions for many companies per day, not just one
-  - HOLDING stocks
-  - Active devolopement
-  - A lambda version so you can run it without having a laptop open(COMING REALLY SOON)
+This repository is currently in the development stage and focuses on creating stock bots. While the stock bots are not yet complete, a bot for loops has been added. The project aims to provide unique features that are not commonly found in other stock bots.
+
+## Features
+
+- **Unique Indicators**: The project includes unique indicators, which can be found in the `get_info.py` file.
+- **Non-Daily Indicators**: Unlike most bots that rely on daily indicators, this project incorporates indicators that are not limited to daily data, such as earnings.
+- **Flexible Model Creation**: Users have the freedom to create their own models using the `information_keys` feature.
+- **ResourceManager Class**: The `ResourceManager` class is implemented to manage and direct financial resources effectively.
+- **Predictions for Multiple Companies**: This project offers predictions for multiple companies per day, rather than just one.
+- **Holding Stocks**: The stock bot has the capability to hold stocks.
+- **Active Development**: The project is actively being developed, with regular updates and improvements.
+- **Lambda Version**: A lambda version is currently in progress, allowing the bot to be run without keeping a laptop open.
+
+## Current Progress
+
+The current focus is on developing the actual bot and automation functionalities.
+
+## Planned Additions
+
+The following features are planned to be added in the future:
+
+- Ability to run the bot with a loop.
+- Ability to run the bot using lambda.
+
+## Considerations
+
+The project is currently exploring the following considerations:
+
+- Implementation of unique loss functions in `Tradingfuncs.py`.
+- Dealing with unique trading times for each company, which can be a tedious task (e.g., Tesla has been in business for a shorter time compared to GE).
+
+## How It Works
+
+### Information Retrieval and Caching
+
+The project retrieves and caches information in the following manner:
+
+- The `get_info.py` file processes all data obtained from yfinance.
+- The information is stored as a dictionary in a JSON file.
+- The `information_keys` feature retrieves values from each key in the JSON.
+
+### Unique Indicators in Models
+
+The models in this project incorporate unique indicators as follows:
+
+- Models utilize the `information_keys` attribute.
+- These keys correspond to the names of indicators created from `get_info.py`.
+- The model retrieves a dictionary from the JSON file and extracts the list associated with the key.
+- Features in the form of NumPy arrays are then fed into the Sequential model.
+
+### Stock Bot Functionality
+
+The stock bot operates based on the following principles:
+
+- Training, testing, saving, and loading are handled by separate functions.
+- Information for each day is obtained through two methods:
+  - Method 1: Offline (past data only)
+    - Relies on data from `get_info.py`.
+    - In this case, `model.cached_info` is always a dictionary or None.
+  - Method 2: Online
+    - Utilizes data from yfinance.
+    - Once 280 days of past data are obtained, the oldest day is removed, and a new day is added at the end.
+    - In this case, `model.cached_info` is always a pandas DataFrame or None.
+
+### Bot Selection Process
+
+The bot selects stocks based on the following criteria:
+
+- The bot identifies the most promising stocks.
+- It utilizes the available funds, following the rules set by the `ResourceManager` class.
+- Stocks are held if their performance exceeds a certain threshold (`MAX_HOLD_INDEX`).
+- Stocks are bought if specific conditions are met, including:
+  - All models' profit ratios are above `PREDICTION_THRESHOLD`.
+  - The average profit ratio exceeds the `RISK_REWARD_RATIO`.
+
+## Earnings Processing
+
+The project processes earnings in the following manner:
+
+- All earnings are obtained and separated into two lists: dates and the difference between actual and estimated values.
+- During runtime, earnings outside of a specific range are removed.
+- The processed earnings are transformed into a continuous list:
+  - Earnings are represented as 0 if no earnings occurred on a specific day.
+  - The difference between the expected and actual values is used when earnings occur.
+- Certain limitations prevent the stock bot from detecting earnings in some cases, which is an issue currently being addressed.
 
 
 
 
-Currently working on:
-  - starting to work on actual bot/automation
+## Comparing Models
 
-Plans to add:
-  - Being able to run with loop
-  - Being able to run with lambda
+This project offers various models to choose from, including:
 
-Thinking/Debating about:
-  - unique loss functions being in Tradingfuncs.py
-  - unique times for each company(tedious, EX. tesla is in business for a shorter time then GE)
+- Base Model: This is the parent class for all other models and has no data of its own unless specified.
+- Day Trade Model:
+  - Train RMSE: 0.02075242037941444
+  - Test RMSE: 0.026771371361829204
+  - Train RMSSE: 1.3539866279934776
+  - Test RMSSE: 1.3284154118165579
+- MACD Model:
+  - Train RMSSE: 0.9503971603872557
+  - Test RMSSE: 0.8466967848854924
+  - Train RMSSE: 0.9503971603872557
+  - Test RMSSE: 0.8466967848854924
+- Impulse MACD Model:
+  - Train RMSSE: 0.36591660531622144
+  - Test RMSSE: 0.5035604190480721
+  - Train RMSSE: 0.36591660531622144
+  - Test RMSSE: 0.5035604190480721
+- Reversal Model:
+  - Train RMSSE: 0.42088951956685866
+  - Test RMSSE: 0.5215137360642763
+  - Train RMSSE: 0.42088951956685866
+  - Test RMSSE: 0.5215137360642763
+- Earnings Model:
+  - Train RMSE: 0.023398385228929293
+  - Test RMSE: 0.029933115015020682
+  - Train RMSSE: 0.6544155735754877
+  - Test RMSSE: 0.6228371371469489
+- RSI Model:
+  - Train RMSSE: 0.8791136390349061
+  - Test RMSSE: 1.0664367975707776
+  - Train RMSSE: 0.8791136390349061
+  - Test RMSSE: 1.0664367975707776
+- Breakout Model:
+  - Train RMSE: 0.025379195809305734
+  - Test RMSE: 0.030050545088518107
+  - Train RMSSE: 0.6776019152138987
+  - Test RMSSE: 0.8600297293130289
 
+## Additional Information
 
+- The models were trained for 100 epochs.
+- RMSE (Root Mean Squared Error) represents the absolute errors between predictions and expected values. A lower RMSE indicates better accuracy.
+- RMSSE (Root Mean Squared Scaled Error) accounts for variations in scale and magnitude among different stocks, enabling more meaningful comparisons across different time series. A lower RMSSE is desirable.
+- Remember that the lower the value of these metrics
 
-How it works:
-  - How information is gotten and cached:
-      + `get_info.py` processes all data gotten from yfinance.
-      + The info is put as a Dict into a json
-      + This is HOW `information_keys` works, it simply gets the value from each key
-  - How unique indicators in Models:
-      + Models work with an information_keys attribute
-      + These information_keys are the names of things created from the get_info.py
-      + It gets a dict from a json and gets the list from the key
-      + np.array of features are put into the Sequential model.
-  - How bot works:
-      + training, testing, saving, and loadsing are SEPERATE functions
-      + How it gets information for each day(2 methods):
-        - Method 1 OFFLINE(PAST ONLY)
-          + based off info from `get_info.py`
-          + In this case, model.cached_info is always a Dict or None
-        - Method 2 Online
-          + bases it off of data from yfinance
-          + Once past 280 days are gotten from yfinance, it updates by removing the first day and adding a new day to the end
-          + In this case, model.cached_info is always a pd.DataFrame or None
-      + How it selects for the bot:
-        - The Bot selects for the most promising ones
-        - Then uses your money, conforming to the `ResourceManager`
-        - Holds if it is above `MAX_HOLD_INDEX`
-        - Buys if all conditions are met:
-          + All models profit ratio is above `PREDICTION_THRESHOLD`
-          + Average is more then `RISK_REWARD_RATIO`
-  - How non-daily indicators work.
-      + They are excluded from normal processing. Special processing has to be applied(EX. earnings [↓Bellow↓↓↓↓↓↓↓↓]).
-  - How earings works:
-      + Starts by getting all the earnings and splitting them into
-              the dates, and the difference bettween the actual and the estimated
-              in 2 seperate lists
-      + In runtime, it removes any earnings that are out of range
-      + Then it processes it so it turns into 1 continues list.
-        - It is 0 if no earnings, and the difference bettween excepted and actual if there is an earnings
-        - There are certian points where the stock bot can not see earnings, that is an issue that needs to be fixedd
+, the better the performance.
 
-
-
-Comparing models:
-    - Base Model(Whatever you want)
-      + It is the parent class for all other models
-      + It has no data on its own unless specified
-    - Day Trade Model 
-      + Train RMSE: 0.02075242037941444
-      + Test RMSE: 0.026771371361829204
-
-      + Train RMSSE: 1.3539866279934776
-      + Test RMSSE: 1.3284154118165579
-    - MACD Model
-      + Train RMSSE: 0.9503971603872557
-      + Test RMSSE: 0.8466967848854924
-      + Train RMSSE: 0.9503971603872557
-      + Test RMSSE: 0.8466967848854924
-    - Impulse MACD Model
-      + Train RMSSE: 0.36591660531622144
-      + Test RMSSE: 0.5035604190480721
-      + Train RMSSE: 0.36591660531622144
-      + Test RMSSE: 0.5035604190480721
-    - Reversal Model
-      + Train RMSSE: 0.42088951956685866
-      + Test RMSSE: 0.5215137360642763
-      + Train RMSSE: 0.42088951956685866
-      + Test RMSSE: 0.5215137360642763
-    - Earnings Model
-      + Train RMSE: 0.023398385228929293
-      + Test RMSE: 0.029933115015020682
-
-      + Train RMSSE: 0.6544155735754877
-      + Test RMSSE: 0.6228371371469489
-    - RSI Model
-      + Train RMSSE: 0.8791136390349061
-      + Test RMSSE: 1.0664367975707776
-      + Train RMSSE: 0.8791136390349061
-      + Test RMSSE: 1.0664367975707776
-    - Breakout Model
-      + Train RMSE: 0.025379195809305734
-      + Test RMSE: 0.030050545088518107
-
-      + Train RMSSE: 0.6776019152138987
-      + Test RMSSE: 0.8600297293130289
-  + Alot of information for you to choose from
-    - earnings dates(processed in runtime)
-    - earning diffs
-    (processed in runtime)
-    - 12-day EMA
-    - 26-day EMA
-    - ema_flips(bettween 12 and 26 day EMA)
-    - signal_flips(bettween MACD and Signal line)
-    - 200-day EMA
-    - MACD
-    - Signal Line
-    - Historgram
-    - Change
-    - Momentum
-    - RSI
-    - TRAMA
-    - Bollinger Middle
-    - Bollinger Upper
-    - Bolliner Lower
-    - gradual-liqidity spike
-    - 3-liqidity spike
-    - momentum_oscillator
-    - supertrend1
-    - supertrend2
-    - supertrend3
-    - kumo_cloud
-
-P.S:
-  + Model trained for 100 epochs
-  + RMSE stands for Root Mean Squared Error
-    - Shows the absolute errors(How far away the prediction is from the expected)
-    - Shows the absolute errors(How far away the prediction is from the expected)
-    - It provides a single value that represents the average magnitude of the errors
-    - Easily interpretable.
-  + RMSSE stands for Root Mean Squared Scaled Error
-    - It accounts for variations in the scale and magnitude of different stocks
-    - Allows for more meaningful comparisons across different time series.
-    - more reliable evaluation metric(a bot with a higher RMSE is better then a bot with higher RMSSE)
-    - more reliable evaluation metric(a bot with a higher RMSE is better then a bot with higher RMSSE)
-  + The lower the better.
-  + Not trained on train data
+Please let me know if there's anything else I can assist you with.
