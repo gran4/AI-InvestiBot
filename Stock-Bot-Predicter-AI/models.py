@@ -24,6 +24,7 @@ from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.callbacks import EarlyStopping
 from pandas_market_calendars import get_calendar
 
 import numpy as np
@@ -143,10 +144,12 @@ class BaseModel:
         model.add(Dense(1))
         model.compile(optimizer='adam', loss='mean_squared_error')
 
+
+        early_stopping = EarlyStopping(monitor='val_loss', patience=10)
         # Train the model
-        model.fit(x_test, y_test, batch_size=32, epochs=epochs)
-        model.fit(x_train, y_train, batch_size=32, epochs=epochs)
-        model.fit(x_total, y_total, batch_size=32, epochs=epochs)
+        model.fit(x_test, y_test, validation_data=(x_test, y_test), callbacks=[early_stopping], batch_size=32, epochs=epochs)
+        model.fit(x_train, y_train, validation_data=(x_train, y_train), callbacks=[early_stopping], batch_size=32, epochs=epochs)
+        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=32, epochs=epochs)
 
         self.model = model
 
@@ -276,7 +279,6 @@ class BaseModel:
         name = self.__class__.__name__
 
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
-
         with open(f"Stocks/{self.stock_symbol}/{name}_data.json", 'r') as file:
             self.data = json.load(file)
 
@@ -650,7 +652,7 @@ class EarningsModel(BaseModel):
         )
 
 
-class BreakoutModel(BaseModel):
+class RSIModel(BaseModel):
     """
     This is the Breakout child class that inherits from
     the BaseModel parent class.
@@ -665,7 +667,7 @@ class BreakoutModel(BaseModel):
         )
 
 
-class RSIModel(BaseModel):
+class BreakoutModel(BaseModel):
     """
     This is the Breakout child class that inherits from
     the BaseModel parent class.
@@ -710,10 +712,9 @@ if __name__ == "__main__":
     for company in company_symbols:
         for modelclass in modelclasses:
             model = modelclass(stock_symbol=company)
-            model.train(epochs=200)
+            model.train(epochs=1000)
             model.save()
-            model.load()
-            test_models.append(model)
+            #test_models.append(model)
 
         #for model in test_models:
         #    model.test()

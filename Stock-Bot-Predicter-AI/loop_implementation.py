@@ -53,7 +53,7 @@ if YOUR_API_KEY_ID is None:
 if YOUR_SECRET_KEY is None:
     raise ValueError("Set your secret key")
 
-RESOURCE_MANAGER = ResourceManager(api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
+RESOURCE_MANAGER = ResourceManager(max_percent=30, api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
 
 def run_loop() -> None:
     """Runs the stock bot in a loop"""
@@ -73,7 +73,9 @@ def run_loop() -> None:
             continue
 
         for model in models:
+            print("DE")
             info = model.get_info_today()
+            print("AHHH")
             if info is None:
                 skip = True
                 break
@@ -84,6 +86,7 @@ def run_loop() -> None:
             prev_close = float(info[0][-1][0])
             temp = model.predict(info=info)[0][0]
             profit = float(temp/prev_close)
+            print(model.company_symbol, profit)
             profits.append(profit)
         if skip:
             time.sleep(TIME_INTERVAL)
