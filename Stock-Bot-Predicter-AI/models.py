@@ -652,7 +652,7 @@ class EarningsModel(BaseModel):
         )
 
 
-class BreakoutModel(BaseModel):
+class RSIModel(BaseModel):
     """
     This is the Breakout child class that inherits from
     the BaseModel parent class.
@@ -667,7 +667,7 @@ class BreakoutModel(BaseModel):
         )
 
 
-class RSIModel(BaseModel):
+class BreakoutModel(BaseModel):
     """
     This is the Breakout child class that inherits from
     the BaseModel parent class.
@@ -712,7 +712,7 @@ if __name__ == "__main__":
     for company in company_symbols:
         for modelclass in modelclasses:
             model = modelclass(stock_symbol=company)
-            model.train(epochs=100)
+            model.train(epochs=1000)
             model.save()
             #test_models.append(model)
 

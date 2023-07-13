@@ -73,7 +73,9 @@ def run_loop() -> None:
             continue
 
         for model in models:
+            print("DE")
             info = model.get_info_today()
+            print("AHHH")
             if info is None:
                 skip = True
                 break
@@ -84,6 +86,7 @@ def run_loop() -> None:
             prev_close = float(info[0][-1][0])
             temp = model.predict(info=info)[0][0]
             profit = float(temp/prev_close)
+            print(model.company_symbol, profit)
             profits.append(profit)
         if skip:
             time.sleep(TIME_INTERVAL)
