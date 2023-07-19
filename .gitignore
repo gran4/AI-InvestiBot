@@ -1,3 +1,6 @@
+# Tell github that we are using python
+*.py linguist-language=Python
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
