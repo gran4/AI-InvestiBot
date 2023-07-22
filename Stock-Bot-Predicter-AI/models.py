@@ -24,14 +24,16 @@ from datetime import datetime, timedelta
 from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense
-from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.layers import LSTM, Dense, GRU
+from tensorflow.keras.losses import Loss, Huber, MeanSquaredError
 from tensorflow.keras.optimizers.legacy import Adam
-from tensorflow.keras.activations import linear
+from tensorflow.keras.activations import linear, relu
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow import reduce_mean, sign
 from pandas_market_calendars import get_calendar
 
 import numpy as np
+import tensorflow as tf
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
@@ -50,6 +52,8 @@ from get_info import (
 
 
 __all__ = (
+    'CustomLoss',
+    'CustomLoss2',
     'BaseModel',
     'DayTradeModel',
     'MACDModel',
@@ -60,6 +64,46 @@ __all__ = (
     'RSIModel',
     'SuperTrendsModel'
 )
+
+
+class CustomLoss(Loss):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.huber_loss = Huber()
+        self.mse_loss = MeanSquaredError()
+
+    def call(self, y_true, y_pred):
+        huber_loss = self.huber_loss(y_true, y_pred)
+        mse_loss = self.mse_loss(y_true, y_pred)
+
+        # Calculate the directional penalty
+        direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
+
+        # Combine the losses with different weights
+        combined_loss = direction_penalty*.2+huber_loss#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
+
+        return combined_loss
+
+
+class CustomLoss2(Loss):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.huber_loss = Huber()
+        self.mse_loss = MeanSquaredError()
+
+    def call(self, y_true, y_pred):
+        huber_loss = self.huber_loss(y_true, y_pred)
+        mse_loss = self.mse_loss(y_true, y_pred)
+
+        # Calculate the directional penalty
+        direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
+        space_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_true[:-1])))
+
+        # Combine the losses with different weights
+        combined_loss = direction_penalty*.5+huber_loss*.3+mse_loss*.3+space_penalty*.5#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
+
+        return combined_loss
+
 
 
 class BaseModel:
@@ -80,7 +124,7 @@ class BaseModel:
     def __init__(self, start_date: str = "2020-01-01",
                  end_date: str = "2023-07-09",
                  stock_symbol: str = "AAPL",
-                 num_days: int = 160,
+                 num_days: int = 60,
                  information_keys: List[str]=["Close"]) -> None:
         self.start_date, self.end_date = check_for_holidays(
             start_date, end_date
@@ -143,17 +187,17 @@ class BaseModel:
         #_________________Train it______________________#
         # Build the LSTM model
         model = Sequential()
-        model.add(LSTM(32, return_sequences=True, input_shape=(num_days, shape)))
-        model.add(LSTM(32))
-        model.add(Dense(1, activation=linear))
-        model.compile(optimizer=Adam(learning_rate=.05), loss=MeanSquaredError())
+        model.add(GRU(48, return_sequences=True, input_shape=(num_days, shape)))
+        model.add(GRU(48))
+        model.add(Dense(1, activation=relu))
+        model.compile(optimizer=Adam(learning_rate=.05), loss=CustomLoss2())
 
 
-        early_stopping = EarlyStopping(monitor='val_loss', restore_best_weights=True, patience=20)
+        early_stopping = EarlyStopping(monitor='val_loss', restore_best_weights=True, patience=100)
         # Train the model
-        model.fit(x_test, y_test, validation_data=(x_test, y_test), callbacks=[early_stopping], batch_size=32, epochs=epochs)
-        model.fit(x_train, y_train, validation_data=(x_train, y_train), callbacks=[early_stopping], batch_size=32, epochs=epochs)
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=32, epochs=epochs)
+        #model.fit(x_test, y_test, validation_data=(x_test, y_test), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        model.fit(x_train, y_train, validation_data=(x_train, y_train), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        #model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
 
         self.model = model
 

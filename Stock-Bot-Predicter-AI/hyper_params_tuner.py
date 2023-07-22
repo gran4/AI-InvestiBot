@@ -17,6 +17,12 @@ from sklearn.model_selection import ParameterGrid
 # 0.029380645458458605
 # 68.75
 
+from models import *
+# model = ImpulseMACDModel()
+# model.train(epochs=20)
+# model.load()
+# model.test()
+# raise ValueError()
 def create_model(optimizer=Adam, loss=MeanSquaredError, activation_func=relu, neurons=64, learning_rate=0.001, num_days=60, information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']):
     optimizer = optimizer(learning_rate=learning_rate)
     loss = loss()
@@ -28,23 +34,30 @@ def create_model(optimizer=Adam, loss=MeanSquaredError, activation_func=relu, ne
     model = Sequential()
     #model.add(LSTM(neurons, return_sequences=True, input_shape=(num_days, shape), activation=activation_func))
     #model.add(LSTM(neurons))
-    model.add(GRU(units=neurons, return_sequences=True, input_shape=(num_days, shape)))
-    model.add(GRU(units=neurons))
+    model.add(LSTM(units=neurons, return_sequences=True, input_shape=(num_days, shape)))
+    model.add(LSTM(units=neurons))
     model.add(Dense(units=1, activation=activation_func))
     model.compile(optimizer=optimizer, loss=loss)
 
     return model
 
 param_grid = {
-    'optimizer': [Adam, SGD, Adadelta],#
-    'loss': [MeanSquaredError, BinaryCrossentropy],#
-    'activation': [relu, linear],
-    'neurons': [12, 16, 24, 128],# , 24, 98, 128
-    'learning_rate': [.001, .005, .01, .02], #, .005, 0.01, .05
-    'num_days': [60],
-    'batch_size': [24]#, 64
+    'optimizer': [Adam, Adadelta],#
+    'loss': [Huber, CustomLoss, CustomLoss2],#
+    'activation': [linear, relu],
+    'neurons': [24, 48, 64],# , 24, 98, 128
+    'learning_rate': [.025, .05, .1, .5], #, .005, 0.01, .05
+    'num_days': [60, 100, 160],
+    'batch_size': [24, 32]# 64
 }
 
+#{'activation': <function linear at 0x283111260>, 'batch_size': 16, 'learning_rate': 0.005, 'loss': <class 'keras.src.losses.Huber'>, 'neurons': 64, 'num_days': 100, 'optimizer': <class 'keras.src.optimizers.legacy.adam.Adam'>}
+# 0.050756479315522296
+# 59.83471074380166
+
+#{'activation': <function relu at 0x283110720>, 'batch_size': 24, 'learning_rate': 0.01, 'loss': <class 'models.CustomLoss2'>, 'neurons': 48, 'num_days': 160, 'optimizer': <class 'keras.src.optimizers.legacy.adam.Adam'>}
+# 0.05168317730971394
+# 59.44954128440367
 stock_symbol = 'AAPL'
 start_date = "2020-01-01"
 end_date = "2023-07-09"
@@ -72,7 +85,7 @@ for params in ParameterGrid(param_grid):
     # Process Data for LSTM
     train_size = int(len(data) * 0.8)
     train_data = data[:train_size]
-    test_data = data[train_size:]
+    test_data = data[train_size-num_days:]
 
     x_total, y_total = create_sequences(train_data, num_days)
     x_train, y_train = create_sequences(train_data, num_days)
@@ -83,28 +96,47 @@ for params in ParameterGrid(param_grid):
 
     hyper_params.append(params)
 
-    y_pred = model.predict(x_test)
-    rmsse = np.sqrt(mean_squared_error(y_test, y_pred)) / np.mean(y_train)
+    y_pred = model.predict(x_total)
+    rmsse = np.sqrt(mean_squared_error(y_total, y_pred)) / np.mean(x_total)
     rmsses.append(rmsse)
 
     def calculate_percentage_movement_together(list1, list2):
         total = len(list1)
         count_same_direction = 0
+        count_same_space = 0
 
         for i in range(1, total):
             if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
+                count_same_space += 1
+            if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
                 count_same_direction += 1
 
         percentage = (count_same_direction / (total - 1)) * 100
-        return percentage
-    percents.append(calculate_percentage_movement_together(y_test, y_pred))
+        percentage2 = (count_same_space / (total - 1)) * 100
+        return percentage, percentage2
+    percents.append(calculate_percentage_movement_together(y_total, y_pred))
 
 
 temp = list(zip(hyper_params, rmsses, percents))
-temp = sorted(temp, key=lambda x: x[1])
+temp = sorted(temp, key=lambda x: x[2], reverse=True)
 for params, rmsse, percent in temp[:3]:
     print(params)
     print(rmsse)
     print(percent)
     print()
 print("DJEJDEJNEDNDENDENJDEJNDENJDEJNEDNJDENJDEKMDEKMMKSMKSWMKSWMKWSNJSWNJ")
+
+
+import matplotlib.pyplot as plt
+days_train = [i for i in range(len(y_pred))]
+predicted_test = plt.plot(days_train, y_pred, label='Predicted Test')
+actual_test = plt.plot(days_train, y_total, label='Actual Test')
+
+plt.title(f'{stock_symbol} Stock Price Prediction')
+plt.xlabel('Date')
+plt.ylabel('Price')
+plt.legend(
+    [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
+    ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
+)
+plt.show()

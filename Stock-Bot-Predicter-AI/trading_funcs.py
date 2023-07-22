@@ -376,3 +376,5 @@ def is_floats(array: List) -> bool:
     for i in array:
         return type(i) == float
     return False # for cases were the length is 0
+
+

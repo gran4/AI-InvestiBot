@@ -25,19 +25,7 @@ from trading_funcs import company_symbols, is_floats
 
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
-# btw 10 and 25
-# btw 15 and 20
-models = []
-for i in range(30, 31, 5):
-    model = RSIModel()
-    model.train(nurons=i, epochs=2000)
-    #model.load()
-    model.t = i
-    models.append(model)
-for model in models:
-    print(model.t)
-    model.test()
-raise ValueError('de')
+
 # The min predicted profit that every model has to have
 # For us to consider buying in. Each has to predict it
 # will go in % up more then `PREDICTION_THRESHOLD`
