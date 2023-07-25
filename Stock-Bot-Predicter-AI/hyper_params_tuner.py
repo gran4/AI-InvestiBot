@@ -40,17 +40,9 @@ def create_model(optimizer=Adam, loss=MeanSquaredError, activation_func=relu, ne
     model.compile(optimizer=optimizer, loss=loss)
 
     return model
-param_grid = {
-    'optimizer': [Adam],#
-    'loss': [CustomLoss2],#
-    'activation': [relu],
-    'neurons': [24, 48],# , 24, 98, 128
-    'learning_rate': [.05], #, .005, 0.01, .05
-    'num_days': [60, 100],
-    'batch_size': [24]# 64
-}
 
-param_grid2 = {
+
+param_grid = {
     'optimizer': [Adam, Adadelta],#
     'loss': [Huber, CustomLoss, CustomLoss2],#
     'activation': [linear, relu],
@@ -68,7 +60,7 @@ param_grid2 = {
 # 0.05168317730971394
 # 59.44954128440367
 stock_symbol = 'AAPL'
-start_date = "2020-01-01"
+start_date = "2023-01-01"
 end_date = "2023-07-09"
 information_keys = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
 
@@ -78,6 +70,7 @@ early_stopping = EarlyStopping(patience=10, restore_best_weights=True, monitor='
 hyper_params = []
 rmsses = []
 percents = []
+models = []
 for params in ParameterGrid(param_grid):
     optimizer = params['optimizer']
     loss = params['loss']
@@ -103,27 +96,32 @@ for params in ParameterGrid(param_grid):
     model = create_model(optimizer=optimizer, loss=loss, activation_func=activation, neurons=neurons, learning_rate=learning_rate, num_days=num_days)
     model.fit(x_train, y_train, callbacks=[early_stopping])
 
-    hyper_params.append(params)
-
-    y_pred = model.predict(x_test)
-    rmsse = np.sqrt(mean_squared_error(y_test, y_pred)) / np.mean(x_test)
-    rmsses.append(rmsse)
-
     def calculate_percentage_movement_together(list1, list2):
         total = len(list1)
         count_same_direction = 0
         count_same_space = 0
 
         for i in range(1, total):
-            if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
-                count_same_space += 1
             if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
                 count_same_direction += 1
+            if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
+                count_same_space += 1
 
         percentage = (count_same_direction / (total - 1)) * 100
         percentage2 = (count_same_space / (total - 1)) * 100
         return percentage, percentage2
-    percents.append(calculate_percentage_movement_together(y_test, y_pred))
+    temp = calculate_percentage_movement_together(y_test, y_pred)
+    if temp[0] < 52 or temp[1] < 52:
+        continue
+    percents.append(temp)
+
+    hyper_params.append(params)
+
+    y_pred = model.predict(x_test)
+    rmsse = np.sqrt(mean_squared_error(y_test, y_pred)) / np.mean(x_test)
+    rmsses.append(rmsse)
+
+    models.append(model)
 
 
 temp = list(zip(hyper_params, rmsses, percents))
@@ -136,20 +134,20 @@ for params, rmsse, percent in temp[:3]:
 print("DJEJDEJNEDNDENDENJDEJNDENJDEJNEDNJDENJDEKMDEKMMKSMKSWMKSWMKWSNJSWNJ")
 
 
-# import matplotlib.pyplot as plt
-# days_train = [i for i in range(len(y_pred))]
+import matplotlib.pyplot as plt
+days_train = [i for i in range(len(y_pred))]
 
-# x_test, y_test = create_sequences(test_data, params['num_days'])
-# y_pred = #model.predict
+x_test, y_test = create_sequences(test_data, params['num_days'])
+y_pred = temp[0][3].pred(x_test)
 
-# predicted_test = plt.plot(days_train, y_pred, label='Predicted Test')
-# actual_test = plt.plot(days_train, y_test, label='Actual Test')
+predicted_test = plt.plot(days_train, y_pred, label='Predicted Test')
+actual_test = plt.plot(days_train, y_test, label='Actual Test')
 
-# plt.title(f'{stock_symbol} Stock Price Prediction')
-# plt.xlabel('Date')
-# plt.ylabel('Price')
-# plt.legend(
-#     [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
-#     ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
-# )
-# plt.show()
+plt.title(f'{stock_symbol} Stock Price Prediction')
+plt.xlabel('Date')
+plt.ylabel('Price')
+plt.legend(
+    [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
+    ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
+)
+plt.show()
