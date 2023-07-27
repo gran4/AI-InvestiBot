@@ -15,6 +15,7 @@ See also:
 """
 
 import json
+import os
 
 from typing import Optional, List, Dict, Union, Any
 from warnings import warn
@@ -28,6 +29,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from pandas_market_calendars import get_calendar
 
 import numpy as np
+import tensorflow as tf
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
@@ -46,6 +48,8 @@ from get_info import (
 
 
 __all__ = (
+    'CustomLoss',
+    'CustomLoss2',
     'BaseModel',
     'DayTradeModel',
     'MACDModel',
@@ -56,6 +60,46 @@ __all__ = (
     'RSIModel',
     'SuperTrendsModel'
 )
+
+
+class CustomLoss(Loss):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.huber_loss = Huber()
+        self.mse_loss = MeanSquaredError()
+
+    def call(self, y_true, y_pred):
+        huber_loss = self.huber_loss(y_true, y_pred)
+        mse_loss = self.mse_loss(y_true, y_pred)
+
+        # Calculate the directional penalty
+        direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
+
+        # Combine the losses with different weights
+        combined_loss = direction_penalty*.2+huber_loss#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
+
+        return combined_loss
+
+
+class CustomLoss2(Loss):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.huber_loss = Huber()
+        self.mse_loss = MeanSquaredError()
+
+    def call(self, y_true, y_pred):
+        huber_loss = self.huber_loss(y_true, y_pred)
+        mse_loss = self.mse_loss(y_true, y_pred)
+
+        # Calculate the directional penalty
+        direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
+        space_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_true[:-1])))
+
+        # Combine the losses with different weights
+        combined_loss = direction_penalty*.5+huber_loss*.3+mse_loss*.3+space_penalty*.5#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
+
+        return combined_loss
+
 
 
 class BaseModel:
@@ -139,10 +183,10 @@ class BaseModel:
         #_________________Train it______________________#
         # Build the LSTM model
         model = Sequential()
-        model.add(LSTM(50, return_sequences=True, input_shape=(num_days, shape)))
-        model.add(LSTM(50))
-        model.add(Dense(1))
-        model.compile(optimizer='adam', loss='mean_squared_error')
+        model.add(GRU(48, return_sequences=True, input_shape=(num_days, shape)))
+        model.add(GRU(48))
+        model.add(Dense(1, activation=relu))
+        model.compile(optimizer=Adam(learning_rate=.05), loss=CustomLoss2())
 
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=10)
@@ -165,13 +209,25 @@ class BaseModel:
         #_________________Save Model______________________#
         self.model.save(f"Stocks/{self.stock_symbol}/{name}_model")
 
-        for key, val in self.data.items():
-            print(key)
-            print(type(val))
-        with open(f"Stocks/{self.stock_symbol}/{name}_data.json", "w") as json_file:
+
+        if os.path.exists(f'Stocks/{self.stock_symbol}/data.json'):
+            with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
+                temp = json.load(file)
+            self.data.update({key: value for key, value in temp.items() if key not in self.data})
+
+        with open(f"Stocks/{self.stock_symbol}/data.json", "w") as json_file:
             json.dump(self.data, json_file)
 
-        with open(f"Stocks/{self.stock_symbol}/{name}_min_max_data.json", "w") as json_file:
+
+        if os.path.exists(f'Stocks/{self.stock_symbol}/min_max_data.json'):
+            with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
+                temp = json.load(file)
+            self.scaler_data.update({key: value for key, value in temp.items() if key not in self.data})
+            print(self.scaler_data)
+            import time
+            time.sleep(1000)
+
+        with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
 
     def is_homogeneous(self, arr) -> bool:
@@ -223,6 +279,18 @@ class BaseModel:
         #Get first collumn
         temp_train = train_data[:, 0]
         temp_test = test_data[:, 0]
+        def calculate_percentage_movement_together(list1, list2):
+            total = len(list1)
+            count_same_direction = 0
+
+            for i in range(1, total):
+                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
+                    count_same_direction += 1
+
+            percentage = (count_same_direction / (total - 1)) * 100
+            return percentage
+        print(calculate_percentage_movement_together(temp_train, train_predictions))
+        print(calculate_percentage_movement_together(temp_test, test_predictions))
 
         # Calculate RMSSE for training predictions
         train_rmse = np.sqrt(mean_squared_error(temp_train, train_predictions))
@@ -282,20 +350,23 @@ class BaseModel:
         with open(f"Stocks/{self.stock_symbol}/{name}_data.json", 'r') as file:
             self.data = json.load(file)
 
-        with open(f"Stocks/{self.stock_symbol}/{name}_min_max_data.json", 'r') as file:
+        with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
             self.scaler_data = json.load(file)
 
         # type: ignore[no-any-return]
         return self.model
 
-    def indicators_past_num_days(self, cached_info: pd.DataFrame,
-                                 num_days: int) -> Dict[str, Union[float, str]]:
+    def indicators_past_num_days(self, stock_symbol: str, end_date: str,
+                                 information_keys: List[str], scaler_data: Dict[str, int],
+                                 cached_info: pd.DataFrame, num_days: int) -> Dict[str, Union[float, str]]:
         """
         This method will return the indicators for the past `num_days` days specified in the
         information keys. It will use the cached information to calculate the indicators
         until the `end_date`.
 
         Args:
+            information_keys (List[str]): tells model the indicators to use
+            scaler_data (Dict[str, int]): used to scale indicators
             cached_info (pd.DataFrame): The cached information
             num_days (int): The number of days to calculate the indicators for
         
@@ -305,7 +376,6 @@ class BaseModel:
                 processed during run time
         """
         stock_data = {}
-        information_keys = self.information_keys
 
         stock_data['Close'] = cached_info['Close'].iloc[-num_days:]
 
@@ -371,18 +441,18 @@ class BaseModel:
             stock_data['signal_flips'] = pd.Series(stock_data['signal_flips'])
         if 'earning diffs' in information_keys:
             #earnings stuffs
-            earnings_dates, earnings_diff = get_earnings_history(self.stock_symbol)
+            earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
             
-            end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
+            end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
             date = end_datetime - timedelta(days=num_days)
 
             stock_data['earnings dates'] = []
             stock_data['earning diffs'] = [] # type: ignore[attr]
-            low = self.scaler_data['earning diffs']['min'] # type: ignore[index]
-            diff = self.scaler_data['earning diffs']['diff'] # type: ignore[index]
+            low = scaler_data['earning diffs']['min'] # type: ignore[index]
+            diff = scaler_data['earning diffs']['diff'] # type: ignore[index]
 
             for i in range(num_days):
-                if not self.end_date in earnings_dates:
+                if not end_date in earnings_dates:
                     stock_data['earning diffs'].append(0)
                     continue
                 i = earnings_dates.index(date)
@@ -390,36 +460,31 @@ class BaseModel:
                 stock_data['earning diffs'].append(scaled)
 
         # Scale each column manually
-        for column in self.information_keys:
+        for column in information_keys:
             if column in excluded_values:
                 continue
-            low = self.scaler_data[column]['min'] # type: ignore[index]
-            diff = self.scaler_data[column]['diff'] # type: ignore[index]
-            diff = self.scaler_data[column]['diff'] # type: ignore[index]
+            low = scaler_data[column]['min'] # type: ignore[index]
+            diff = scaler_data[column]['diff'] # type: ignore[index]
             column_values = stock_data[column]
             scaled_values = (column_values - low) / diff
             scaled_values = (column_values - low) / diff
             stock_data[column] = scaled_values
         return stock_data
 
-    def update_cached_online(self) -> bool:
+    def update_cached_info_online(self):
         """
-        This method updates the cached data using the internet.
-        
-        Returns:
-            False: if it is a holiday
-            True: if it is a working day
+        updates `self.cached_info`
+
+        information_keys is so you can update once to get all the info
+        look at `loop_implementation` for reference
         """
-        cached_info = self.cached_info
-        cached = self.cached
-        num_days = self.num_days
         end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
 
         #_________________ GET Data______________________#
         ticker = yf.Ticker(self.stock_symbol)
-        
+        cached_info = self.cached_info
         #NOTE: optimize bettween
-        if self.cached_info is None:
+        if cached_info is None:
             start_datetime = end_datetime - timedelta(days=280)
             cached_info = ticker.history(start=start_datetime, end=self.end_date, interval="1d")
             if len(cached_info) == 0: # type: ignore[arg-type]
@@ -431,15 +496,19 @@ class BaseModel:
                 raise ConnectionError("Stock data failed to load. Check your internet")
             cached_info = cached_info.drop(cached_info.index[0])
             cached_info = pd.concat((cached_info, day_info))
+        return cached_info
 
-
-        cached = self.indicators_past_num_days(cached_info, num_days)
+    def update_cached_online(self):
+        """
+        This method updates the cached data using the internet.
+        """
+        cached = self.indicators_past_num_days(
+            self.stock_symbol, self.end_date,
+            self.information_keys, self.scaler_data,
+            self.cached_info, self.num_days
+        )
         cached = [cached[key] for key in self.information_keys if is_floats(cached[key])]
-        cached = np.transpose(cached)
-
-        self.cached_info = cached_info
-        self.cached = cached
-        return True # Working Day
+        self.cached = np.transpose(cached)
 
     def update_cached_offline(self) -> None:
         """This method updates the cached data without using the internet."""
@@ -487,7 +556,11 @@ class BaseModel:
         Returns:
             np.array: The information for the stock today and the
                 last relevant days to the stock
+        
+        Warning:
+            It is better to do this in your own code so online and offline are split
         """
+        warn('It is better to do this in your own code so online and offline are split')
         end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
 
         start_datetime = end_datetime - timedelta(days=1)
@@ -499,12 +572,18 @@ class BaseModel:
         try:
             if type(self.cached_info) is Dict:
                 raise ConnectionError("It has already failed to lead")
+            self.cached_info = self.update_cached_info_online(self.information_keys)
             self.update_cached_online()
-        except ConnectionError:
+        except ConnectionError as error1:
             warn("Stock data failed to download. Check your internet")
             if type(self.cached_info) is pd.DataFrame:
                 self.cached_info = None
-            self.update_cached_offline()
+            try:
+                self.update_cached_offline()
+            except ValueError as error2:
+                print('exception from online prediction: ', error1)
+                print('exception from offline prediction: ', error2)
+                raise RuntimeError('Neither the online or offline updating of `cached` worked')
 
         if self.cached is None:
             raise RuntimeError('Neither the online or offline updating of `cached` worked')

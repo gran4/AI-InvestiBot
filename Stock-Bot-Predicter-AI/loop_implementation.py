@@ -17,10 +17,11 @@ from datetime import datetime, timedelta, date
 
 from threading import Thread
 from pandas_market_calendars import get_calendar
+import numpy as np
 
 from models import *
 from resource_manager import ResourceManager
-from trading_funcs import company_symbols
+from trading_funcs import company_symbols, is_floats
 
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
@@ -39,6 +40,12 @@ MAX_HOLD_INDEX = 10
 
 models = []
 model_classes = [ImpulseMACDModel, EarningsModel, RSIModel]
+
+# for caching for multiple models
+total_info_keys = []
+for model in model_classes:
+    total_info_keys += model().information_keys
+
 for company in company_symbols:
     for model_class in model_classes:
         model = model_class(stock_symbol=company)
@@ -72,6 +79,13 @@ def run_loop() -> None:
             time.sleep(TIME_INTERVAL)
             continue
 
+        temp = models[0]
+        cached_info = temp.update_cached_info_online()
+        cached = temp.indicators_past_num_days(
+            company, temp.end_date,
+            total_info_keys, temp.scaler_data,
+            cached_info, temp.num_days
+        )
         for model in models:
             print("DE")
             info = model.get_info_today()
