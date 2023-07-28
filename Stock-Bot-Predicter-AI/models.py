@@ -172,7 +172,7 @@ class BaseModel:
         # Split the data into training and testing sets
         train_size = int(len(data) * 0.8)
         train_data = data[:train_size]
-        test_data = data[train_size:]
+        test_data = data[train_size-num_days:]
 
         x_total, y_total = create_sequences(train_data, num_days)
         x_train, y_train = create_sequences(train_data, num_days)
@@ -186,10 +186,10 @@ class BaseModel:
         #_________________Train it______________________#
         # Build the LSTM model
         model = Sequential()
-        model.add(LSTM(48, return_sequences=True, input_shape=(num_days, shape)))
-        model.add(LSTM(48))
+        model.add(LSTM(24, return_sequences=True, input_shape=(num_days, shape)))
+        model.add(LSTM(24))
         model.add(Dense(1, activation=relu))
-        model.compile(optimizer=Adam(learning_rate=.05), loss=CustomLoss2())
+        model.compile(optimizer=Adam(learning_rate=.05), loss=Huber())
 
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=10)
@@ -783,15 +783,15 @@ class SuperTrendsModel(BaseModel):
 
 
 if __name__ == "__main__":
-    modelclasses = [ImpulseMACDModel, EarningsModel, RSIModel]
+    modelclasses = [DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
     test_models = []
-    for company in company_symbols:
-        for modelclass in modelclasses:
-            model = modelclass(stock_symbol=company)
-            model.train(epochs=1000)
-            model.save()
-            #test_models.append(model)
+    #for company in company_symbols:
+    for modelclass in modelclasses:
+        model = modelclass(stock_symbol="AAPL")
+        model.train(epochs=1000)
+        model.save()
+        test_models.append(model)
 
-        #for model in test_models:
-        #    model.test()
+    for model in test_models:
+        model.test()

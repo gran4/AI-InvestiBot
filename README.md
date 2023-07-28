@@ -76,6 +76,8 @@ The bot selects stocks based on the following criteria:
 - Stocks are bought if specific conditions are met, including:
   - All models' profit ratios are above `PREDICTION_THRESHOLD`.
   - The average profit ratio exceeds the `RISK_REWARD_RATIO`.
+- The lambda and loop implemenations use the same functions.
+  - Therefore, more implementations can easily be added
 
 ### Earnings Processing
 
