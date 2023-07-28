@@ -41,8 +41,17 @@ def create_model(optimizer=Adam, loss=MeanSquaredError, activation_func=relu, ne
 
     return model
 
-
 param_grid = {
+    'optimizer': [Adam],#
+    'loss': [Huber, CustomLoss, CustomLoss2],#
+    'activation': [linear, relu],
+    'neurons': [32, 48],# , 24, 98, 128
+    'learning_rate': [.05, .1], #, .005, 0.01, .05
+    'num_days': [160, 200, 365],
+    'batch_size': [24]# 64
+}
+
+param_grid2 = {
     'optimizer': [Adam, Adadelta],#
     'loss': [Huber, CustomLoss, CustomLoss2],#
     'activation': [linear, relu],
@@ -110,14 +119,14 @@ for params in ParameterGrid(param_grid):
         percentage = (count_same_direction / (total - 1)) * 100
         percentage2 = (count_same_space / (total - 1)) * 100
         return percentage, percentage2
+    y_pred = model.predict(x_test)
     temp = calculate_percentage_movement_together(y_test, y_pred)
-    if temp[0] < 52 or temp[1] < 52:
+    if temp[0] < 51 or temp[1] < 51:
         continue
     percents.append(temp)
 
     hyper_params.append(params)
 
-    y_pred = model.predict(x_test)
     rmsse = np.sqrt(mean_squared_error(y_test, y_pred)) / np.mean(x_test)
     rmsses.append(rmsse)
 
@@ -134,20 +143,20 @@ for params, rmsse, percent in temp[:3]:
 print("DJEJDEJNEDNDENDENJDEJNDENJDEJNEDNJDENJDEKMDEKMMKSMKSWMKSWMKWSNJSWNJ")
 
 
-import matplotlib.pyplot as plt
-days_train = [i for i in range(len(y_pred))]
+# import matplotlib.pyplot as plt
+# days_train = [i for i in range(len(y_pred))]
 
-x_test, y_test = create_sequences(test_data, params['num_days'])
-y_pred = temp[0][3].pred(x_test)
+# x_test, y_test = create_sequences(test_data, params['num_days'])
+# y_pred = temp[0][3].pred(x_test)
 
-predicted_test = plt.plot(days_train, y_pred, label='Predicted Test')
-actual_test = plt.plot(days_train, y_test, label='Actual Test')
+# predicted_test = plt.plot(days_train, y_pred, label='Predicted Test')
+# actual_test = plt.plot(days_train, y_test, label='Actual Test')
 
-plt.title(f'{stock_symbol} Stock Price Prediction')
-plt.xlabel('Date')
-plt.ylabel('Price')
-plt.legend(
-    [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
-    ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
-)
-plt.show()
+# plt.title(f'{stock_symbol} Stock Price Prediction')
+# plt.xlabel('Date')
+# plt.ylabel('Price')
+# plt.legend(
+#     [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
+#     ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
+# )
+# plt.show()

@@ -32,11 +32,6 @@ from trading_funcs import (
     supertrends,
     kumo_cloud
 )
-"""
-I forgot to touch Grante's butt. I want to touch his weine too
-
-- ALEX
-"""
 
 
 __all__ = (
@@ -70,7 +65,7 @@ def get_earnings_history(company_ticker: str) -> Tuple[List[str], List[float]]:
     response = requests.get(url)
     data = response.json()
     if len(data.keys()) == 1:
-        print('Wait for alpha api to reset.')
+        print('Wait for alpha api to reset(It takes 1min).')
         time.sleep(60)
         response = requests.get(url)
         data = response.json()
