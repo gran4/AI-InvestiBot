@@ -13,7 +13,7 @@ This repository is currently in the development stage and focuses on creating st
 - **Predictions for Multiple Companies**: This project offers predictions for multiple companies per day, rather than just one.
 - **Holding Stocks**: The stock bot has the capability to hold stocks.
 - **Active Development**: The project is actively being developed, with regular updates and improvements.
-- **Lambda Version**: A lambda version is currently in progress, allowing the bot to be run without keeping a laptop open.
+- **Lambda Version**: Allows the bot to be run without keeping a laptop open(It is also very, very cheap).
 
 ## Current Progress
 
@@ -23,15 +23,15 @@ The current focus is on developing the actual bot and automation functionalities
 
 The following features are planned to be added in the future:
 
-- Ability to run the bot with a loop.
-- Ability to run the bot using lambda.
+- Bug Fixes
+- More documentation
 
 ## Considerations
 
 The project is currently exploring the following considerations:
 
 - Implementation of unique loss functions in `Tradingfuncs.py`.
-- Dealing with unique trading times for each company, which can be a tedious task (e.g., Tesla has been in business for a shorter time compared to GE).
+- Dealing with unique variables for each company, which can be a tedious task (e.g., Tesla has been in business for a shorter time compared to GE).
 
 ## How It Works
 
@@ -134,7 +134,7 @@ This project offers various models to choose from, including:
 
 ## Additional Information
 
-- The models were trained for 100 epochs.
+- The models were trained until it stopped improving
 - RMSE (Root Mean Squared Error) represents the absolute errors between predictions and expected values. A lower RMSE indicates better accuracy.
 - RMSSE (Root Mean Squared Scaled Error) accounts for variations in scale and magnitude among different stocks, enabling more meaningful comparisons across different time series. A lower RMSSE is desirable.
 - Remember that the lower the value of these metrics
