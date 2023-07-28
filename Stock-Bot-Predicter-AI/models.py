@@ -25,11 +25,14 @@ from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import Loss, MeanSquaredError, Huber
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.nn import relu
+from tensorflow import sign, reduce_mean
 from pandas_market_calendars import get_calendar
 
 import numpy as np
-import tensorflow as tf
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
@@ -183,8 +186,8 @@ class BaseModel:
         #_________________Train it______________________#
         # Build the LSTM model
         model = Sequential()
-        model.add(GRU(48, return_sequences=True, input_shape=(num_days, shape)))
-        model.add(GRU(48))
+        model.add(LSTM(48, return_sequences=True, input_shape=(num_days, shape)))
+        model.add(LSTM(48))
         model.add(Dense(1, activation=relu))
         model.compile(optimizer=Adam(learning_rate=.05), loss=CustomLoss2())
 
