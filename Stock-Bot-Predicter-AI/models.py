@@ -25,11 +25,14 @@ from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import Loss, MeanSquaredError, Huber
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.nn import relu
+from tensorflow import sign, reduce_mean
 from pandas_market_calendars import get_calendar
 
 import numpy as np
-import tensorflow as tf
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
@@ -183,8 +186,8 @@ class BaseModel:
         #_________________Train it______________________#
         # Build the LSTM model
         model = Sequential()
-        model.add(GRU(48, return_sequences=True, input_shape=(num_days, shape)))
-        model.add(GRU(48))
+        model.add(LSTM(48, return_sequences=True, input_shape=(num_days, shape)))
+        model.add(LSTM(48))
         model.add(Dense(1, activation=relu))
         model.compile(optimizer=Adam(learning_rate=.05), loss=CustomLoss2())
 
@@ -209,7 +212,6 @@ class BaseModel:
         #_________________Save Model______________________#
         self.model.save(f"Stocks/{self.stock_symbol}/{name}_model")
 
-
         if os.path.exists(f'Stocks/{self.stock_symbol}/data.json'):
             with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
                 temp = json.load(file)
@@ -218,14 +220,10 @@ class BaseModel:
         with open(f"Stocks/{self.stock_symbol}/data.json", "w") as json_file:
             json.dump(self.data, json_file)
 
-
         if os.path.exists(f'Stocks/{self.stock_symbol}/min_max_data.json'):
             with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
                 temp = json.load(file)
             self.scaler_data.update({key: value for key, value in temp.items() if key not in self.data})
-            print(self.scaler_data)
-            import time
-            time.sleep(1000)
 
         with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
