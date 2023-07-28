@@ -212,7 +212,6 @@ class BaseModel:
         #_________________Save Model______________________#
         self.model.save(f"Stocks/{self.stock_symbol}/{name}_model")
 
-
         if os.path.exists(f'Stocks/{self.stock_symbol}/data.json'):
             with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
                 temp = json.load(file)
@@ -221,14 +220,10 @@ class BaseModel:
         with open(f"Stocks/{self.stock_symbol}/data.json", "w") as json_file:
             json.dump(self.data, json_file)
 
-
         if os.path.exists(f'Stocks/{self.stock_symbol}/min_max_data.json'):
             with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
                 temp = json.load(file)
             self.scaler_data.update({key: value for key, value in temp.items() if key not in self.data})
-            print(self.scaler_data)
-            import time
-            time.sleep(1000)
 
         with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)

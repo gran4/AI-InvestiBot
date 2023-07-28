@@ -15,7 +15,7 @@ See also:
 import time
 
 from datetime import datetime, timedelta, date
-from typing import Dict
+from typing import Optional, List, Dict
 
 from threading import Thread
 from pandas_market_calendars import get_calendar
@@ -38,8 +38,6 @@ TIME_INTERVAL = 0# 86400# number of secs in 24 hours
 # if it is lower than `MAX_HOLD_INDEX` and 
 # meets all other requirements, hold it
 MAX_HOLD_INDEX = 10
-
-model_classes = [ImpulseMACDModel, EarningsModel, RSIModel]
 
 
 YOUR_API_KEY_ID = "PKJWNCBFPYBEFZ9GLA5B"
@@ -134,9 +132,13 @@ def update_models(models, total_info_keys):
 def run_loop(models, total_info_keys) -> None:
     """Runs the stock bot in a loop"""
     while True:
+        print("DEDNJDENDEJNDEJN")
         models = set_models_today(models)
         update_models(models, total_info_keys)
         time.sleep(TIME_INTERVAL)
+
+
+
 
 
 #vvvvvvvvvvv---Lambda----Painless-version----RECOMENDED-vvvvvvvvv#
@@ -177,7 +179,7 @@ def lambda_handler(event, context) -> Dict:
         'body': 'Buy order executed sucessfully'
     }
 
-def start_lambda():
+def start_lambda(model, total_info_keys):
     """This function will attempt to create a CloudWatch event
     rule that will trigger the lambda function."""
     #create Cloud watch event rules
@@ -207,6 +209,9 @@ def start_lambda():
         Targets=targets
     )
 
+    # Save the updated state to S3
+    save_state_to_s3(model, total_info_keys)
+
 def read_state_from_s3():
     s3 = boto3.resource('s3')
     try:
@@ -228,7 +233,8 @@ def save_state_to_s3(model, total_info_keys):
 if __name__ == "__main__":
     """NOTE: runs loop ONLY unless you change it"""
     # Create a new thread
-    thread = Thread(target=run_loop)
+    model, total_info_keys = load_models(model_classes=[ImpulseMACDModel, EarningsModel, RSIModel])
+    thread = Thread(target=run_loop, args=(model, total_info_keys))
 
     # Start the thread
     thread.start()
