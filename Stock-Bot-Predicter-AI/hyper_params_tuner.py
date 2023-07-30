@@ -1,6 +1,7 @@
+import json
 import numpy as np
 
-from trading_funcs import get_relavant_values, create_sequences
+from trading_funcs import get_relavant_values, create_sequences, find_best_number_of_years, company_symbols
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, GRU
@@ -10,12 +11,7 @@ from tensorflow.keras.losses import MeanSquaredError, MeanAbsoluteError, Huber, 
 from tensorflow.keras.activations import relu, elu, tanh, linear
 from sklearn.model_selection import ParameterGrid
 
-# GRU
-# {'activation': <function relu at 0x285010720>, 'batch_size': 16,
-# 'learning_rate': 0.02, 'loss': <class 'keras.src.losses.BinaryCrossentropy'>,
-# 'neurons': 16, 'num_days': 160, 'optimizer': <class 'keras.src.optimizers.legacy.adam.Adam'>}
-# 0.029380645458458605
-# 68.75
+from math import log
 
 from models import *
 # model = ImpulseMACDModel()
@@ -41,13 +37,23 @@ def create_model(optimizer=Adam, loss=MeanSquaredError, activation_func=relu, ne
 
     return model
 
+def num_days_func1(days):
+    return log((days - 300) / 60) * 80
+def num_days_func2(days):
+    return log(days / 60) * 60
+def num_days_func3(days):
+    return days / 20 - 2
+def num_days_func4(days):
+    return days / 60 + 40
+
 param_grid = {
     'optimizer': [Adam],#
-    'loss': [Huber, CustomLoss, CustomLoss2],#
-    'activation': [linear, relu],
-    'neurons': [32, 48],# , 24, 98, 128
-    'learning_rate': [.05, .1], #, .005, 0.01, .05
-    'num_days': [160, 200, 365],
+    'loss': [Huber],#, CustomLoss, CustomLoss2],#
+    'activation': [linear],#, relu],
+    'neurons': [32],# , 24, 98, 128
+    'learning_rate': [.05], #, .005, 0.01, .05
+    'num_days_func': [num_days_func1, num_days_func2, num_days_func3, num_days_func4],
+    'company': ['AAPL', 'DIS'],#, 'NFLX', 'BRK-B', 'DIS', 'WMT'],
     'batch_size': [24]# 64
 }
 
@@ -68,9 +74,6 @@ param_grid2 = {
 #{'activation': <function relu at 0x283110720>, 'batch_size': 24, 'learning_rate': 0.01, 'loss': <class 'models.CustomLoss2'>, 'neurons': 48, 'num_days': 160, 'optimizer': <class 'keras.src.optimizers.legacy.adam.Adam'>}
 # 0.05168317730971394
 # 59.44954128440367
-stock_symbol = 'AAPL'
-start_date = "2020-01-01"
-end_date = "2023-07-09"
 information_keys = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
 
 # Define early stopping criteria
@@ -81,17 +84,29 @@ rmsses = []
 percents = []
 models = []
 for params in ParameterGrid(param_grid):
+    company = params['company']
     optimizer = params['optimizer']
     loss = params['loss']
     activation = params['activation']
     neurons = params['neurons']
     learning_rate = params['learning_rate']
-    num_days = params['num_days']
+    num_days_func = params['num_days_func']
     batch_size = params['batch_size']
 
+
     # Get relevant data
-    _, data, _, start_date, end_date = get_relavant_values(start_date, end_date, stock_symbol, information_keys, None)
+    _, data, _ = get_relavant_values(company, information_keys)
     shape = data.shape[1]
+
+    #NOTE: Gets the relevant years
+    #with open(f'Stocks/{company}/dynamic_tuning.json', 'r') as file:
+    #    dynamic_tuning = json.load(file)
+    #num_days = num_days_func(dynamic_tuning['relevant_years'])
+    #data = data[-dynamic_tuning['relevant_years']*365:]jhgfkl
+
+    data = data[int(-len(data)/2):]
+    num_days = int(num_days_func(len(data)/2)/2)
+    print(num_days)
 
     # Process Data for LSTM
     train_size = int(len(data) * 0.8)
@@ -121,26 +136,33 @@ for params in ParameterGrid(param_grid):
         return percentage, percentage2
     y_pred = model.predict(x_test)
     temp = calculate_percentage_movement_together(y_test, y_pred)
-    if temp[0] < 51 or temp[1] < 51:
+    if temp[0] < 45 or temp[1] < 45:
         continue
     percents.append(temp)
 
+    params['num_days'] = num_days
     hyper_params.append(params)
 
     rmsse = np.sqrt(mean_squared_error(y_test, y_pred)) / np.mean(x_test)
     rmsses.append(rmsse)
-
     models.append(model)
 
 
 temp = list(zip(hyper_params, rmsses, percents))
-temp = sorted(temp, key=lambda x: x[2], reverse=True)
-for params, rmsse, percent in temp[:3]:
+temp = sorted(temp, key=lambda x: x[2])
+for params, rmsse, percent in temp:
     print(params)
     print(rmsse)
     print(percent)
     print()
-print("DJEJDEJNEDNDENDENJDEJNDENJDEJNEDNJDENJDEKMDEKMMKSMKSWMKSWMKWSNJSWNJ")
+#NOTE: Bellow is for top 3 results
+# , reverse=True)
+# for params, rmsse, percent in temp[:3]:
+#     print(params)
+#     print(rmsse)
+#     print(percent)
+#     print()
+# print("DJEJDEJNEDNDENDENJDEJNDENJDEJNEDNJDENJDEKMDEKMMKSMKSWMKSWMKWSNJSWNJ")
 
 
 # import matplotlib.pyplot as plt
@@ -160,3 +182,5 @@ print("DJEJDEJNEDNDENDENJDEJNDENJDEJNEDNJDENJDEKMDEKMMKSMKSWMKSWMKWSNJSWNJ")
 #     ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
 # )
 # plt.show()
+
+

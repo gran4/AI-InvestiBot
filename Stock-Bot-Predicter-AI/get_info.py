@@ -15,12 +15,12 @@ See also:
 """
 
 import requests
-import ssl
+import math
 import json
 import os
 import time
 from typing import Optional, List, Tuple
-from datetime import datetime
+from datetime import datetime, date
 
 import yfinance as yf
 import numpy as np
@@ -28,6 +28,7 @@ import pandas as pd
 
 from trading_funcs import (
     company_symbols,
+    find_best_number_of_years,
     process_flips,
     supertrends,
     kumo_cloud
@@ -207,16 +208,16 @@ def get_historical_info() -> None:
     It uses many functions from other modules to process
     historical data and run models on them.
     """
+    today = date.today().strftime("%Y-%m-%d")
+
     period = 14
-    start_date = '2015-01-01'
-    end_date = '2023-07-08'
     for company_ticker in company_symbols:
         print(company_ticker)
         ticker = yf.Ticker(company_ticker)
-
         #_________________ GET Data______________________#
         # Retrieve historical data for the ticker using the `history()` method
-        stock_data = ticker.history(start=start_date, end=end_date, interval="1d")
+        stock_data = ticker.history(interval="1d", period='max')
+
         if len(stock_data) == 0:
             raise ConnectionError("Failed to get stock data. Check your internet")
 
@@ -284,7 +285,6 @@ def get_historical_info() -> None:
         earnings_dates, earnings_diff = get_earnings_history(company_ticker)
 
 
-
         #Do more in the model since we do not know the start or end, yet
         dates = stock_data.index.strftime('%Y-%m-%d').tolist()
 
@@ -328,6 +328,15 @@ def get_historical_info() -> None:
 
         with open(f'Stocks/{company_ticker}/info.json', 'w') as json_file:
             json.dump(converted_data, json_file)
+
+        relevant_years = find_best_number_of_years(company_symbols, today)
+        num_days = math.log((relevant_years - 300) / 60) * 80
+
+        with open(f'Stocks/{company_ticker}/dynamic_tuning.json', 'w') as json_file:
+            json.dump({
+                'relevant_years': relevant_years,
+                'num_days': num_days,
+            }, json_file)
 
 
 if __name__ == '__main__':

@@ -21,7 +21,7 @@ from typing import Optional, List, Tuple, Dict, Iterable
 from numbers import Number
 from typing import Optional, List, Tuple, Dict, Iterable
 from numbers import Number
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from pandas_market_calendars import get_calendar
 
@@ -32,6 +32,7 @@ __all__ = (
     'excluded_values',
     'company_symbols',
     'create_sequences',
+    'find_best_number_of_years',
     'process_earnings',
     'process_flips',
     'check_for_holidays',
@@ -101,6 +102,44 @@ def create_sequences(data: np.ndarray, num_days: int) -> Tuple[np.ndarray, np.nd
         sequences.append(data[i-num_days:i])
         labels.append(data[i, 0])
     return np.array(sequences), np.array(labels)
+
+
+def calculate_average_true_range(stock_data):
+    stock_data['High_Low'] = stock_data['High'] - stock_data['Low']
+    stock_data['High_PreviousClose'] = abs(stock_data['High'] - stock_data['Close'].shift())
+    stock_data['Low_PreviousClose'] = abs(stock_data['Low'] - stock_data['Close'].shift())
+    stock_data['TrueRange'] = stock_data[['High_Low', 'High_PreviousClose', 'Low_PreviousClose']].max(axis=1)
+    average_true_range = stock_data['TrueRange'].mean()
+    return average_true_range
+
+def find_best_number_of_years(symbol: str, stock_data: Optional[pd.DataFrame]=None, max_years_back: Optional[int]=None):
+    """
+    NOTE: NOT PERFECT on leap years,
+        Small fix may not be worth the time
+    """
+    best_years = 3
+    if stock_data is None:
+        import yfinance as yf
+        ticker = yf.Ticker(symbol)
+        stock_data = ticker.history(interval="1d", period='max')
+
+    today = date.today().strptime('%Y-%m-%d')
+    today_datetime = datetime.strptime(today, '%Y-%m-%d')
+    if max_years_back is None:
+        iso_date = stock_data.index[0].strftime('%Y-%m-%d')
+        iso_date = datetime.strptime(iso_date, '%Y-%m-%d')
+
+        max_years_back = today_datetime - iso_date
+        max_years_back = max_years_back.days // 365
+    for years in range(3, max_years_back): #ignores 1st year of ipo
+        start_date = today_datetime-timedelta(days=365)
+
+        atr = calculate_average_true_range(stock_data[stock_data.index >= start_date])
+        if atr > best_atr:
+            best_atr = atr
+            best_years = years
+
+    return best_years
 
 
 def process_earnings(dates: List, diffs: List, start_date: str,
@@ -217,9 +256,10 @@ def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
     return start_date, end_date
 
 
-def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
-                        information_keys: List[str], scaler_data: Optional[Dict]
-                        ) -> Tuple[Dict, np.ndarray, Dict, str, str]:
+def get_relavant_values(stock_symbol: str,
+                        information_keys: List[str], scaler_data: Optional[Dict]=None,
+                        start_date: Optional[str]=None, end_date: Optional[str]=None
+                        ) -> Tuple[Dict, np.ndarray, List]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
     as well as the corrected dates.
@@ -232,33 +272,39 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
 
     Returns:
         Tuple[dict, np.ndarray, str, str]: The relevant indicators in the
-        form of a dict, and list, start date, and end date
+        form of a dict, np.ndarray, and a list
     """
-    start_date, end_date = check_for_holidays(start_date, end_date)
-
     #_________________Load info______________________#
     with open(f'Stocks/{stock_symbol}/info.json', 'r') as file:
         other_vals: Dict = json.load(file)
 
-    #_________________Make Data fit between start and end date______________________#
-    if start_date in other_vals['Dates']:
-        i = other_vals['Dates'].index(start_date)
-        other_vals['Dates'] = other_vals['Dates'][i:]
-        for key in information_keys:
-            if key in excluded_values:
-                continue
-            other_vals[key] = other_vals[key][i:]
+    #fit bettween start and end date
+    if start_date:
+            #_________________Make Data fit between start and end date______________________#
+        if start_date in other_vals['Dates']:
+            i = other_vals['Dates'].index(start_date)
+            other_vals['Dates'] = other_vals['Dates'][i:]
+            for key in information_keys:
+                if key in excluded_values:
+                    continue
+                other_vals[key] = other_vals[key][i:]
+        else:
+            raise ValueError(f"Run getInfo.py with start date before {start_date} and {end_date}")
     else:
-        raise ValueError(f"Run getInfo.py with start date before {start_date} and {end_date}")
-    if end_date in other_vals['Dates']:
-        i = other_vals['Dates'].index(end_date)
-        other_vals['Dates'] = other_vals['Dates'][:i]
-        for key in information_keys:
-            if key in excluded_values:
-                continue
-            other_vals[key] = other_vals[key][:i]
+        start_date = other_vals['Dates'][0]
+    if end_date:
+        if end_date in other_vals['Dates']:
+            i = other_vals['Dates'].index(end_date)
+            other_vals['Dates'] = other_vals['Dates'][:i]
+            for key in information_keys:
+                if key in excluded_values:
+                    continue
+                other_vals[key] = other_vals[key][:i]
+        else:
+            raise ValueError(f"Run getInfo.py with end date after {start_date} and {end_date}")
     else:
-        raise ValueError(f"Run getInfo.py with end date after {start_date} and {end_date}")
+        end_date = other_vals['Dates'][0]
+    start_date, end_date = check_for_holidays(start_date, end_date)
 
     #_________________Process earnings______________________#
     if "earning diffs" in information_keys:
@@ -293,7 +339,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
     filtered = np.transpose(filtered) # type: ignore[assignment]
 
-    return other_vals, filtered, scaler_data, start_date, end_date # type: ignore[return-value]
+    return other_vals, filtered, scaler_data# type: ignore[return-value]
 
 
 def get_scaler(num: float, data: List) -> float:
