@@ -1,7 +1,7 @@
 import json
 import numpy as np
 
-from trading_funcs import get_relavant_values, create_sequences, find_best_number_of_years, company_symbols
+from trading_funcs import get_relavant_values, create_sequences, company_symbols
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, GRU

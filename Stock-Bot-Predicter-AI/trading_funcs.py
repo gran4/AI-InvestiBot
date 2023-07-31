@@ -104,6 +104,12 @@ def create_sequences(data: np.ndarray, num_days: int) -> Tuple[np.ndarray, np.nd
     return np.array(sequences), np.array(labels)
 
 
+def piecewise_parabolic_weight(years, peak_year, peak_weight, decay_rate):
+    if years < peak_year:
+        return years ** 2+.5
+    return peak_year ** 2+.5
+
+
 def calculate_average_true_range(stock_data):
     stock_data['High_Low'] = stock_data['High'] - stock_data['Low']
     stock_data['High_PreviousClose'] = abs(stock_data['High'] - stock_data['Close'].shift())
@@ -118,26 +124,37 @@ def find_best_number_of_years(symbol: str, stock_data: Optional[pd.DataFrame]=No
         Small fix may not be worth the time
     """
     best_years = 3
+    import yfinance as yf
+    ticker = yf.Ticker(symbol)
     if stock_data is None:
         import yfinance as yf
         ticker = yf.Ticker(symbol)
         stock_data = ticker.history(interval="1d", period='max')
 
-    today = date.today().strptime('%Y-%m-%d')
+    today = date.today().strftime('%Y-%m-%d')
     today_datetime = datetime.strptime(today, '%Y-%m-%d')
+    
+    iso_date = stock_data.index[0].strftime('%Y-%m-%d')
+    iso_date = datetime.strptime(iso_date, '%Y-%m-%d')
     if max_years_back is None:
-        iso_date = stock_data.index[0].strftime('%Y-%m-%d')
-        iso_date = datetime.strptime(iso_date, '%Y-%m-%d')
-
         max_years_back = today_datetime - iso_date
         max_years_back = max_years_back.days // 365
-    for years in range(3, max_years_back): #ignores 1st year of ipo
-        start_date = today_datetime-timedelta(days=365)
 
-        atr = calculate_average_true_range(stock_data[stock_data.index >= start_date])
+    best_atr = -float('inf')
+    for years in range(4, max_years_back): #ignores 1st year of ipo
+        start_date = today_datetime-timedelta(days=365*years)
+
+        stock_data = ticker.history(interval="1d", start=start_date, end=today)
+        atr = calculate_average_true_range(stock_data)#stock_data[iso_date >= start_date])
+
+        atr += piecewise_parabolic_weight(years, max_years_back/4, 10, 1)/10 + piecewise_parabolic_weight(years, max_years_back/6, 10, 1)/30
+
         if atr > best_atr:
             best_atr = atr
             best_years = years
+        #print("NORM: ", atr)
+        #print("Best: ", best_atr)
+        #print()
 
     return best_years
 
