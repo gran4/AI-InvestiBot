@@ -9,6 +9,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers.legacy import Adam, SGD, RMSprop, Adagrad, Adadelta
 from tensorflow.keras.losses import MeanSquaredError, MeanAbsoluteError, Huber, CategoricalCrossentropy, KLDivergence, BinaryCrossentropy
 from tensorflow.keras.activations import relu, elu, tanh, linear
+from tensorflow.keras.backend import clear_session
 from sklearn.model_selection import ParameterGrid
 
 from math import log
@@ -26,7 +27,8 @@ def create_model(optimizer=Adam, loss=MeanSquaredError, activation_func=relu, ne
     shape = len(information_keys)
     if 'earnings_dates' in information_keys:
         shape -= 1
-
+    
+    clear_session()
     model = Sequential()
     #model.add(LSTM(neurons, return_sequences=True, input_shape=(num_days, shape), activation=activation_func))
     #model.add(LSTM(neurons))
@@ -38,23 +40,23 @@ def create_model(optimizer=Adam, loss=MeanSquaredError, activation_func=relu, ne
     return model
 
 def num_days_func1(days):
-    return log((days - 300) / 60) * 80
+    return log(days / 60 + 1) * 60
 def num_days_func2(days):
-    return log(days / 60) * 60
+    return log((days + 30) / 20) * 40 + 10
 def num_days_func3(days):
-    return days / 20 - 2
+    return days / 100 + 40
 def num_days_func4(days):
-    return days / 60 + 40
+    return days / 60 + 50
 
 param_grid = {
     'optimizer': [Adam],#
-    'loss': [Huber],#, CustomLoss, CustomLoss2],#
-    'activation': [linear],#, relu],
-    'neurons': [32],# , 24, 98, 128
-    'learning_rate': [.05], #, .005, 0.01, .05
+    'loss': [Huber, CustomLoss, CustomLoss2],#
+    'activation': [linear, relu],#, relu],
+    'neurons': [32],#24, 48, 64],# , 24, 98, 128
+    'learning_rate': [.025, .05, .1], #, .005, 0.01, .05
     'num_days_func': [num_days_func1, num_days_func2, num_days_func3, num_days_func4],
-    'company': ['AAPL', 'DIS'],#, 'NFLX', 'BRK-B', 'DIS', 'WMT'],
-    'batch_size': [24]# 64
+    'company': ['AAPL'],#, 'NFLX', 'BRK-B', 'DIS', 'WMT'],
+    'batch_size': [24]#, 32, 48]# 64
 }
 
 param_grid2 = {
@@ -64,7 +66,7 @@ param_grid2 = {
     'neurons': [24, 48, 64, 96],# , 24, 98, 128
     'learning_rate': [.025, .05, .1, .5], #, .005, 0.01, .05
     'num_days': [60, 100, 160],
-    'batch_size': [16 ,24, 32, 48]# 64
+    'batch_size': [16, 24, 32, 48]# 64
 }
 
 #{'activation': <function linear at 0x283111260>, 'batch_size': 16, 'learning_rate': 0.005, 'loss': <class 'keras.src.losses.Huber'>, 'neurons': 64, 'num_days': 100, 'optimizer': <class 'keras.src.optimizers.legacy.adam.Adam'>}
@@ -99,13 +101,13 @@ for params in ParameterGrid(param_grid):
     shape = data.shape[1]
 
     #NOTE: Gets the relevant years
-    #with open(f'Stocks/{company}/dynamic_tuning.json', 'r') as file:
-    #    dynamic_tuning = json.load(file)
-    #num_days = num_days_func(dynamic_tuning['relevant_years'])
-    #data = data[-dynamic_tuning['relevant_years']*365:]jhgfkl
+    with open(f'Stocks/{company}/dynamic_tuning.json', 'r') as file:
+        dynamic_tuning = json.load(file)
+    #data = data[-int(dynamic_tuning['relevant_years']*365):]
+    num_days = int(num_days_func(dynamic_tuning['relevant_years']*365))
 
-    data = data[int(-len(data)/2):]
-    num_days = int(num_days_func(len(data)/2)/2)
+    print(len(set(arr.dtype for arr in data.flatten())) == 1)
+    print(len(data))
     print(num_days)
 
     # Process Data for LSTM
@@ -136,7 +138,7 @@ for params in ParameterGrid(param_grid):
         return percentage, percentage2
     y_pred = model.predict(x_test)
     temp = calculate_percentage_movement_together(y_test, y_pred)
-    if temp[0] < 45 or temp[1] < 45:
+    if temp[0] < 50 or temp[1] < 50:
         continue
     percents.append(temp)
 
