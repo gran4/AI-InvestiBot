@@ -273,9 +273,9 @@ def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
     return start_date, end_date
 
 
-def get_relavant_values(stock_symbol: str,
-                        information_keys: List[str], scaler_data: Optional[Dict]=None,
-                        start_date: Optional[str]=None, end_date: Optional[str]=None
+def get_relavant_values(stock_symbol: str, information_keys: List[str],
+                        scaler_data: Optional[Dict]=None, start_date: Optional[str]=None,
+                        end_date: Optional[str]=None,
                         ) -> Tuple[Dict, np.ndarray, List]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
@@ -296,32 +296,37 @@ def get_relavant_values(stock_symbol: str,
         other_vals: Dict = json.load(file)
 
     #fit bettween start and end date
-    if start_date:
-            #_________________Make Data fit between start and end date______________________#
-        if start_date in other_vals['Dates']:
-            i = other_vals['Dates'].index(start_date)
-            other_vals['Dates'] = other_vals['Dates'][i:]
-            for key in information_keys:
-                if key in excluded_values:
-                    continue
-                other_vals[key] = other_vals[key][i:]
-        else:
-            raise ValueError(f"Run getInfo.py with start date before {start_date} and {end_date}")
-    else:
+    if start_date is None:
         start_date = other_vals['Dates'][0]
-    if end_date:
-        if end_date in other_vals['Dates']:
-            i = other_vals['Dates'].index(end_date)
-            other_vals['Dates'] = other_vals['Dates'][:i]
-            for key in information_keys:
-                if key in excluded_values:
-                    continue
-                other_vals[key] = other_vals[key][:i]
-        else:
-            raise ValueError(f"Run getInfo.py with end date after {start_date} and {end_date}")
-    else:
-        end_date = other_vals['Dates'][0]
+    elif type(start_date) is int:
+        start_date = other_vals['Dates'][start_date]
+
+    if end_date is None:
+        end_date = other_vals['Dates'][-1]
+    elif type(end_date) is int:
+        end_date = other_vals['Dates'][end_date]
+
     start_date, end_date = check_for_holidays(start_date, end_date)
+    if start_date in other_vals['Dates']:
+        i = other_vals['Dates'].index(start_date)
+        other_vals['Dates'] = other_vals['Dates'][i:]
+        for key in information_keys:
+            if key in excluded_values:
+                continue
+            other_vals[key] = other_vals[key][i:]
+    else:
+        raise ValueError(f"Run getInfo.py with start date before {start_date} and {end_date}")
+
+    if end_date in other_vals['Dates']:
+        i = other_vals['Dates'].index(end_date)
+        other_vals['Dates'] = other_vals['Dates'][:i]
+        for key in information_keys:
+            if key in excluded_values:
+                continue
+            other_vals[key] = other_vals[key][:i]
+    else:
+        raise ValueError(f"Run getInfo.py with end date after {start_date} and {end_date}")
+
 
     #_________________Process earnings______________________#
     if "earning diffs" in information_keys:
@@ -333,7 +338,6 @@ def get_relavant_values(stock_symbol: str,
         other_vals['earning diffs'] = diffs
 
     #_________________Scale Data______________________#
-    temp = {}
     temp = {}
     for key in information_keys:
         if len(other_vals[key]) == 0:
@@ -404,21 +408,21 @@ def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,
                displacement: int=26) -> np.ndarray:
     """Gets a np.ndarray of where `data['Close']` is above or bellow the kumo cloud"""
     # Calculate conversion line (Tenkan-sen)
-    top_conversion = data['High'].rolling(window=conversion_period).max()
-    bottom_conversion = data['Low'].rolling(window=conversion_period).min()
+    top_conversion = data['High'].rolling(window=conversion_period, min_periods=1).max()
+    bottom_conversion = data['Low'].rolling(window=conversion_period, min_periods=1).min()
     conversion_line = (top_conversion + bottom_conversion) / 2
 
     # Calculate base line (Kijun-sen)
-    top_base = data['High'].rolling(window=base_period).max()
-    bottom_base = data['Low'].rolling(window=base_period).min()
+    top_base = data['High'].rolling(window=base_period, min_periods=1).max()
+    bottom_base = data['Low'].rolling(window=base_period, min_periods=1).min()
     base_line = (top_base + bottom_base) / 2
 
     # Calculate leading span A (Senkou Span A)
     leading_span_a = ((conversion_line + base_line) / 2).shift(displacement)
 
     # Calculate leading span B (Senkou Span B)
-    span_b_max = data['High'].rolling(window=lagging_span2_period).max()
-    span_b_min = data['Low'].rolling(window=lagging_span2_period).min()
+    span_b_max = data['High'].rolling(window=lagging_span2_period, min_periods=1).max()
+    span_b_min = data['Low'].rolling(window=lagging_span2_period, min_periods=1).min()
     leading_span_b = ((span_b_max + span_b_min) / 2).shift(displacement)
 
     # Concatenate leading span A and leading span B

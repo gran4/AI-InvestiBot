@@ -226,7 +226,6 @@ def get_historical_info() -> None:
         stock_data = ticker.history(interval="1d", period='max')
 
         relevant_years = find_best_number_of_years(company_ticker, stock_data=stock_data)
-        print(relevant_years)
         num_days = math.log(relevant_years / 60) * 60
 
         with open(f'Stocks/{company_ticker}/dynamic_tuning.json', 'w') as json_file:
