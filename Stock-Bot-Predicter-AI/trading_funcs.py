@@ -21,7 +21,7 @@ from typing import Optional, List, Tuple, Dict, Iterable
 from numbers import Number
 from typing import Optional, List, Tuple, Dict, Iterable
 from numbers import Number
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from pandas_market_calendars import get_calendar
 
@@ -32,6 +32,7 @@ __all__ = (
     'excluded_values',
     'company_symbols',
     'create_sequences',
+    'find_best_number_of_years',
     'process_earnings',
     'process_flips',
     'check_for_holidays',
@@ -101,6 +102,59 @@ def create_sequences(data: np.ndarray, num_days: int) -> Tuple[np.ndarray, np.nd
         sequences.append(data[i-num_days:i])
         labels.append(data[i, 0])
     return np.array(sequences), np.array(labels)
+
+
+def piecewise_parabolic_weight(years, peak_year, peak_weight, decay_rate):
+    if years < peak_year:
+        return years ** 2+.5
+    return peak_year ** 2+.5
+
+
+def calculate_average_true_range(stock_data):
+    stock_data['High_Low'] = stock_data['High'] - stock_data['Low']
+    stock_data['High_PreviousClose'] = abs(stock_data['High'] - stock_data['Close'].shift())
+    stock_data['Low_PreviousClose'] = abs(stock_data['Low'] - stock_data['Close'].shift())
+    stock_data['TrueRange'] = stock_data[['High_Low', 'High_PreviousClose', 'Low_PreviousClose']].max(axis=1)
+    average_true_range = stock_data['TrueRange'].mean()
+    return average_true_range
+
+def find_best_number_of_years(symbol: str, stock_data: Optional[pd.DataFrame]=None, max_years_back: Optional[int]=None):
+    """
+    NOTE: NOT PERFECT on leap years,
+        Small fix may not be worth the time
+    """
+    best_years = 3
+    import yfinance as yf
+    ticker = yf.Ticker(symbol)
+    if stock_data is None:
+        stock_data = ticker.history(interval="1d", period='max')
+
+    today = date.today().strftime('%Y-%m-%d')
+    today_datetime = datetime.strptime(today, '%Y-%m-%d')
+    
+    iso_date = stock_data.index[0].strftime('%Y-%m-%d')
+    iso_date = datetime.strptime(iso_date, '%Y-%m-%d')
+    if max_years_back is None:
+        max_years_back = today_datetime - iso_date
+        max_years_back = max_years_back.days // 365
+
+    best_atr = -float('inf')
+    for years in range(4, max_years_back): #ignores 1st year of ipo
+        start_date = today_datetime-timedelta(days=365*years)
+
+        stock_data = ticker.history(interval="1d", start=start_date, end=today)
+        atr = calculate_average_true_range(stock_data)#stock_data[iso_date >= start_date])
+
+        atr += piecewise_parabolic_weight(years, max_years_back/4, 10, 1)/10 + piecewise_parabolic_weight(years, max_years_back/6, 10, 1)/30
+
+        if atr > best_atr:
+            best_atr = atr
+            best_years = years
+        #print("NORM: ", atr)
+        #print("Best: ", best_atr)
+        #print()
+
+    return best_years
 
 
 def process_earnings(dates: List, diffs: List, start_date: str,
@@ -217,9 +271,10 @@ def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
     return start_date, end_date
 
 
-def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
-                        information_keys: List[str], scaler_data: Optional[Dict]
-                        ) -> Tuple[Dict, np.ndarray, Dict, str, str]:
+def get_relavant_values(stock_symbol: str, information_keys: List[str],
+                        scaler_data: Optional[Dict]=None, start_date: Optional[str]=None,
+                        end_date: Optional[str]=None,
+                        ) -> Tuple[Dict, np.ndarray, List]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
     as well as the corrected dates.
@@ -232,15 +287,24 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
 
     Returns:
         Tuple[dict, np.ndarray, str, str]: The relevant indicators in the
-        form of a dict, and list, start date, and end date
+        form of a dict, np.ndarray, and a list
     """
-    start_date, end_date = check_for_holidays(start_date, end_date)
-
     #_________________Load info______________________#
     with open(f'Stocks/{stock_symbol}/info.json', 'r') as file:
         other_vals: Dict = json.load(file)
 
-    #_________________Make Data fit between start and end date______________________#
+    #fit bettween start and end date
+    if start_date is None:
+        start_date = other_vals['Dates'][0]
+    elif type(start_date) is int:
+        start_date = other_vals['Dates'][start_date]
+
+    if end_date is None:
+        end_date = other_vals['Dates'][-1]
+    elif type(end_date) is int:
+        end_date = other_vals['Dates'][end_date]
+
+    start_date, end_date = check_for_holidays(start_date, end_date)
     if start_date in other_vals['Dates']:
         i = other_vals['Dates'].index(start_date)
         other_vals['Dates'] = other_vals['Dates'][i:]
@@ -250,6 +314,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
             other_vals[key] = other_vals[key][i:]
     else:
         raise ValueError(f"Run getInfo.py with start date before {start_date} and {end_date}")
+
     if end_date in other_vals['Dates']:
         i = other_vals['Dates'].index(end_date)
         other_vals['Dates'] = other_vals['Dates'][:i]
@@ -259,6 +324,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
             other_vals[key] = other_vals[key][:i]
     else:
         raise ValueError(f"Run getInfo.py with end date after {start_date} and {end_date}")
+
 
     #_________________Process earnings______________________#
     if "earning diffs" in information_keys:
@@ -270,7 +336,6 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
         other_vals['earning diffs'] = diffs
 
     #_________________Scale Data______________________#
-    temp = {}
     temp = {}
     for key in information_keys:
         if len(other_vals[key]) == 0:
@@ -293,7 +358,7 @@ def get_relavant_values(start_date: str, end_date: str, stock_symbol: str,
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
     filtered = np.transpose(filtered) # type: ignore[assignment]
 
-    return other_vals, filtered, scaler_data, start_date, end_date # type: ignore[return-value]
+    return other_vals, filtered, scaler_data# type: ignore[return-value]
 
 
 def get_scaler(num: float, data: List) -> float:
@@ -341,21 +406,21 @@ def kumo_cloud(data: pd.DataFrame, conversion_period: int=9,
                displacement: int=26) -> np.ndarray:
     """Gets a np.ndarray of where `data['Close']` is above or bellow the kumo cloud"""
     # Calculate conversion line (Tenkan-sen)
-    top_conversion = data['High'].rolling(window=conversion_period).max()
-    bottom_conversion = data['Low'].rolling(window=conversion_period).min()
+    top_conversion = data['High'].rolling(window=conversion_period, min_periods=1).max()
+    bottom_conversion = data['Low'].rolling(window=conversion_period, min_periods=1).min()
     conversion_line = (top_conversion + bottom_conversion) / 2
 
     # Calculate base line (Kijun-sen)
-    top_base = data['High'].rolling(window=base_period).max()
-    bottom_base = data['Low'].rolling(window=base_period).min()
+    top_base = data['High'].rolling(window=base_period, min_periods=1).max()
+    bottom_base = data['Low'].rolling(window=base_period, min_periods=1).min()
     base_line = (top_base + bottom_base) / 2
 
     # Calculate leading span A (Senkou Span A)
     leading_span_a = ((conversion_line + base_line) / 2).shift(displacement)
 
     # Calculate leading span B (Senkou Span B)
-    span_b_max = data['High'].rolling(window=lagging_span2_period).max()
-    span_b_min = data['Low'].rolling(window=lagging_span2_period).min()
+    span_b_max = data['High'].rolling(window=lagging_span2_period, min_periods=1).max()
+    span_b_min = data['Low'].rolling(window=lagging_span2_period, min_periods=1).min()
     leading_span_b = ((span_b_max + span_b_min) / 2).shift(displacement)
 
     # Concatenate leading span A and leading span B

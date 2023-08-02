@@ -19,7 +19,7 @@ import os
 
 from typing import Optional, List, Dict, Union, Any
 from warnings import warn
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
@@ -38,6 +38,7 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 
 from trading_funcs import (
+    find_best_number_of_years,
     check_for_holidays, get_relavant_values,
     create_sequences, process_flips,
     excluded_values, is_floats,
@@ -120,14 +121,15 @@ class BaseModel:
         information_keys (List[str]): The information keys that describe what the model uses
     """
 
-    def __init__(self, start_date: str = "2020-01-01",
-                 end_date: str = "2023-07-09",
+    def __init__(self, start_date: str = None,
+                 end_date: str = None,
                  stock_symbol: str = "AAPL",
                  num_days: int = 60,
                  information_keys: List[str]=["Close"]) -> None:
-        self.start_date, self.end_date = check_for_holidays(
-            start_date, end_date
-        )
+        if end_date is None:
+            end_date = date.today().strftime("%Y-%m-%d")
+        if start_date is None:
+            start_date = find_best_number_of_years(stock_symbol, end_date)
         self.start_date, self.end_date = check_for_holidays(
             start_date, end_date
         )
@@ -163,8 +165,8 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        self.data, data, self.scaler_data, start_date, end_date = get_relavant_values(
-            start_date, end_date, stock_symbol, information_keys, None
+        self.data, data, self.scaler_data = get_relavant_values(
+            stock_symbol, information_keys, start_date=start_date, end_date=end_date
         )
         shape = data.shape[1]
 
@@ -186,17 +188,17 @@ class BaseModel:
         #_________________Train it______________________#
         # Build the LSTM model
         model = Sequential()
-        model.add(LSTM(48, return_sequences=True, input_shape=(num_days, shape)))
-        model.add(LSTM(48))
+        model.add(LSTM(24, return_sequences=True, input_shape=(num_days, shape)))
+        model.add(LSTM(24))
         model.add(Dense(1, activation=relu))
-        model.compile(optimizer=Adam(learning_rate=.05), loss=Huber())
+        model.compile(optimizer=Adam(learning_rate=.025), loss=Huber())
 
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=10)
         # Train the model
-        model.fit(x_test, y_test, validation_data=(x_test, y_test), callbacks=[early_stopping], batch_size=32, epochs=epochs)
-        model.fit(x_train, y_train, validation_data=(x_train, y_train), callbacks=[early_stopping], batch_size=32, epochs=epochs)
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=32, epochs=epochs)
+        model.fit(x_test, y_test, validation_data=(x_test, y_test), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        model.fit(x_train, y_train, validation_data=(x_train, y_train), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
 
         self.model = model
 
@@ -783,7 +785,7 @@ class SuperTrendsModel(BaseModel):
 
 
 if __name__ == "__main__":
-    modelclasses = [DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
+    modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
     test_models = []
     #for company in company_symbols:
