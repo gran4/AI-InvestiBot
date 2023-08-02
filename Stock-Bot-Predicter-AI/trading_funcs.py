@@ -127,8 +127,6 @@ def find_best_number_of_years(symbol: str, stock_data: Optional[pd.DataFrame]=No
     import yfinance as yf
     ticker = yf.Ticker(symbol)
     if stock_data is None:
-        import yfinance as yf
-        ticker = yf.Ticker(symbol)
         stock_data = ticker.history(interval="1d", period='max')
 
     today = date.today().strftime('%Y-%m-%d')
