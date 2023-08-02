@@ -218,12 +218,15 @@ def get_historical_info() -> None:
     today = date.today().strftime("%Y-%m-%d")
 
     period = 14
+    company_symbols = ["TLSA"]
     for company_ticker in company_symbols:
-        print(company_ticker)
         ticker = yf.Ticker(company_ticker)
         #_________________ GET Data______________________#
         # Retrieve historical data for the ticker using the `history()` method
         stock_data = ticker.history(interval="1d", period='max')
+        if len(stock_data) == 0:
+            raise ConnectionError("Failed to get stock data. Check your internet")
+        print(company_ticker)
 
         relevant_years = find_best_number_of_years(company_ticker, stock_data=stock_data)
         num_days = math.log(relevant_years / 60) * 60
@@ -233,10 +236,8 @@ def get_historical_info() -> None:
                 'relevant_years': relevant_years,
                 'num_days': num_days,
             }, json_file)
-        continue
 
-        if len(stock_data) == 0:
-            raise ConnectionError("Failed to get stock data. Check your internet")
+
 
         #_________________MACD Data______________________#
         ema12 = stock_data['Close'].ewm(span=12).mean()
@@ -349,7 +350,6 @@ def get_historical_info() -> None:
         relevant_years = find_best_number_of_years(company_ticker, stock_data=stock_data)
         print(relevant_years)
         num_days = math.log(relevant_years / 60) * 60
-        time.sleep(10231)
         with open(f'Stocks/{company_ticker}/dynamic_tuning.json', 'w') as json_file:
             json.dump({
                 'relevant_years': relevant_years,

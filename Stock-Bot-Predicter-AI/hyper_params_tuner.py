@@ -50,14 +50,27 @@ def num_days_func4(days):
 
 param_grid = {
     'optimizer': [Adam],#
-    'loss': [Huber, CustomLoss, CustomLoss2],#
-    'activation': [linear, relu],#, relu],
+    'loss': [Huber],#, CustomLoss, CustomLoss2]
+    'activation': [linear],#, relu],
     'neurons': [32],#24, 48, 64],# , 24, 98, 128
-    'learning_rate': [.025, .05, .1], #, .005, 0.01, .05
-    'num_days_func': [num_days_func1, num_days_func2, num_days_func3, num_days_func4],
-    'company': ['AAPL'],#, 'NFLX', 'BRK-B', 'DIS', 'WMT'],
+    'learning_rate': [.05], #, .005, 0.01, .05
+    #'num_days_func': [num_days_func1, num_days_func2, num_days_func3, num_days_func4],
+    'num_days': [100, 102, 104],
+    'company': ['DIS'],#, 'NFLX', 'BRK-B', 'DIS', 'WMT'],
     'batch_size': [24]#, 32, 48]# 64
 }
+#[(3, 'TLSA'), (4, 'META'), (4, 'V'), (5, 'GOOG'), (5, 'NFLX'),
+# (6, 'NVDA'), (7, 'AMZN'), (7, 'BRK-B'), (8, 'SBUX'),
+# (9, 'ADBE'), (10, 'MSFT'), (10, 'T'), (11, 'AAPL'), (11, 'HD'), (11, 'NKE'), (13, 'CVS'), (13, 'WMT'), (15, 'MCD'), (16, 'DIS'), (16, 'BA'), (16, 'KO'), (16, 'IBM'), (16, 'XOM'), (25, 'GE')]
+
+#3: 38 : TLSA
+#4: 40 : META
+#7: 58 : AMZN
+#9: 74 : ADBE
+#11: 90 : APPL
+#13: 96 : CVS
+#16: 102 : BA
+#25: 103 : GE
 
 param_grid2 = {
     'optimizer': [Adam, Adadelta],#
@@ -92,7 +105,8 @@ for params in ParameterGrid(param_grid):
     activation = params['activation']
     neurons = params['neurons']
     learning_rate = params['learning_rate']
-    num_days_func = params['num_days_func']
+    #num_days_func = params['num_days_func']
+    num_days = params['num_days']
     batch_size = params['batch_size']
 
 
@@ -104,10 +118,10 @@ for params in ParameterGrid(param_grid):
     with open(f'Stocks/{company}/dynamic_tuning.json', 'r') as file:
         dynamic_tuning = json.load(file)
     #data = data[-int(dynamic_tuning['relevant_years']*365):]
-    num_days = int(num_days_func(dynamic_tuning['relevant_years']*365))
+    #num_days = int(num_days_func(dynamic_tuning['relevant_years']*365))
 
     print(len(set(arr.dtype for arr in data.flatten())) == 1)
-    print(len(data))
+    print(dynamic_tuning['relevant_years'])
     print(num_days)
 
     # Process Data for LSTM
@@ -138,8 +152,8 @@ for params in ParameterGrid(param_grid):
         return percentage, percentage2
     y_pred = model.predict(x_test)
     temp = calculate_percentage_movement_together(y_test, y_pred)
-    if temp[0] < 50 or temp[1] < 50:
-        continue
+    #if temp[0] < 48 or temp[1] < 48:
+    #    continue
     percents.append(temp)
 
     params['num_days'] = num_days
