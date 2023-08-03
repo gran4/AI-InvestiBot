@@ -4,6 +4,10 @@
 
 This repository is currently in the development stage and focuses on creating stock bots. While the stock bots are not yet complete, a bot for loops has been added. The project aims to provide unique features that are not commonly found in other stock bots.
 
+## Contact Us
+Discord: https://discord.gg/uHqBrqrr
+
+
 ## Features
 
 - **Unique Indicators**: The project includes unique indicators, which can be found in the `get_info.py` file.
