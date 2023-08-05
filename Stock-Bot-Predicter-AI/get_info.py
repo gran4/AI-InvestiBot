@@ -213,7 +213,7 @@ def update_dynamic_tuning(company_ticker, stock_data) -> None:
     """
     relevant_years = find_best_number_of_years(company_ticker, stock_data=stock_data)
     print(relevant_years)
-    num_days = math.log(relevant_years*6.0834 + 1) * 30
+    num_days = int(math.log(relevant_years*6.0834 + 1) * 30)
     with open(f'Stocks/{company_ticker}/dynamic_tuning.json', 'w') as json_file:
         json.dump({
             'relevant_years': relevant_years,
@@ -346,7 +346,7 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
 
         print(company_ticker)
         update_dynamic_tuning(company_ticker, stock_data)
-        #update_info(company_ticker, stock_data)
+        update_info(company_ticker, stock_data)
 
 if __name__ == '__main__':
     get_historical_info()

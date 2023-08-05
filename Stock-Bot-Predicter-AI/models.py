@@ -125,7 +125,7 @@ class BaseModel:
     def __init__(self, start_date: str = None,
                  end_date: str = None,
                  stock_symbol: str = "AAPL",
-                 num_days: int = 60,
+                 num_days: int = None,
                  information_keys: List[str]=["Close"]) -> None:
         if end_date is None:
             end_date = date.today()-relativedelta(days=10)
@@ -140,6 +140,11 @@ class BaseModel:
         self.start_date, self.end_date = check_for_holidays(
             start_date, end_date
         )
+
+        if num_days is None:
+            with open(f'Stocks/{stock_symbol}/dynamic_tuning.json', 'r') as file:
+                num_days = json.load(file)['num_days']
+
 
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
@@ -236,10 +241,10 @@ class BaseModel:
             indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
 
             # Create a noise array with the same shape as x_total's selected columns
-            noise = np.random.uniform(-0.01, 0.01)
+            noise = np.random.uniform(-0.001, 0.001)
             # Add noise to the selected columns of x_total
             x_total_copy[:, indices_cache] += noise
-            y_total_copy += np.random.uniform(-0.01, 0.01, size=y_total.shape[0])
+            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
             model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
 
         #Ties it together on the real data
@@ -814,8 +819,13 @@ if __name__ == "__main__":
     test_models = []
     #for company in company_symbols:
     for modelclass in modelclasses:
-        model = modelclass(stock_symbol="GE")
+        model = modelclass(stock_symbol="META")
         model.train(epochs=1000, test=True)
+        model.save()
+        test_models.append(model)
+
+        model = modelclass(stock_symbol="META")
+        model.train(epochs=1000, test=True, add_noise=False)
         model.save()
         test_models.append(model)
 
