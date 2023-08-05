@@ -86,7 +86,6 @@ class CustomLoss(Loss):
 
         return combined_loss
 
-import tensorflow as tf
 class CustomLoss2(Loss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -102,7 +101,7 @@ class CustomLoss2(Loss):
         space_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_true[:-1])))
 
         # Combine the losses with different weights
-        combined_loss = direction_penalty*.3+huber_loss*.5+mse_loss*.5+space_penalty*.3#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
+        combined_loss = direction_penalty*.1+huber_loss*.5+mse_loss*.5+space_penalty*.1#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
 
         return combined_loss
 
@@ -157,9 +156,9 @@ class BaseModel:
         # while it is a Dict offline
         self.cached_info: Optional[Union[pd.DataFrame, Dict[str, Any]]] = None
 
-    def train(self, epochs: int=100,
+    def train(self, epochs: int=100, patience: int=5,
               add_scaling: bool=True, add_noise: bool=True,
-              test: bool=False, patience: int=5) -> None:
+              test: bool=False) -> None:
         """
         Trains Model off `information_keys`
 
@@ -188,10 +187,11 @@ class BaseModel:
 
         # Build the LSTM model
         model = Sequential()
-        model.add(LSTM(32, return_sequences=True, input_shape=(num_days, len(information_keys))))
-        model.add(LSTM(32))
+        model.add(LSTM(16, return_sequences=True, input_shape=(num_days, len(information_keys))))
+        model.add(LSTM(16, return_sequences=True))
+        model.add(LSTM(16))
         model.add(Dense(1, activation=linear))
-        model.compile(optimizer=Adam(learning_rate=.05), loss=CustomLoss2())
+        model.compile(optimizer=Adam(learning_rate=.001), loss=CustomLoss2())
 
 
         if size < num_days:
@@ -221,7 +221,6 @@ class BaseModel:
 
             x_total_p2 = np.copy(x_total[divider:])
             y_total_p2 = np.copy(y_total[divider:])
-
 
             x_total_p1[:, indices_cache] *= 2
             y_total_p1 *= 2
@@ -297,8 +296,8 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        _, data, _, start_date, end_date = get_relavant_values( # type: ignore[arg-type]
-            start_date, end_date, stock_symbol, information_keys, self.scaler_data
+        _, data, _ = get_relavant_values( # type: ignore[arg-type]
+            stock_symbol, information_keys, self.scaler_data, start_date, end_date
         )
 
         #_________________Process Data for LSTM______________________#
@@ -319,13 +318,17 @@ class BaseModel:
         def calculate_percentage_movement_together(list1, list2):
             total = len(list1)
             count_same_direction = 0
+            count_same_space = 0
 
             for i in range(1, total):
-                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
+                if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
                     count_same_direction += 1
+                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
+                    count_same_space += 1
 
             percentage = (count_same_direction / (total - 1)) * 100
-            return percentage
+            percentage2 = (count_same_space / (total - 1)) * 100
+            return percentage, percentage2
         print(calculate_percentage_movement_together(temp_test, test_predictions))
 
         # Calculate RMSSE for testing predictions
@@ -811,7 +814,7 @@ if __name__ == "__main__":
     test_models = []
     #for company in company_symbols:
     for modelclass in modelclasses:
-        model = modelclass(stock_symbol="AAPL")
+        model = modelclass(stock_symbol="GE")
         model.train(epochs=1000, test=True)
         model.save()
         test_models.append(model)
