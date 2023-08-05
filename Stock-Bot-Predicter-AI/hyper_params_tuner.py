@@ -6,9 +6,9 @@ from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, GRU
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.optimizers.legacy import Adam, SGD, RMSprop, Adagrad, Adadelta
+from tensorflow.keras.optimizers.legacy import Adam, SGD, Adadelta
 from tensorflow.keras.losses import MeanSquaredError, MeanAbsoluteError, Huber, CategoricalCrossentropy, KLDivergence, BinaryCrossentropy
-from tensorflow.keras.activations import relu, elu, tanh, linear
+from tensorflow.keras.activations import relu, linear
 from tensorflow.keras.backend import clear_session
 from sklearn.model_selection import ParameterGrid
 

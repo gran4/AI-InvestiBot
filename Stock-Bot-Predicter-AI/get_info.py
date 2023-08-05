@@ -13,18 +13,20 @@ Author:
 See also:
     Other modules that use the getInfo module -> Models.py, trading_funcs.py
 """
-
 import requests
 import math
 import json
 import os
 import time
-from typing import Optional, List, Tuple
-from datetime import datetime, date
+
+from typing import Optional, Union, List, Tuple
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 import yfinance as yf
 import numpy as np
 import pandas as pd
+
 
 from trading_funcs import (
     company_symbols,
@@ -37,7 +39,7 @@ from trading_funcs import (
 
 __all__ = (
     'get_earnings_history',
-    'date_time_since_ref',
+    'time_since_ref',
     'earnings_since_time',
     'modify_earnings_dates',
     'get_liquidity_spikes',
@@ -91,7 +93,7 @@ def get_earnings_history(company_ticker: str) -> Tuple[List[str], List[float]]:
     return earnings_dates, earnings_diff
 
 
-def date_time_since_ref(date_object: datetime, reference_date: datetime) -> int:
+def time_since_ref(date_object: Union[datetime, relativedelta], reference_date: Union[datetime, relativedelta]) -> int:
     """
     Returns the number of days between the given date and the reference date.
 
@@ -116,13 +118,13 @@ def earnings_since_time(dates: List, start_date: str) -> List[int]:
     
     Returns:
         list: list of earnings since the reference date using
-        date_time_since_ref(date, reference_date)
+        time_since_ref(date, reference_date)
     """
     date_object = datetime.strptime(start_date, "%Y-%m-%d")
     # Convert the datetime object back to a string in the desired format
     converted_date = date_object.strftime("%b %d, %Y")
     reference_date = datetime.strptime(converted_date, "%b %d, %Y")
-    return [date_time_since_ref(date, reference_date) for date in dates]
+    return [time_since_ref(date, reference_date) for date in dates]
 
 
 def modify_earnings_dates(dates: List, start_date: str) -> List[int]:
@@ -210,6 +212,7 @@ def update_dynamic_tuning(company_ticker, stock_data) -> None:
     historical data and run models on them.
     """
     relevant_years = find_best_number_of_years(company_ticker, stock_data=stock_data)
+    print(relevant_years)
     num_days = math.log(relevant_years*6.0834 + 1) * 30
     with open(f'Stocks/{company_ticker}/dynamic_tuning.json', 'w') as json_file:
         json.dump({
@@ -300,8 +303,6 @@ def update_info(company_ticker, stock_data) -> None:
         '200-day EMA': ema200.values.tolist(),
         'ema_flips': ema_flips,
         'signal_flips':signal_flips,
-        'ema_flips': ema_flips,
-        'signal_flips':signal_flips,
         'supertrend1': super_trend1.tolist(),
         'supertrend2': super_trend2.tolist(),
         'supertrend3': super_trend3.tolist(),
@@ -310,7 +311,7 @@ def update_info(company_ticker, stock_data) -> None:
         'Change': change.values.tolist(),
         'RSI': relative_strength_index.values.tolist(),
         'TRAMA': trama.values.tolist(),
-        'volatility': volatility.values.tolist(),
+        'Volatility': volatility.values.tolist(),
         'Bollinger Middle': bollinger_middle.values.tolist(),
         'Above Bollinger': above_bollinger.astype(int).tolist(),
         'Bellow Bollinger': bellow_bollinger.astype(int).tolist(),
@@ -320,7 +321,6 @@ def update_info(company_ticker, stock_data) -> None:
         'earnings dates': earnings_dates,
         'earning diffs': earnings_diff
     }
-
     with open(f'Stocks/{company_ticker}/info.json', 'w') as json_file:
         json.dump(converted_data, json_file)
 
@@ -346,7 +346,7 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
 
         print(company_ticker)
         update_dynamic_tuning(company_ticker, stock_data)
-        update_info(company_ticker, stock_data)
+        #update_info(company_ticker, stock_data)
 
 if __name__ == '__main__':
     get_historical_info()
