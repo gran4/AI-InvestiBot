@@ -8,6 +8,7 @@ __pycache__/
 
 #From project
 Stocks/
+.DS_Store
 
 # C extensions
 *.so
