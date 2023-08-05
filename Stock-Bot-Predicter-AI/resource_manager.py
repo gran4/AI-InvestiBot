@@ -15,7 +15,6 @@ See also:
 """
 
 from typing import Optional
-from datetime import datetime
 
 from alpaca_trade_api import REST
 

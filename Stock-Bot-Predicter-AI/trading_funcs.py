@@ -19,9 +19,8 @@ import json
 
 from typing import Optional, List, Tuple, Dict, Iterable
 from numbers import Number
-from typing import Optional, List, Tuple, Dict, Iterable
-from numbers import Number
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
 
 from pandas_market_calendars import get_calendar
 
@@ -30,6 +29,7 @@ import pandas as pd
 
 __all__ = (
     'excluded_values',
+    'indicators_to_add_noise_to',
     'company_symbols',
     'create_sequences',
     'find_best_number_of_years',
@@ -50,6 +50,14 @@ excluded_values = (
     "Dates",
     "earnings dates",
     "earning diffs"
+)
+
+indicators_to_add_noise_to = (
+    'Close',
+    'Volume',
+    'Momentum',
+    'Change',
+    'Volatility'
 )
 
 
@@ -104,10 +112,11 @@ def create_sequences(data: np.ndarray, num_days: int) -> Tuple[np.ndarray, np.nd
     return np.array(sequences), np.array(labels)
 
 
-def piecewise_parabolic_weight(years, peak_year, peak_weight, decay_rate):
+def piecewise_parabolic_weight(years, peak_year):
+    #years ** 1.5 is to give a curve
     if years < peak_year:
-        return years ** 2+.5
-    return peak_year ** 2+.5
+        return years ** 1.5+years/5
+    return peak_year ** 1.5+peak_year/6+(peak_year-years)/10
 
 
 def calculate_average_true_range(stock_data):
@@ -140,12 +149,12 @@ def find_best_number_of_years(symbol: str, stock_data: Optional[pd.DataFrame]=No
 
     best_atr = -float('inf')
     for years in range(4, max_years_back): #ignores 1st year of ipo
-        start_date = today_datetime-timedelta(days=365*years)
+        start_date = today_datetime-relativedelta(years=years)
 
         stock_data = ticker.history(interval="1d", start=start_date, end=today)
         atr = calculate_average_true_range(stock_data)#stock_data[iso_date >= start_date])
 
-        atr += piecewise_parabolic_weight(years, max_years_back/4, 10, 1)/10 + piecewise_parabolic_weight(years, max_years_back/6, 10, 1)/30
+        atr += piecewise_parabolic_weight(years, max_years_back/4)/10 + piecewise_parabolic_weight(years, max_years_back/6)/30
 
         if atr > best_atr:
             best_atr = atr
@@ -214,7 +223,7 @@ def process_earnings(dates: List, diffs: List, start_date: str,
             filled_earnings.append(diffs[existing_index])
         else:
             filled_earnings.append(0)
-        current_date += timedelta(days=1)
+        current_date += relativedelta(days=1)
     return dates, diffs
 
 
@@ -313,7 +322,7 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
                 continue
             other_vals[key] = other_vals[key][i:]
     else:
-        raise ValueError(f"Run getInfo.py with start date before {start_date} and {end_date}")
+        raise ValueError(f"start date is not in data\nRun getInfo.py with start date before {start_date} and {end_date}")
 
     if end_date in other_vals['Dates']:
         i = other_vals['Dates'].index(end_date)
@@ -323,7 +332,7 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
                 continue
             other_vals[key] = other_vals[key][:i]
     else:
-        raise ValueError(f"Run getInfo.py with end date after {start_date} and {end_date}")
+        raise ValueError(f"end date is not in data\nRun getInfo.py with end date after {start_date} and {end_date}")
 
 
     #_________________Process earnings______________________#

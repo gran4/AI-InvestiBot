@@ -14,8 +14,9 @@ See also:
 """
 import time
 
-from datetime import datetime, timedelta, date
-from typing import Optional, List, Dict
+from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
+from typing import Dict
 
 from threading import Thread
 from pandas_market_calendars import get_calendar
@@ -83,7 +84,7 @@ def update_models(models, total_info_keys):
     model = models[0]
     end_datetime = datetime.strptime(model.end_date, "%Y-%m-%d")
     nyse = get_calendar('NYSE')
-    schedule = nyse.schedule(start_date=model.end_date, end_date=end_datetime+timedelta(days=2))
+    schedule = nyse.schedule(start_date=model.end_date, end_date=end_datetime+relativedelta(days=2))
     if model.end_date not in schedule.index: # holiday or week ends
         return
 
