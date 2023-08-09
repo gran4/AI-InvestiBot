@@ -857,7 +857,7 @@ if __name__ == "__main__":
     #for company in company_symbols:
     for modelclass in modelclasses:
         model = modelclass(stock_symbol="META")
-        model.train(epochs=1000, test=True)#, use_transfer_learning=False)
+        model.train(epochs=1000, test=True)
         model.save()
         test_models.append(model)
 
