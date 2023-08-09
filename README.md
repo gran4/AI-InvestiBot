@@ -18,6 +18,12 @@ Discord: https://discord.gg/uHqBrqrr
 - **Holding Stocks**: The stock bot has the capability to hold stocks.
 - **Active Development**: The project is actively being developed, with regular updates and improvements.
 - **Lambda Version**: Allows the bot to be run without keeping a laptop open(It is also very, very cheap).
+- **AI Techniques such as**:
+  + Data Augmentation
+  + Transfer learning
+  + Early Stopping
+  + More planned in the planned additions section
+
 
 ## Current Progress
 
@@ -27,15 +33,16 @@ The current focus is on developing the actual bot and automation functionalities
 
 The following features are planned to be added in the future:
 
-- Bug Fixes
-- More documentation
+- 60% accuracy rate on data not trained on.
+- Easy way to add many models using call backs
+-  Reach Library standards such as:
+  + Bug Fixes
+  + More documentation
+  + A better name
 
-## Considerations
 
-The project is currently exploring the following considerations:
+## NO Considerations currently under debate
 
-- Implementation of unique loss functions in `Tradingfuncs.py`.
-- Dealing with unique variables for each company, which can be a tedious task (e.g., Tesla has been in business for a shorter time compared to GE).
 
 ## How It Works
 
@@ -143,8 +150,4 @@ This project offers various models to choose from, including:
 - The models were trained until it stopped improving
 - RMSE (Root Mean Squared Error) represents the absolute errors between predictions and expected values. A lower RMSE indicates better accuracy.
 - RMSSE (Root Mean Squared Scaled Error) accounts for variations in scale and magnitude among different stocks, enabling more meaningful comparisons across different time series. A lower RMSSE is desirable.
-- Remember that the lower the value of these metrics
-
-, the better the performance.
-
-Please let me know if there's anything else I can assist you with.
+- Remember that the lower the value of these metrics, the better the performance.
