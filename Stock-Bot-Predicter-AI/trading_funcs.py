@@ -61,6 +61,31 @@ indicators_to_add_noise_to = (
 )
 
 
+indicators_to_scale = (
+    'Volume',
+    'Close',
+    '12-day EMA',
+    '26-day EMA',
+    'MACD',
+    'Signal Line',
+    'Histogram',
+    '200-day EMA',
+    'supertrend1',
+    'supertrend2',
+    'supertrend3',
+    'kumo_cloud',
+    'Momentum',
+    'Change',
+    'TRAMA',
+    'Volatility',
+    'Bollinger Middle',
+    'gradual-liquidity spike',
+    'momentum_oscillator',
+    'earning diffs'
+)
+
+
+
 company_symbols = (
     "AAPL",
     "GOOG",
@@ -87,6 +112,11 @@ company_symbols = (
     "T",
     "GE"
 )
+
+scale_indicators = {
+    'Close': 2,
+    'MACD': 1
+}
 
 
 def create_sequences(data: np.ndarray, num_days: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -359,14 +389,16 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
         else:
             min_val = scaler_data[key]['min']
             diff = scaler_data[key]['diff']
-        if diff != 0: # Rare, extreme cases
+        if diff != 0: # Ignore rare, extreme cases
             other_vals[key] = [(x - min_val) / diff for x in other_vals[key]]
+        if key in scale_indicators:
+            scaler = scale_indicators[key]
+            other_vals[key] = [x*scaler for x in other_vals[key]]
     scaler_data = temp # change it if value is `None`
 
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
     filtered = np.transpose(filtered) # type: ignore[assignment]
-
     return other_vals, filtered, scaler_data# type: ignore[return-value]
 
 

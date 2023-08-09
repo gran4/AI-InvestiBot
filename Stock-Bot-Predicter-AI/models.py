@@ -16,9 +16,8 @@ See also:
 
 import json
 import os
-import random
 
-from typing import Optional, List, Dict, Union, Any, Tuple
+from typing import Any, Optional, Union, Callable, List, Dict, Tuple
 from warnings import warn
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
@@ -26,7 +25,7 @@ from dateutil.relativedelta import relativedelta
 from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.layers import LSTM, Dense, Input
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import Loss, MeanSquaredError, Huber
 from tensorflow.keras.callbacks import EarlyStopping
@@ -40,11 +39,10 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 
 from trading_funcs import (
-    find_best_number_of_years,
     check_for_holidays, get_relavant_values,
     create_sequences, process_flips,
     excluded_values, is_floats,
-    company_symbols, indicators_to_add_noise_to
+    indicators_to_add_noise_to, indicators_to_scale
 )
 from get_info import (
     calculate_momentum_oscillator,
@@ -106,12 +104,13 @@ class CustomLoss2(Loss):
         return combined_loss
 
 
-def create_model(shape: Tuple) -> Sequential:
+def create_LSTM_model(shape: Tuple) -> Sequential:
     model = Sequential()
     model.add(LSTM(16, return_sequences=True, input_shape=shape))
     model.add(LSTM(16, return_sequences=True))
     model.add(LSTM(16))
     model.add(Dense(1, activation=linear))
+
     model.compile(optimizer=Adam(learning_rate=.001), loss=Huber())
     return model
 
@@ -180,7 +179,8 @@ class BaseModel:
 
     def train(self, epochs: int=100, patience: int=5,
               add_scaling: bool=True, add_noise: bool=True,
-              use_transfer_learning: bool=True, test: bool=False) -> None:
+              use_transfer_learning: bool=False, test: bool=False,
+              create_model: Callable=create_LSTM_model) -> None:
         """
         Trains Model off `information_keys`
 
@@ -206,12 +206,13 @@ class BaseModel:
             x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
         else:
             x_total, y_total = create_sequences(data, num_days)
+       
+        model = create_model((num_days, len(information_keys)))
         if use_transfer_learning:
-            model = load_model(f"transfer_learning_model")
-        else:
-            # Build the LSTM model
-            model = create_model((num_days, len(information_keys)))
-
+            transfer_model = load_model(f"transfer_learning_model")
+            for layer_idx, layer in enumerate(model.layers):
+                if layer.name in transfer_model.layers[layer_idx].name:
+                    layer.set_weights(transfer_model.layers[layer_idx].get_weights())
 
         if size < num_days:
             raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
@@ -220,7 +221,7 @@ class BaseModel:
         #_________________Train it______________________#
         divider = int(size/2)
         if add_scaling:
-            indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
+            indices_cache = [information_keys.index(key) for key in indicators_to_scale if key in information_keys]
 
             x_total_copy = np.copy(x_total)
             y_total_copy = np.copy(y_total)

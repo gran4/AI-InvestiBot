@@ -13,3 +13,6 @@ def get_years():
 
 def get_transfer_learning_model():
     return load_model(f"transfer_learning_model")
+
+def get_model(company):
+    return load_model(f"Stocks/{company}")
