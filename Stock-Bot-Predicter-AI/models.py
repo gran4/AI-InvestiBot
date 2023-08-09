@@ -18,7 +18,7 @@ import json
 import os
 import random
 
-from typing import Optional, List, Dict, Union, Any
+from typing import Optional, List, Dict, Union, Any, Tuple
 from warnings import warn
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
@@ -106,6 +106,15 @@ class CustomLoss2(Loss):
         return combined_loss
 
 
+def create_model(shape: Tuple) -> Sequential:
+    model = Sequential()
+    model.add(LSTM(16, return_sequences=True, input_shape=shape))
+    model.add(LSTM(16, return_sequences=True))
+    model.add(LSTM(16))
+    model.add(Dense(1, activation=linear))
+    model.compile(optimizer=Adam(learning_rate=.001), loss=Huber())
+    return model
+
 
 class BaseModel:
     """
@@ -123,24 +132,10 @@ class BaseModel:
     """
 
     def __init__(self, start_date: str = None,
-                 end_date: str = None,
-                 stock_symbol: str = "AAPL",
+                 end_date: Optional[Union[date, str]] = None,
+                 stock_symbol: Optional[Union[date, str]] = "AAPL",
                  num_days: int = None,
                  information_keys: List[str]=["Close"]) -> None:
-        if end_date is None:
-            end_date = date.today()-relativedelta(days=10)
-            #lower type(end_date) == date turns it into string
-        if start_date is None:
-            with open(f'Stocks/{stock_symbol}/dynamic_tuning.json', 'r') as file:
-                relevant_years = json.load(file)['relevant_years']
-            start_date = end_date - relativedelta(years=relevant_years)
-
-        if type(end_date) == date:
-            end_date = end_date.strftime("%Y-%m-%d")
-        self.start_date, self.end_date = check_for_holidays(
-            start_date, end_date
-        )
-
         if num_days is None:
             with open(f'Stocks/{stock_symbol}/dynamic_tuning.json', 'r') as file:
                 num_days = json.load(file)['num_days']
@@ -149,6 +144,8 @@ class BaseModel:
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
         self.num_days = num_days
+
+        self.update_dates(start_date=start_date, end_date=end_date)
 
         self.model: Optional[Sequential] = None
         self.data: Optional[Dict[str, Any]] = None
@@ -161,9 +158,29 @@ class BaseModel:
         # while it is a Dict offline
         self.cached_info: Optional[Union[pd.DataFrame, Dict[str, Any]]] = None
 
+    def update_dates(
+            self, start_date=None,
+            end_date=None,
+        ):
+        if end_date is None:
+            end_date = date.today()-relativedelta(days=10)
+            #lower type(end_date) == date turns it into string
+        if start_date is None:
+            with open(f'Stocks/{self.stock_symbol}/dynamic_tuning.json', 'r') as file:
+                relevant_years = json.load(file)['relevant_years']
+            start_date = end_date - relativedelta(years=relevant_years)
+
+        if type(end_date) == date:
+            end_date = end_date.strftime("%Y-%m-%d")
+        if type(start_date) == date:
+            start_date = start_date.strftime("%Y-%m-%d")
+        self.start_date, self.end_date = check_for_holidays(
+            start_date, end_date
+        )
+
     def train(self, epochs: int=100, patience: int=5,
               add_scaling: bool=True, add_noise: bool=True,
-              test: bool=False) -> None:
+              use_transfer_learning: bool=True, test: bool=False) -> None:
         """
         Trains Model off `information_keys`
 
@@ -189,14 +206,11 @@ class BaseModel:
             x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
         else:
             x_total, y_total = create_sequences(data, num_days)
-
-        # Build the LSTM model
-        model = Sequential()
-        model.add(LSTM(16, return_sequences=True, input_shape=(num_days, len(information_keys))))
-        model.add(LSTM(16, return_sequences=True))
-        model.add(LSTM(16))
-        model.add(Dense(1, activation=linear))
-        model.compile(optimizer=Adam(learning_rate=.001), loss=CustomLoss2())
+        if use_transfer_learning:
+            model = load_model(f"transfer_learning_model")
+        else:
+            # Build the LSTM model
+            model = create_model((num_days, len(information_keys)))
 
 
         if size < num_days:
@@ -251,7 +265,7 @@ class BaseModel:
         model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
         self.model = model
 
-    def save(self) -> None:
+    def save(self, transfer_learning: bool=False) -> None:
         """
         This method will save the model using the tensorflow save method. It will also save the data
         into the `json` file format.
@@ -261,6 +275,9 @@ class BaseModel:
         name = self.__class__.__name__
 
         #_________________Save Model______________________#
+        if transfer_learning:
+            self.model.save(f"transfer_learning_model")
+            return
         self.model.save(f"Stocks/{self.stock_symbol}/{name}_model")
 
         if os.path.exists(f'Stocks/{self.stock_symbol}/data.json'):
@@ -813,6 +830,25 @@ class SuperTrendsModel(BaseModel):
             ]
         )
 
+def update_transfer_learning(num_days: int=100,
+                             companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
+                             ) -> None:
+    model = ImpulseMACDModel()
+    model.num_days = num_days
+    use = False
+    for company in companies:
+        model.stock_symbol = company
+        model.update_dates()
+        model.train(use_transfer_learning=use, add_noise=False)
+        model.save(transfer_learning=True)
+
+        if not use:
+            use = True
+    model.stock_symbol = "AMZN"
+    model.update_dates()
+    model.train(test=True)
+    model.test()
+
 if __name__ == "__main__":
     modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
@@ -821,11 +857,6 @@ if __name__ == "__main__":
     for modelclass in modelclasses:
         model = modelclass(stock_symbol="META")
         model.train(epochs=1000, test=True)
-        model.save()
-        test_models.append(model)
-
-        model = modelclass(stock_symbol="META")
-        model.train(epochs=1000, test=True, add_noise=False)
         model.save()
         test_models.append(model)
 
