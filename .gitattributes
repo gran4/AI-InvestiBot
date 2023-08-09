@@ -1,3 +1,4 @@
 Stock-Bot-Predicter-AI/* linguist-language=Python
 Stocks linguist-vendored
+transfer_learning_model linguist-vendored
 *.pb linguist-vendored
