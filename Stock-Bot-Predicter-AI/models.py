@@ -140,6 +140,7 @@ class BaseModel:
             with open(f'Stocks/{stock_symbol}/dynamic_tuning.json', 'r') as file:
                 num_days = json.load(file)['num_days']
 
+
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
         self.num_days = num_days
@@ -205,12 +206,12 @@ class BaseModel:
             x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
         else:
             x_total, y_total = create_sequences(data, num_days)
-
         if use_transfer_learning:
             model = load_model(f"transfer_learning_model")
         else:
             # Build the LSTM model
             model = create_model((num_days, len(information_keys)))
+
 
         if size < num_days:
             raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
@@ -849,7 +850,6 @@ def update_transfer_learning(num_days: int=100,
     model.test()
 
 if __name__ == "__main__":
-    update_transfer_learning()
     modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
     test_models = []
@@ -862,4 +862,3 @@ if __name__ == "__main__":
 
     for model in test_models:
         model.test()
-# CUSTOMIZABLE MODELS(funcs)
