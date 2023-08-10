@@ -1,4 +1,4 @@
-# Stock-Bot-Predicter-AI
+# AI-InvestiBot
 
 ## Introduction
 
@@ -13,16 +13,17 @@ Discord: https://discord.gg/uHqBrqrr
 - **Unique Indicators**: The project includes unique indicators, which can be found in the `get_info.py` file.
 - **Non-Daily Indicators**: Unlike most bots that rely on daily indicators, this project incorporates indicators that are not limited to daily data, such as earnings.
 - **Flexible Model Creation**: Users have the freedom to create their own models using the `information_keys` feature.
+- **Ingenious Method for Custom Models**: A callback function can be passed to the `train` function(traning the model) that creates the custom model. This allows you do use LSTMs, CNNs, Tranformers, or any type of model you want 
 - **ResourceManager Class**: The `ResourceManager` class is implemented to manage and direct financial resources effectively.
 - **Predictions for Multiple Companies**: This project offers predictions for multiple companies per day, rather than just one.
 - **Holding Stocks**: The stock bot has the capability to hold stocks.
-- **Active Development**: The project is actively being developed, with regular updates and improvements.
-- **Lambda Version**: Allows the bot to be run without keeping a laptop open(It is also very, very cheap).
+- **Lambda Version**: Allows the bot to be run without keeping a laptop open(It is also very, very cheap to use).
 - **AI Techniques such as**:
   + Data Augmentation
   + Transfer learning
   + Early Stopping
   + More planned in the planned additions section
+- **Active Development**: The project is actively being developed, with regular updates and improvements.
 
 
 ## Current Progress
