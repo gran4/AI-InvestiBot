@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This repository is currently in the development stage and focuses on creating stock bots. While the stock bots are not yet complete, a bot for loops has been added. The project aims to provide unique features that are not commonly found in other stock bots.
+This repository is currently under active development.The project aims to provide unique features that are not commonly found in other stock bots.
 
 ## Contact Us
 Discord: https://discord.gg/uHqBrqrr
