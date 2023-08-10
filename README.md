@@ -34,13 +34,13 @@ The current focus is on developing the actual bot and automation functionalities
 
 The following features are planned to be added in the future:
 
-- 60% accuracy rate on data not trained on.
-- Easy way to add many models using call backs
-- Reach Library standards such as:
-  [] Bug Fixes
-  [] More Documentation
-  [] More Flexability
-  [x] A better name
+- [] Achieving a 60% accuracy rate on previously untrained data.
+- [x] Easy way to add many models using call backs
+- [ ] Reach Library standards such as:
+  - [ ] Bug Fixes
+  - [ ] More Documentation
+  - [ ] More Flexibility
+  - [x] A better name
 
 
 ## NO Considerations currently under debate
