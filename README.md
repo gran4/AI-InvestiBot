@@ -37,9 +37,10 @@ The following features are planned to be added in the future:
 - 60% accuracy rate on data not trained on.
 - Easy way to add many models using call backs
 - Reach Library standards such as:
-  + Bug Fixes
-  + More documentation
-  + A better name
+  + [] Bug Fixes
+  + [] More Documentation
+  + [] More Flexability
+  + [x] A better name
 
 
 ## NO Considerations currently under debate
