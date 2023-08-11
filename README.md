@@ -3,27 +3,28 @@
 ## Table of Contents
 
 - [Introduction](#introduction)
-- [Contact Us](#before-you-begin)
-- [Features](#getting-started)
-- [Planned Additions](#installation-options)
+- [Contact Us](#contact-us)
+- [Features](#features)
+- [Planned Additions](#planned-additions)
 - [How it works](#how-it-works)
-  - [Information Retrieval and Caching](#information-handling)
-  - [Unique Indicators in Models](#unique-indicators)
-  - [Stock Bot Functionality](#functionality)
-  - [Bot Selection Process](#bot-selection)
+  - [Information Retrieval and Caching](#information-retrieval-and-caching)
+  - [Unique Indicators in Models](#unique-indicators-in-models)
+  - [Stock Bot Functionality](#stock-bot-functionality)
+  - [Bot Selection Process](#bot-selection-process)
   - [Earnings Processing](#earnings-processing)
-- [Comparing Models](#compare-models)
+- [Comparing Models](#comparing-models)
 - [Additional Information](#additional-information)
+
 
 # Introduction
 
 This repository is currently under active development.The project aims to provide unique features that are not commonly found in other stock bots.
 
-# :before-you-begin: Contact Us
+# Contact Us
 Discord: https://discord.gg/uHqBrqrr
 
 
-# :getting-started: Features
+# Features
 
 - **Unique Indicators**: The project includes unique indicators, which can be found in the `get_info.py` file.
 - **Non-Daily Indicators**: Unlike most bots that rely on daily indicators, this project incorporates indicators that are not limited to daily data, such as earnings.
@@ -41,7 +42,7 @@ Discord: https://discord.gg/uHqBrqrr
 - **Active Development**: The project is actively being developed, with regular updates and improvements.
 
 
-# :installation-options: Planned Additions
+# Planned Additions
 
 The following features are planned to be added in the future:
 
@@ -56,9 +57,9 @@ The following features are planned to be added in the future:
 
 
 
-# :how-it-works: How It Works
+# How It Works
 
-## :information-handling: Information Retrieval and Caching
+## Information Retrieval and Caching
 
 The project retrieves and caches information in the following manner:
 
@@ -66,7 +67,7 @@ The project retrieves and caches information in the following manner:
 - The information is stored as a dictionary in a JSON file.
 - The `information_keys` feature retrieves values from each key in the JSON.
 
-## :unique-indicators: Unique Indicators in Models
+## Unique Indicators in Models
 
 The models in this project incorporate unique indicators as follows:
 
@@ -75,7 +76,7 @@ The models in this project incorporate unique indicators as follows:
 - The model retrieves a dictionary from the JSON file and extracts the list associated with the key.
 - Features in the form of NumPy arrays are then fed into the Sequential model.
 
-## :functionality: Stock Bot Functionality
+## Stock Bot Functionality
 
 The stock bot operates based on the following principles:
 
@@ -90,7 +91,7 @@ The stock bot operates based on the following principles:
     - Once 280 days of past data are obtained, the oldest day is removed, and a new day is added at the end.
     - In this case, `model.cached_info` is always a pandas DataFrame or None.
 
-## :bot-selection: Bot Selection Process
+## Bot Selection Process
 
 The bot selects stocks based on the following criteria:
 
@@ -103,7 +104,7 @@ The bot selects stocks based on the following criteria:
 - The lambda and loop implemenations use the same functions.
   - Therefore, more implementations can easily be added
 
-## :earnings-processing: Earnings Processing
+## Earnings Processing
 
 The project processes earnings in the following manner:
 
@@ -117,7 +118,7 @@ The project processes earnings in the following manner:
 
 
 
-# :compare-models: Comparing Models
+# Comparing Models
 
 This project offers various models to choose from, including:
 
@@ -150,7 +151,7 @@ This project offers various models to choose from, including:
   - Train RMSSE: 0.6776019152138987
   - Test RMSSE: 0.8600297293130289
 
-# :additional-information: Additional Information
+# Additional Information
 
 - The models were trained until it stopped improving
 - RMSE (Root Mean Squared Error) represents the absolute errors between predictions and expected values. A lower RMSE indicates better accuracy.
