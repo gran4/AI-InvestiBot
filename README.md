@@ -1,6 +1,6 @@
 # AI-InvestiBot
 
-## :small_orange_diamond: Table of Contents
+## Table of Contents
 
 - [Introduction](#introduction)
 - [Contact Us](#before-you-begin)
@@ -15,7 +15,7 @@
 - [Comparing Models](#compare-models)
 - [Additional Information](#additional-information)
 
-# :introduction: Introduction
+# Introduction
 
 This repository is currently under active development.The project aims to provide unique features that are not commonly found in other stock bots.
 
