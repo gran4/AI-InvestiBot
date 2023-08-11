@@ -1,14 +1,29 @@
 # AI-InvestiBot
 
-## Introduction
+## :small_orange_diamond: Table of Contents
+
+- [Introduction](#small_orange_diamond-introduction)
+- [Contact Us](#small_orange_diamond-before-you-begin)
+- [Features](#small_orange_diamond-getting-started)
+- [Planned Additions](#small_orange_diamond-installation-options)
+- [How it works](#small_orange_diamond-how-it-works)
+  - [Information Retrieval and Caching](#small_orange_diamond-information-handling)
+  - [Unique Indicators in Models](#small_orange_diamond-unique-indicators)
+  - [Stock Bot Functionality](#small_orange_diamond-functionality)
+  - [Bot Selection Process](#small_orange_diamond-bot-selection)
+  - [Earnings Processing](#small_orange_diamond-earnings-processing)
+- [Comparing Models](#small_orange_diamond-compare-models)
+- [Additional Information](#small_orange_diamond-additional-information)
+
+## :small_orange_diamond-introduction: Introduction
 
 This repository is currently under active development.The project aims to provide unique features that are not commonly found in other stock bots.
 
-## Contact Us
+## :small_orange_diamond-before-you-begin: Contact Us
 Discord: https://discord.gg/uHqBrqrr
 
 
-## Features
+## :small_orange_diamond-getting-started: Features
 
 - **Unique Indicators**: The project includes unique indicators, which can be found in the `get_info.py` file.
 - **Non-Daily Indicators**: Unlike most bots that rely on daily indicators, this project incorporates indicators that are not limited to daily data, such as earnings.
@@ -26,11 +41,7 @@ Discord: https://discord.gg/uHqBrqrr
 - **Active Development**: The project is actively being developed, with regular updates and improvements.
 
 
-## Current Progress
-
-The current focus is on developing the actual bot and automation functionalities.
-
-## Planned Additions
+## :small_orange_diamond-installation-options: Planned Additions
 
 The following features are planned to be added in the future:
 
@@ -43,12 +54,11 @@ The following features are planned to be added in the future:
   - [x] A better name
 
 
-## NO Considerations currently under debate
 
 
-## How It Works
+## :small_orange_diamond-how-it-works: How It Works
 
-### Information Retrieval and Caching
+### :small_orange_diamond-information-handling: Information Retrieval and Caching
 
 The project retrieves and caches information in the following manner:
 
@@ -56,7 +66,7 @@ The project retrieves and caches information in the following manner:
 - The information is stored as a dictionary in a JSON file.
 - The `information_keys` feature retrieves values from each key in the JSON.
 
-### Unique Indicators in Models
+### :small_orange_diamond-unique-indicators: Unique Indicators in Models
 
 The models in this project incorporate unique indicators as follows:
 
@@ -65,11 +75,12 @@ The models in this project incorporate unique indicators as follows:
 - The model retrieves a dictionary from the JSON file and extracts the list associated with the key.
 - Features in the form of NumPy arrays are then fed into the Sequential model.
 
-### Stock Bot Functionality
+### :small_orange_diamond-functionality: Stock Bot Functionality
 
 The stock bot operates based on the following principles:
 
 - Training, testing, saving, and loading are handled by separate functions.
+- Training can be a test, using only the first 80% of data
 - Information for each day is obtained through two methods:
   - Method 1: Offline (past data only)
     - Relies on data from `get_info.py`.
@@ -79,7 +90,7 @@ The stock bot operates based on the following principles:
     - Once 280 days of past data are obtained, the oldest day is removed, and a new day is added at the end.
     - In this case, `model.cached_info` is always a pandas DataFrame or None.
 
-### Bot Selection Process
+### :small_orange_diamond-bot-selection: Bot Selection Process
 
 The bot selects stocks based on the following criteria:
 
@@ -92,7 +103,7 @@ The bot selects stocks based on the following criteria:
 - The lambda and loop implemenations use the same functions.
   - Therefore, more implementations can easily be added
 
-### Earnings Processing
+### :small_orange_diamond-earnings-processing: Earnings Processing
 
 The project processes earnings in the following manner:
 
@@ -106,7 +117,7 @@ The project processes earnings in the following manner:
 
 
 
-## Comparing Models
+## :small_orange_diamond-compare-models: Comparing Models
 
 This project offers various models to choose from, including:
 
@@ -119,16 +130,10 @@ This project offers various models to choose from, including:
 - MACD Model:
   - Train RMSSE: 0.9503971603872557
   - Test RMSSE: 0.8466967848854924
-  - Train RMSSE: 0.9503971603872557
-  - Test RMSSE: 0.8466967848854924
 - Impulse MACD Model:
   - Train RMSSE: 0.36591660531622144
   - Test RMSSE: 0.5035604190480721
-  - Train RMSSE: 0.36591660531622144
-  - Test RMSSE: 0.5035604190480721
 - Reversal Model:
-  - Train RMSSE: 0.42088951956685866
-  - Test RMSSE: 0.5215137360642763
   - Train RMSSE: 0.42088951956685866
   - Test RMSSE: 0.5215137360642763
 - Earnings Model:
@@ -139,15 +144,13 @@ This project offers various models to choose from, including:
 - RSI Model:
   - Train RMSSE: 0.8791136390349061
   - Test RMSSE: 1.0664367975707776
-  - Train RMSSE: 0.8791136390349061
-  - Test RMSSE: 1.0664367975707776
 - Breakout Model:
   - Train RMSE: 0.025379195809305734
   - Test RMSE: 0.030050545088518107
   - Train RMSSE: 0.6776019152138987
   - Test RMSSE: 0.8600297293130289
 
-## Additional Information
+## :small_orange_diamond-additional-information: Additional Information
 
 - The models were trained until it stopped improving
 - RMSE (Root Mean Squared Error) represents the absolute errors between predictions and expected values. A lower RMSE indicates better accuracy.
