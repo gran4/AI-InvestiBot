@@ -15,15 +15,15 @@
 - [Comparing Models](#small_orange_diamond-compare-models)
 - [Additional Information](#small_orange_diamond-additional-information)
 
-## :small_orange_diamond-introduction: Introduction
+# :small_orange_diamond-introduction: Introduction
 
 This repository is currently under active development.The project aims to provide unique features that are not commonly found in other stock bots.
 
-## :small_orange_diamond-before-you-begin: Contact Us
+# :small_orange_diamond-before-you-begin: Contact Us
 Discord: https://discord.gg/uHqBrqrr
 
 
-## :small_orange_diamond-getting-started: Features
+# :small_orange_diamond-getting-started: Features
 
 - **Unique Indicators**: The project includes unique indicators, which can be found in the `get_info.py` file.
 - **Non-Daily Indicators**: Unlike most bots that rely on daily indicators, this project incorporates indicators that are not limited to daily data, such as earnings.
@@ -41,7 +41,7 @@ Discord: https://discord.gg/uHqBrqrr
 - **Active Development**: The project is actively being developed, with regular updates and improvements.
 
 
-## :small_orange_diamond-installation-options: Planned Additions
+# :small_orange_diamond-installation-options: Planned Additions
 
 The following features are planned to be added in the future:
 
@@ -56,9 +56,9 @@ The following features are planned to be added in the future:
 
 
 
-## :small_orange_diamond-how-it-works: How It Works
+# :small_orange_diamond-how-it-works: How It Works
 
-### :small_orange_diamond-information-handling: Information Retrieval and Caching
+## :small_orange_diamond-information-handling: Information Retrieval and Caching
 
 The project retrieves and caches information in the following manner:
 
@@ -66,7 +66,7 @@ The project retrieves and caches information in the following manner:
 - The information is stored as a dictionary in a JSON file.
 - The `information_keys` feature retrieves values from each key in the JSON.
 
-### :small_orange_diamond-unique-indicators: Unique Indicators in Models
+## :small_orange_diamond-unique-indicators: Unique Indicators in Models
 
 The models in this project incorporate unique indicators as follows:
 
@@ -75,7 +75,7 @@ The models in this project incorporate unique indicators as follows:
 - The model retrieves a dictionary from the JSON file and extracts the list associated with the key.
 - Features in the form of NumPy arrays are then fed into the Sequential model.
 
-### :small_orange_diamond-functionality: Stock Bot Functionality
+## :small_orange_diamond-functionality: Stock Bot Functionality
 
 The stock bot operates based on the following principles:
 
@@ -90,7 +90,7 @@ The stock bot operates based on the following principles:
     - Once 280 days of past data are obtained, the oldest day is removed, and a new day is added at the end.
     - In this case, `model.cached_info` is always a pandas DataFrame or None.
 
-### :small_orange_diamond-bot-selection: Bot Selection Process
+## :small_orange_diamond-bot-selection: Bot Selection Process
 
 The bot selects stocks based on the following criteria:
 
@@ -103,7 +103,7 @@ The bot selects stocks based on the following criteria:
 - The lambda and loop implemenations use the same functions.
   - Therefore, more implementations can easily be added
 
-### :small_orange_diamond-earnings-processing: Earnings Processing
+## :small_orange_diamond-earnings-processing: Earnings Processing
 
 The project processes earnings in the following manner:
 
@@ -117,7 +117,7 @@ The project processes earnings in the following manner:
 
 
 
-## :small_orange_diamond-compare-models: Comparing Models
+# :small_orange_diamond-compare-models: Comparing Models
 
 This project offers various models to choose from, including:
 
@@ -150,7 +150,7 @@ This project offers various models to choose from, including:
   - Train RMSSE: 0.6776019152138987
   - Test RMSSE: 0.8600297293130289
 
-## :small_orange_diamond-additional-information: Additional Information
+# :small_orange_diamond-additional-information: Additional Information
 
 - The models were trained until it stopped improving
 - RMSE (Root Mean Squared Error) represents the absolute errors between predictions and expected values. A lower RMSE indicates better accuracy.
