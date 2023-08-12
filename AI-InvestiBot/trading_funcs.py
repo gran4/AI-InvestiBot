@@ -73,15 +73,15 @@ indicators_to_scale = (
     'supertrend1',
     'supertrend2',
     'supertrend3',
-    'kumo_cloud',
+    #'kumo_cloud',
     'Momentum',
     'Change',
     'TRAMA',
-    'Volatility',
+    #'Volatility',
     'Bollinger Middle',
-    'gradual-liquidity spike',
+    #'gradual-liquidity spike',
     'momentum_oscillator',
-    'earning diffs'
+    #'earning diffs'
 )
 
 
