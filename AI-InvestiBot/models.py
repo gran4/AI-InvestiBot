@@ -177,7 +177,8 @@ class BaseModel:
             start_date, end_date
         )
 
-    def train(self, epochs: int=100, patience: int=5,
+    def train(self, epochs: int=100,
+              patience: int=5, time_shift: int=0,
               add_scaling: bool=True, add_noise: bool=True,
               use_transfer_learning: bool=False, test: bool=False,
               create_model: Callable=create_LSTM_model) -> None:
@@ -186,8 +187,19 @@ class BaseModel:
 
         Args:
             epochs (int): The number of epochs to train the model for
+            patience (int): The amount of epochs of stagnation before early stopping
+            time_shift (int): The amount of time to shift the data by(in days)
+                EX. allows bot to predict 1 month into the future
+            add_scaling (bool): Data Augmentation using scaling
+            add_noise (bool): Data Augmentation using noise
+            use_transfer_learning (bool): Whether or not to use tranfer learnign model
+            test (bool): Whether or not to use the test data
+        
         """
         warn("If you saved before, use load func instead")
+        if time_shift < 0:
+            raise ValueError("`time_shift` must be equal of greater than 0")
+
 
         start_date = self.start_date
         end_date = self.end_date
@@ -206,6 +218,9 @@ class BaseModel:
             x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
         else:
             x_total, y_total = create_sequences(data, num_days)
+        x_total = x_total[:-time_shift]
+        y_total = y_total[time_shift:]
+
        
         model = create_model((num_days, len(information_keys)))
         if use_transfer_learning:
@@ -297,13 +312,19 @@ class BaseModel:
         with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
 
-    def is_homogeneous(self, arr) -> bool:
+    @staticmethod
+    def is_homogeneous(arr) -> bool:
+        """Checks if any of the models indicators are missing"""
         return len(set(arr.dtype for arr in arr.flatten())) == 1
 
-    def test(self) -> None:
+    def test(self, time_shift: int=0, show_graph: bool=False) -> None:
         """
         A method for testing purposes. 
         
+        Args:
+            time_shift (int): The amount of time to shift the data by(in days)
+                EX. allows bot to predict 1 month into the future
+
         Warning:
             It is EXPENSIVE.
         """
@@ -311,6 +332,9 @@ class BaseModel:
 
         if not self.model:
             raise LookupError("Compile or load model first")
+
+        if time_shift < 0:
+            raise ValueError("`time_shift` must be equal of greater than 0")
 
         start_date = self.start_date
         end_date = self.end_date
@@ -328,11 +352,14 @@ class BaseModel:
         test_data = data[size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
 
         x_test, y_test = create_sequences(test_data, num_days)
+        x_test = x_test[:-time_shift]
+        y_test = y_test[time_shift:]
+
         #_________________TEST QUALITY______________________#
         test_predictions = self.model.predict(x_test)
 
         # NOTE: This cuts data at the start to account for `num_days`
-        test_data = data[size-1:]
+        test_data = data[size-1:-time_shift]
 
         assert len(test_predictions) == len(test_data)
 
@@ -352,7 +379,11 @@ class BaseModel:
             percentage = (count_same_direction / (total - 1)) * 100
             percentage2 = (count_same_space / (total - 1)) * 100
             return percentage, percentage2
-        print(calculate_percentage_movement_together(temp_test, test_predictions))
+        directional_test, spatial_test = calculate_percentage_movement_together(temp_test, test_predictions)
+        print("Directional Test: ", directional_test)
+        print("Spatial Test: ", spatial_test)
+        print()
+
 
         # Calculate RMSSE for testing predictions
         test_rmse = np.sqrt(mean_squared_error(temp_test, test_predictions))
@@ -364,23 +395,26 @@ class BaseModel:
         print()
     
         print("Homogeneous(Should be True):")
-        assert self.is_homogeneous(data)
+        homogenous = self.is_homogeneous(data)
+        print(homogenous)
 
-        days_train = [i+size for i in range(y_test.shape[0])]
-        # Plot the actual and predicted prices
-        plt.figure(figsize=(18, 6))
+        if show_graph:
+            days_train = [i+size for i in range(y_test.shape[0])]
+            # Plot the actual and predicted prices
+            plt.figure(figsize=(18, 6))
 
-        predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
-        actual_test = plt.plot(days_train, y_test, label='Actual Test')
+            predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
+            actual_test = plt.plot(days_train, y_test, label='Actual Test')
 
-        plt.title(f'{stock_symbol} Stock Price Prediction')
-        plt.xlabel('Date')
-        plt.ylabel('Price')
-        plt.legend(
-            [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
-            ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
-        )
-        plt.show()
+            plt.title(f'{stock_symbol} Stock Price Prediction')
+            plt.xlabel('Date')
+            plt.ylabel('Price')
+            plt.legend(
+                [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
+                ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
+            )
+            plt.show()
+        return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
     def load(self) -> Optional[Self]:
         """
@@ -834,6 +868,7 @@ class SuperTrendsModel(BaseModel):
 def update_transfer_learning(num_days: int=100,
                              companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
                              ) -> None:
+    """Updates Tranfer Learning Model"""
     model = ImpulseMACDModel()
     model.num_days = num_days
     use = False
@@ -857,9 +892,9 @@ if __name__ == "__main__":
     #for company in company_symbols:
     for modelclass in modelclasses:
         model = modelclass(stock_symbol="META")
-        model.train(epochs=1000, test=True)
+        model.train(epochs=1000, use_transfer_learning=False, test=True)
         model.save()
         test_models.append(model)
 
     for model in test_models:
-        model.test()
+        model.test(show_graph=True)
