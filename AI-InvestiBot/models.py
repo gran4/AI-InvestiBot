@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
+import tensorflow as tf
 
 from trading_funcs import (
     check_for_holidays, get_relavant_values,
@@ -756,7 +757,7 @@ class PriceModel(BaseModel):
                  stock_symbol: Optional[Union[date, str]] = "AAPL",
                  num_days: int = None,
                  information_keys: List[str]=["Close"]) -> None:
-        super.__init__(start_date=start_date,
+        super().__init__(start_date=start_date,
                        end_date=end_date,
                        stock_symbol=stock_symbol,
                        num_days=num_days,
@@ -1106,15 +1107,43 @@ class PercentageModel(BaseModel):
                  stock_symbol: Optional[Union[date, str]] = "AAPL",
                  num_days: int = None,
                  information_keys: List[str]=["Close"]) -> None:
-        super.__init__(start_date=start_date,
+        super().__init__(start_date=start_date,
                        end_date=end_date,
                        stock_symbol=stock_symbol,
                        num_days=num_days,
                        information_keys=information_keys
                        )
 
+    def process_x_y_total(self, x_total, y_total, num_days, time_shift):
+        y_total= y_total[1:] / y_total[:-1]
+        if time_shift != 0: # 0 removes everything
+            x_total = x_total[:-time_shift]
+            y_total = y_total[time_shift:]
+        x_total = x_total[:-1] #Remove last one since y_total uses last 
+
+        print(x_total.shape[0])
+        num_windows = x_total.shape[0] - num_days + 1
+        # Create a 3D numpy array to store the scaled data
+        scaled_data = np.zeros((num_windows, num_days, x_total.shape[1]))
+        for i in range(num_days, x_total.shape[0]):
+            # Get the data for the current window using the i-window_size approach
+            window = x_total[i - num_days:i]
+            print(i, num_days)
+
+            # Calculate the high and low close prices for the current window
+            high_close = np.max(window[:, 0])  # Assuming close prices are in the first column
+            low_close = np.min(window[:, 0])
+
+            # Scale the data using broadcasting
+            scaled_window = (window - low_close) / (high_close - low_close)
+
+            # Store the scaled window in the 3D array
+            scaled_data[i - num_days] = scaled_window
+
+        return scaled_data, y_total
+
     def train(self, epochs: int=1000,
-              patience: int=5, time_shift: int=0,
+              patience: int=1, time_shift: int=0,
               add_noise: bool=True,
               use_transfer_learning: bool=False, test: bool=False,
               create_model: Callable=create_LSTM_model) -> None:
@@ -1146,17 +1175,16 @@ class PercentageModel(BaseModel):
         self.data, data, self.scaler_data = get_relavant_values(
             stock_symbol, information_keys, start_date=start_date, end_date=end_date
         )
-
         #_________________Process Data for LSTM______________________#
         size = int(len(data))
+        if size < num_days:
+            raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
+
         if test:
             x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
         else:
             x_total, y_total = create_sequences(data, num_days)
-        if time_shift != 0: # 0 removes everything
-            x_total = x_total[:-time_shift]
-            y_total = y_total[time_shift:]
-        x_total = x_total[:-1] #Remove last one since y_total uses last 
+        #x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
 
         model = create_model((num_days, len(information_keys)))
         if use_transfer_learning:
@@ -1165,12 +1193,16 @@ class PercentageModel(BaseModel):
                 if layer.name in transfer_model.layers[layer_idx].name:
                     layer.set_weights(transfer_model.layers[layer_idx].get_weights())
 
-        if size < num_days:
-            raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
-
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
         #_________________Train it______________________#
-        divider = int(size/2)
+        def data_generator(data, targets, sequence_length, batch_size):
+            while True:
+                for i in range(0, len(data) - sequence_length, batch_size):
+                    batch_data = data[i:i+batch_size]
+                    batch_targets = targets[i:i+batch_size]
+                    yield batch_data, batch_targets
+
+        batch_size = 128
         if add_noise:
             x_total_copy = np.copy(x_total)
             y_total_copy = np.copy(y_total)
@@ -1182,10 +1214,15 @@ class PercentageModel(BaseModel):
             # Add noise to the selected columns of x_total
             x_total_copy[:, indices_cache] += noise
             y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
-            model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+            train_generator = data_generator(x_total_copy, y_total, num_days, batch_size=batch_size)
+            validation_generator = data_generator(x_total_copy, y_total, num_days, batch_size=batch_size)
+
+            model.fit(train_generator, validation_data=validation_generator, callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        train_generator = data_generator(x_total, y_total, num_days, batch_size=batch_size)
+        validation_generator = data_generator(x_total, y_total, num_days, batch_size=batch_size)
 
         #Ties it together on the real data
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        model.fit(train_generator, validation_data=validation_generator, callbacks=[early_stopping], batch_size=24, epochs=epochs)
         self.model = model
 
     def test(self, time_shift: int=0, show_graph: bool=False) -> None:
@@ -1225,6 +1262,7 @@ class PercentageModel(BaseModel):
         if time_shift != 0:
             x_test = x_test[:-time_shift]
             y_test = y_test[time_shift:]
+            x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
 
         #_________________TEST QUALITY______________________#
         test_predictions = self.model.predict(x_test)
@@ -1501,15 +1539,18 @@ if __name__ == "__main__":
 
     test_models = []
     #for company in company_symbols:
-    for modelclass in modelclasses:
-        model = modelclass(stock_symbol="AAPL")
-        model.end_date = date.today()-relativedelta(days=30)
-        model.train(epochs=1000, test=True)
-        model.save()
-        test_models.append(model)
-    #model = ImpulseMACDModel()
-    #model.end_date = date.today()-relativedelta(days=30)
+    #for modelclass in modelclasses:
+    #    model = modelclass(stock_symbol="AAPL")
+    #    model.end_date = date.today()-relativedelta(days=30)
+    #    model.train(epochs=1000, test=True)
+    #    model.save()
+    #    test_models.append(model)
+
+
+    model = PercentageModel(stock_symbol="META", information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
+    model.end_date = date.today()-relativedelta(days=30)
+    model.train(epochs=1000, patience=1, use_transfer_learning=False, test=True)
     #model.load()
-    #test_models.append(model)
+    test_models.append(model)
     for model in test_models:
         model.test(show_graph=True)
