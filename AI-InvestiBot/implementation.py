@@ -80,6 +80,7 @@ def set_models_today(models):
 
 def update_models(models, total_info_keys):
     profits = []
+
     model = models[0]
     end_datetime = datetime.strptime(model.end_date, "%Y-%m-%d")
     nyse = get_calendar('NYSE')
@@ -97,7 +98,7 @@ def update_models(models, total_info_keys):
             total_info_keys, temp.scaler_data,
             cached_info, temp.num_days
         )
-        print(cached)
+
         for model_index in range(i):
             model = models[model_index]
             model.cached = cached

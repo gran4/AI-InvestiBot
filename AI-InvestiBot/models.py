@@ -62,6 +62,7 @@ __all__ = (
 )
 
 
+
 class BaseModel:
     """
     This is the base class for all the models. It handles the actual training, saving,
@@ -204,6 +205,7 @@ class BaseModel:
         stock_symbol = self.stock_symbol
         information_keys = self.information_keys
         num_days = self.num_days
+
         #_________________ GET Data______________________#
         _, data, _ = get_relavant_values( # type: ignore[arg-type]
             stock_symbol, information_keys, self.scaler_data, start_date, end_date
@@ -480,6 +482,7 @@ class BaseModel:
                 )
             self.cached = np.transpose(cached)
             self.cached_info = cached_info
+
             if len(self.cached) == 0:
                 raise RuntimeError("Stock data failed to load. Reason Unknown")
         if len(self.cached) != 0:
@@ -579,6 +582,7 @@ class BaseModel:
         >>> print(len(temp))
         4
         """
+
         raise NotImplementedError("Subclasses must implement this method")
 
 class PriceModel(BaseModel):
@@ -1373,7 +1377,6 @@ def update_transfer_learning(num_days: int=100,
     model.test(show_graph=True)
 
 if __name__ == "__main__":
-    update_transfer_learning()
     modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
     test_models = []
@@ -1392,5 +1395,6 @@ if __name__ == "__main__":
     model.train(epochs=1000, patience=5, use_transfer_learning=False, test=True)
     #model.load()
     test_models.append(model)
+
     for model in test_models:
         model.test(show_graph=True)
