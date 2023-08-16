@@ -1,10 +1,10 @@
 from typing import Tuple
 
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense, GRU, Conv2D, Flatten, GlobalAveragePooling2D, Reshape, LeakyReLU
-from tensorflow.keras.optimizers import Adam, SGD
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Conv2D, GlobalAveragePooling2D, Reshape
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import Loss, MeanSquaredError, Huber
-from tensorflow.keras.activations import relu, linear
+from tensorflow.keras.activations import linear
 from tensorflow import sign, reduce_mean
 import tensorflow as tf
 
@@ -96,23 +96,18 @@ def create_LSTM_model2(shape: Tuple) -> Sequential:
 
     # Add Conv2D layers to process the 4D input
     model.add(Conv2D(filters=16, kernel_size=(3, 3), activation=PReLU(), input_shape=shape, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
-    model.add(LeakyReLU(alpha=0.5))
     model.add(Conv2D(filters=16, kernel_size=(3, 3), activation=PReLU(), kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
 
     # Flatten the output of Conv2D layers
     #model.add(Flatten())
 
-    model.add(LeakyReLU(alpha=0.5))
+    
     model.add(GlobalAveragePooling2D())
-    model.add(LeakyReLU(alpha=0.5))
     model.add(Reshape(target_shape=(1, -1)))
-    model.add(LeakyReLU(alpha=0.5))
 
     # Add LSTM layers to process the flattened sequence
     model.add(LSTM(units=16, return_sequences=True, activation=PReLU(), kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
-    model.add(LeakyReLU(alpha=0.5))
     model.add(LSTM(units=16, activation=PReLU(), kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
-    model.add(LeakyReLU(alpha=0.5))
     # Add the final output layer
     model.add(Dense(units=1, activation='linear'))  # Assuming regression problem
 
