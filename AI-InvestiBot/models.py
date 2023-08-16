@@ -17,27 +17,22 @@ See also:
 import json
 import os
 
-from typing import Any, Optional, Union, Callable, List, Dict, Tuple
+from typing import Any, Optional, Union, Callable, List, Dict
 from warnings import warn
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
+from custom_objects import *
 
 from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense, Input
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.losses import Loss, MeanSquaredError, Huber
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.activations import relu, linear
-from tensorflow import sign, reduce_mean
 from pandas_market_calendars import get_calendar
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import yfinance as yf
-import tensorflow as tf
 
 from trading_funcs import (
     check_for_holidays, get_relavant_values,
@@ -66,63 +61,6 @@ __all__ = (
     'SuperTrendsModel'
 )
 
-@tf.keras.saving.register_keras_serializable()
-class CustomLoss(Loss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.huber_loss = Huber()
-        self.mse_loss = MeanSquaredError()
-
-    def call(self, y_true, y_pred):
-        huber_loss = self.huber_loss(y_true, y_pred)
-        mse_loss = self.mse_loss(y_true, y_pred)
-
-        # Calculate the directional penalty
-        direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
-
-        # Combine the losses with different weights
-        combined_loss = direction_penalty*.2+huber_loss#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
-
-        return combined_loss
-
-
-@tf.keras.saving.register_keras_serializable()
-class CustomLoss2(Loss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.huber_loss = Huber()
-        self.mse_loss = MeanSquaredError()
-
-    def call(self, y_true, y_pred):
-        huber_loss = self.huber_loss(y_true, y_pred)
-        mse_loss = self.mse_loss(y_true, y_pred)
-
-        # Calculate the directional penalty
-        direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
-        space_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_true[:-1])))
-        direction_penalty -= .12
-        space_penalty -= .12
-        if direction_penalty < 0:
-            return mse_loss-direction_penalty
-        if space_penalty < 0:
-            return mse_loss-space_penalty
-
-        # Combine the losses with different weights
-        combined_loss = direction_penalty*.1+mse_loss+space_penalty*.1#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
-
-        return combined_loss
-
-
-def create_LSTM_model(shape: Tuple) -> Sequential:
-    model = Sequential()
-    model.add(LSTM(16, return_sequences=True, input_shape=shape))
-    model.add(LSTM(16, return_sequences=True))
-    model.add(LSTM(16))
-    model.add(Dense(1, activation=linear))
-
-    model.compile(optimizer=Adam(learning_rate=.001), loss=Huber())
-    return model
-
 
 class BaseModel:
     """
@@ -147,7 +85,6 @@ class BaseModel:
         if num_days is None:
             with open(f'Stocks/{stock_symbol}/dynamic_tuning.json', 'r') as file:
                 num_days = json.load(file)['num_days']
-
 
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
@@ -205,91 +142,7 @@ class BaseModel:
             test (bool): Whether or not to use the test data
         
         """
-        warn("If you saved before, use load func instead")
-        if time_shift < 0:
-            raise ValueError("`time_shift` must be equal of greater than 0")
-
-
-        start_date = self.start_date
-        end_date = self.end_date
-        stock_symbol = self.stock_symbol
-        information_keys = self.information_keys
-        num_days = self.num_days
-
-        #_________________ GET Data______________________#
-        self.data, data, self.scaler_data = get_relavant_values(
-            stock_symbol, information_keys, start_date=start_date, end_date=end_date
-        )
-
-        #_________________Process Data for LSTM______________________#
-        size = int(len(data))
-        if test:
-            x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
-        else:
-            x_total, y_total = create_sequences(data, num_days)
-        if time_shift != 0: # 0 removes everything
-            x_total = x_total[:-time_shift]
-            y_total = y_total[time_shift:]
-
-       
-        model = create_model((num_days, len(information_keys)))
-        if use_transfer_learning:
-            transfer_model = load_model(f"transfer_learning_model")
-            for layer_idx, layer in enumerate(model.layers):
-                if layer.name in transfer_model.layers[layer_idx].name:
-                    layer.set_weights(transfer_model.layers[layer_idx].get_weights())
-
-        if size < num_days:
-            raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
-
-        early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
-        #_________________Train it______________________#
-        divider = int(size/2)
-        if add_scaling:
-            indices_cache = [information_keys.index(key) for key in indicators_to_scale if key in information_keys]
-
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
-            #x_total_copy[:, indices_cache] *= .75
-            #y_total_copy *= .75
-
-            #model.fit(x_total_copy, y_total_copy, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-            #basically 1.1 times the org data
-            x_total_copy[:, indices_cache] *= 1.47
-            y_total_copy *= 1.47
-            model.fit(x_total_copy*1.1, y_total_copy*1.1, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-            #NOTE: 2 pts is less memory overhead
-            x_total_p1 = np.copy(x_total[:divider])
-            y_total_p1 = np.copy(y_total[:divider])
-
-            #x_total_p2 = np.copy(x_total[divider:])
-            #y_total_p2 = np.copy(y_total[divider:])
-
-            x_total_p1[:, indices_cache] *= 2
-            y_total_p1 *= 2
-            #x_total_p2[:, indices_cache] *= .5
-            #y_total_p2 *= .5
-
-            #model.fit(x_total_p1, y_total_p1, validation_data=(x_total_p1, y_total_p1), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-            #model.fit(x_total_p2, y_total_p2, validation_data=(x_total_p2, y_total_p2), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-        if add_noise:
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
-            # Get the indices of indicators to add noise to
-            indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
-
-            # Create a noise array with the same shape as x_total's selected columns
-            noise = np.random.uniform(-0.001, 0.001)
-            # Add noise to the selected columns of x_total
-            x_total_copy[:, indices_cache] += noise
-            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
-            model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-        #Ties it together on the real data
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-        self.model = model
+        raise NotImplementedError('Subclasses must implement this method')
 
     def save(self, transfer_learning: bool=False) -> None:
         """
@@ -726,16 +579,7 @@ class BaseModel:
         >>> print(len(temp))
         4
         """
-        if info is None:
-            info = self.get_info_today()
-        if info is None: # basically, if it is still None after get_info_today
-            raise RuntimeError(
-                "Could not get indicators for today. It may be that `end_date` is beyond today's date"
-            )
-        if self.model:
-            return self.model.predict(info) # typing: ignore[return]
-        raise LookupError("Compile or load model first")
-
+        raise NotImplementedError("Subclasses must implement this method")
 
 class PriceModel(BaseModel):
     """
@@ -1115,20 +959,22 @@ class PercentageModel(BaseModel):
                        )
 
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
-        y_total= y_total[1:] / y_total[:-1]
-        if time_shift != 0: # 0 removes everything
+        epsilon = 1e-8  # A small constant to avoid division by zero
+        y_total = y_total[1:] / (y_total[:-1] + epsilon)
+        y_total *= .01
+        print(x_total.shape, y_total.shape)
+        
+        if time_shift != 0:
             x_total = x_total[:-time_shift]
             y_total = y_total[time_shift:]
-        x_total = x_total[:-1] #Remove last one since y_total uses last 
 
-        print(x_total.shape[0])
         num_windows = x_total.shape[0] - num_days + 1
         # Create a 3D numpy array to store the scaled data
-        scaled_data = np.zeros((num_windows, num_days, x_total.shape[1]))
-        for i in range(num_days, x_total.shape[0]):
+        scaled_data = np.zeros((num_windows, num_days, x_total.shape[1], x_total.shape[2]))
+
+        for i in range(num_windows):
             # Get the data for the current window using the i-window_size approach
-            window = x_total[i - num_days:i]
-            print(i, num_days)
+            window = x_total[i : i + num_days]
 
             # Calculate the high and low close prices for the current window
             high_close = np.max(window[:, 0])  # Assuming close prices are in the first column
@@ -1138,15 +984,17 @@ class PercentageModel(BaseModel):
             scaled_window = (window - low_close) / (high_close - low_close)
 
             # Store the scaled window in the 3D array
-            scaled_data[i - num_days] = scaled_window
+            scaled_data[i] = scaled_window
+        print(scaled_data.shape)
 
+        y_total = y_total[:-num_days+2]
         return scaled_data, y_total
 
     def train(self, epochs: int=1000,
-              patience: int=1, time_shift: int=0,
+              patience: int=10, time_shift: int=0,
               add_noise: bool=True,
               use_transfer_learning: bool=False, test: bool=False,
-              create_model: Callable=create_LSTM_model) -> None:
+              create_model: Callable=create_LSTM_model2) -> None:
         """
         Trains Model off `information_keys`
 
@@ -1184,9 +1032,9 @@ class PercentageModel(BaseModel):
             x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
         else:
             x_total, y_total = create_sequences(data, num_days)
-        #x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
+        x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
 
-        model = create_model((num_days, len(information_keys)))
+        model = create_model((x_total.shape[1], num_days, len(information_keys)))
         if use_transfer_learning:
             transfer_model = load_model(f"transfer_learning_model")
             for layer_idx, layer in enumerate(model.layers):
@@ -1195,14 +1043,6 @@ class PercentageModel(BaseModel):
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
         #_________________Train it______________________#
-        def data_generator(data, targets, sequence_length, batch_size):
-            while True:
-                for i in range(0, len(data) - sequence_length, batch_size):
-                    batch_data = data[i:i+batch_size]
-                    batch_targets = targets[i:i+batch_size]
-                    yield batch_data, batch_targets
-
-        batch_size = 128
         if add_noise:
             x_total_copy = np.copy(x_total)
             y_total_copy = np.copy(y_total)
@@ -1214,15 +1054,11 @@ class PercentageModel(BaseModel):
             # Add noise to the selected columns of x_total
             x_total_copy[:, indices_cache] += noise
             y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
-            train_generator = data_generator(x_total_copy, y_total, num_days, batch_size=batch_size)
-            validation_generator = data_generator(x_total_copy, y_total, num_days, batch_size=batch_size)
 
-            model.fit(train_generator, validation_data=validation_generator, callbacks=[early_stopping], batch_size=24, epochs=epochs)
-        train_generator = data_generator(x_total, y_total, num_days, batch_size=batch_size)
-        validation_generator = data_generator(x_total, y_total, num_days, batch_size=batch_size)
-
+            model.fit(x_total_copy, y_total_copy, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=32, epochs=epochs)
+        print(x_total.shape)
         #Ties it together on the real data
-        model.fit(train_generator, validation_data=validation_generator, callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=32, epochs=epochs)
         self.model = model
 
     def test(self, time_shift: int=0, show_graph: bool=False) -> None:
@@ -1262,7 +1098,7 @@ class PercentageModel(BaseModel):
         if time_shift != 0:
             x_test = x_test[:-time_shift]
             y_test = y_test[time_shift:]
-            x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
+        x_test, y_test = self.process_x_y_total(x_test, y_test, num_days, time_shift)
 
         #_________________TEST QUALITY______________________#
         test_predictions = self.model.predict(x_test)
@@ -1272,6 +1108,7 @@ class PercentageModel(BaseModel):
             test_data = data[size-1:-time_shift]
         else:
             test_data = data[size-1:]
+        test_data = test_data[:-num_days+1]
 
         assert len(test_predictions) == len(test_data)
 
@@ -1515,7 +1352,8 @@ def update_transfer_learning(num_days: int=100,
                              companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
                              ) -> None:
     """Updates Tranfer Learning Model"""
-    model = ImpulseMACDModel()
+    #model = ImpulseMACDModel()
+    model = PercentageModel(information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
     model.num_days = num_days
     model.end_date = date.today()-relativedelta(days=30)
     use = False
@@ -1532,9 +1370,10 @@ def update_transfer_learning(num_days: int=100,
     model.update_dates()
     model.end_date = date.today()-relativedelta(days=30)
     model.train(test=True)
-    model.test()
+    model.test(show_graph=True)
 
 if __name__ == "__main__":
+    update_transfer_learning()
     modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
     test_models = []
@@ -1549,7 +1388,8 @@ if __name__ == "__main__":
 
     model = PercentageModel(stock_symbol="META", information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
     model.end_date = date.today()-relativedelta(days=30)
-    model.train(epochs=1000, patience=1, use_transfer_learning=False, test=True)
+    model.num_days = 10
+    model.train(epochs=1000, patience=5, use_transfer_learning=False, test=True)
     #model.load()
     test_models.append(model)
     for model in test_models:
