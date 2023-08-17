@@ -1,29 +1,12 @@
 from typing import Tuple
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Conv2D, GlobalAveragePooling2D, Reshape
+from tensorflow.keras.layers import LSTM, Dense, Conv2D, GlobalAveragePooling2D, Reshape, BatchNormalization, PReLU
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.losses import Loss, MeanSquaredError, Huber
+from tensorflow.keras.losses import Loss, MeanSquaredError, Huber, MeanAbsoluteError
 from tensorflow.keras.activations import linear
 from tensorflow import sign, reduce_mean
 import tensorflow as tf
-
-class PReLU(tf.keras.layers.Layer):
-    def __init__(self, alpha_initializer='zeros', **kwargs):
-        super(PReLU, self).__init__(**kwargs)
-        self.alpha_initializer = tf.keras.initializers.get(alpha_initializer)
-
-    def build(self, input_shape):
-        self.alpha = self.add_weight(
-            name='alpha',
-            shape=input_shape[-1:],
-            initializer=self.alpha_initializer,
-            trainable=True
-        )
-        super(PReLU, self).build(input_shape)
-
-    def call(self, inputs):
-        return tf.maximum(0.0, inputs) + self.alpha * tf.minimum(0.0, inputs)
 
 
 @tf.keras.saving.register_keras_serializable()
@@ -58,11 +41,11 @@ class CustomLoss2(Loss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.huber_loss = Huber()
-        self.mse_loss = MeanSquaredError()
+        self.mae_loss = MeanAbsoluteError()
 
     def call(self, y_true, y_pred):
         huber_loss = self.huber_loss(y_true, y_pred)
-        mse_loss = self.mse_loss(y_true, y_pred)
+        mae_loss = self.mae_loss(y_true, y_pred)
 
         # Calculate the directional penalty
         direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
@@ -75,7 +58,7 @@ class CustomLoss2(Loss):
         #    return mse_loss-space_penalty
 
         # Combine the losses with different weights
-        combined_loss = direction_penalty*.1+mse_loss*.1+space_penalty*.05#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
+        combined_loss = direction_penalty*.1+mae_loss*.4+space_penalty*.05#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
 
         return combined_loss
 
@@ -95,22 +78,25 @@ def create_LSTM_model2(shape: Tuple) -> Sequential:
     model = Sequential()
 
     # Add Conv2D layers to process the 4D input
-    model.add(Conv2D(filters=16, kernel_size=(3, 3), activation=PReLU(), input_shape=shape, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
-    model.add(Conv2D(filters=16, kernel_size=(3, 3), activation=PReLU(), kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
+    model.add(Conv2D(filters=64, kernel_size=(3, 3), input_shape=shape, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
+    model.add(BatchNormalization())
+    model.add(PReLU())
+    model.add(Conv2D(filters=64, kernel_size=(3, 3), activation=PReLU(), kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
 
-    # Flatten the output of Conv2D layers
-    #model.add(Flatten())
-
-    
     model.add(GlobalAveragePooling2D())
+    model.add(BatchNormalization())
     model.add(Reshape(target_shape=(1, -1)))
 
     # Add LSTM layers to process the flattened sequence
-    model.add(LSTM(units=16, return_sequences=True, activation=PReLU(), kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
-    model.add(LSTM(units=16, activation=PReLU(), kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
+    model.add(LSTM(units=64, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
+    model.add(BatchNormalization())
+    model.add(PReLU())
+    model.add(LSTM(units=64, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
+    model.add(BatchNormalization())
+    model.add(PReLU())
     # Add the final output layer
     model.add(Dense(units=1, activation='linear'))  # Assuming regression problem
 
     # Compile the model
-    model.compile(optimizer=Adam(learning_rate=.001, clipvalue=1.0), loss=CustomLoss2())
+    model.compile(optimizer=Adam(learning_rate=.001, clipvalue=0.1), loss=CustomLoss2())
     return model

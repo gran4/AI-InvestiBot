@@ -963,10 +963,24 @@ class PercentageModel(BaseModel):
                        )
 
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
-        epsilon = 1e-8  # A small constant to avoid division by zero
+        epsilon = 0#1e-8  # A small constant to avoid division by zero
+
         y_total = y_total[1:] / (y_total[:-1] + epsilon)
-        y_total *= .01
-        print(x_total.shape, y_total.shape)
+        y_total[np.isinf(y_total) | np.isnan(y_total)] = 1.0
+        y_total -= 1.0
+        y_total *= 100
+        plt.figure(figsize=(18, 6))
+
+        predicted_test = plt.plot(y_total, label='Y Total')
+
+        plt.title(f'Stock Price Prediction')
+        plt.xlabel('Date')
+        plt.ylabel('Price')
+        plt.legend(
+            [y_total],#[real_data, actual_test[0], actual_train],
+            ['Y Total']#['Real Data', 'Actual Test', 'Actual Train']
+        )
+        plt.show()
         
         if time_shift != 0:
             x_total = x_total[:-time_shift]
@@ -989,7 +1003,6 @@ class PercentageModel(BaseModel):
 
             # Store the scaled window in the 3D array
             scaled_data[i] = scaled_window
-        print(scaled_data.shape)
 
         y_total = y_total[:-num_days+2]
         return scaled_data, y_total
@@ -1015,7 +1028,6 @@ class PercentageModel(BaseModel):
         warn("If you saved before, use load func instead")
         if time_shift < 0:
             raise ValueError("`time_shift` must be equal of greater than 0")
-
 
         start_date = self.start_date
         end_date = self.end_date
@@ -1058,11 +1070,11 @@ class PercentageModel(BaseModel):
             # Add noise to the selected columns of x_total
             x_total_copy[:, indices_cache] += noise
             y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
+            model.fit(x_total_copy, y_total_copy, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=128, epochs=epochs)
 
-            model.fit(x_total_copy, y_total_copy, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=32, epochs=epochs)
         print(x_total.shape)
         #Ties it together on the real data
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=32, epochs=epochs)
+        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=128, epochs=epochs)
         self.model = model
 
     def test(self, time_shift: int=0, show_graph: bool=False) -> None:
@@ -1095,7 +1107,7 @@ class PercentageModel(BaseModel):
         )
 
         #_________________Process Data for LSTM______________________#
-        size = int(len(data) * 0.8)
+        size = int(len(data) * 0.99)
         test_data = data[size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
 
         x_test, y_test = create_sequences(test_data, num_days)
@@ -1352,13 +1364,10 @@ class SuperTrendsModel(BaseModel):
             ]
         )
 
-def update_transfer_learning(num_days: int=100,
+def update_transfer_learning(model: BaseModel,
                              companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
                              ) -> None:
     """Updates Tranfer Learning Model"""
-    #model = ImpulseMACDModel()
-    model = PercentageModel(information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
-    model.num_days = num_days
     model.end_date = date.today()-relativedelta(days=30)
     use = False
     for company in companies:
@@ -1377,6 +1386,8 @@ def update_transfer_learning(num_days: int=100,
     model.test(show_graph=True)
 
 if __name__ == "__main__":
+    model = PercentageModel(information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
+    model.num_days = 10
     modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
     test_models = []
@@ -1389,10 +1400,10 @@ if __name__ == "__main__":
     #    test_models.append(model)
 
 
-    model = PercentageModel(stock_symbol="META", information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
+    model = PercentageModel(stock_symbol="AAPL", information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
     model.end_date = date.today()-relativedelta(days=30)
     model.num_days = 10
-    model.train(epochs=1000, patience=5, use_transfer_learning=False, test=True)
+    model.train(epochs=100, patience=5, use_transfer_learning=False)
     #model.load()
     test_models.append(model)
 
