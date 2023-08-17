@@ -17,20 +17,16 @@ See also:
 import json
 import os
 
-from typing import Any, Optional, Union, Callable, List, Dict, Tuple
+from typing import Any, Optional, Union, Callable, List, Dict
 from warnings import warn
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
+from custom_objects import *
 
 from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense, Input
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.losses import Loss, MeanSquaredError, Huber
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.activations import relu, linear
-from tensorflow import sign, reduce_mean
 from pandas_market_calendars import get_calendar
 
 import numpy as np
@@ -66,54 +62,6 @@ __all__ = (
 )
 
 
-class CustomLoss(Loss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.huber_loss = Huber()
-        self.mse_loss = MeanSquaredError()
-
-    def call(self, y_true, y_pred):
-        huber_loss = self.huber_loss(y_true, y_pred)
-        mse_loss = self.mse_loss(y_true, y_pred)
-
-        # Calculate the directional penalty
-        direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
-
-        # Combine the losses with different weights
-        combined_loss = direction_penalty*.2+huber_loss#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
-
-        return combined_loss
-
-class CustomLoss2(Loss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.huber_loss = Huber()
-        self.mse_loss = MeanSquaredError()
-
-    def call(self, y_true, y_pred):
-        huber_loss = self.huber_loss(y_true, y_pred)
-        mse_loss = self.mse_loss(y_true, y_pred)
-
-        # Calculate the directional penalty
-        direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
-        space_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_true[:-1])))
-
-        # Combine the losses with different weights
-        combined_loss = direction_penalty*.1+huber_loss*.5+mse_loss*.5+space_penalty*.1#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
-
-        return combined_loss
-
-
-def create_LSTM_model(shape: Tuple) -> Sequential:
-    model = Sequential()
-    model.add(LSTM(16, return_sequences=True, input_shape=shape))
-    model.add(LSTM(16, return_sequences=True))
-    model.add(LSTM(16))
-    model.add(Dense(1, activation=linear))
-
-    model.compile(optimizer=Adam(learning_rate=.001), loss=Huber())
-    return model
-
 
 class BaseModel:
     """
@@ -139,7 +87,6 @@ class BaseModel:
             with open(f'Stocks/{stock_symbol}/dynamic_tuning.json', 'r') as file:
                 num_days = json.load(file)['num_days']
 
-
         self.stock_symbol = stock_symbol
         self.information_keys = information_keys
         self.num_days = num_days
@@ -162,7 +109,7 @@ class BaseModel:
             end_date=None,
         ):
         if end_date is None:
-            end_date = date.today()-relativedelta(days=10)
+            end_date = date.today()
             #lower type(end_date) == date turns it into string
         if start_date is None:
             with open(f'Stocks/{self.stock_symbol}/dynamic_tuning.json', 'r') as file:
@@ -196,90 +143,7 @@ class BaseModel:
             test (bool): Whether or not to use the test data
         
         """
-        warn("If you saved before, use load func instead")
-        if time_shift < 0:
-            raise ValueError("`time_shift` must be equal of greater than 0")
-
-
-        start_date = self.start_date
-        end_date = self.end_date
-        stock_symbol = self.stock_symbol
-        information_keys = self.information_keys
-        num_days = self.num_days
-
-        #_________________ GET Data______________________#
-        self.data, data, self.scaler_data = get_relavant_values(
-            stock_symbol, information_keys, start_date=start_date, end_date=end_date
-        )
-
-        #_________________Process Data for LSTM______________________#
-        size = int(len(data))
-        if test:
-            x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
-        else:
-            x_total, y_total = create_sequences(data, num_days)
-        x_total = x_total[:-time_shift]
-        y_total = y_total[time_shift:]
-
-       
-        model = create_model((num_days, len(information_keys)))
-        if use_transfer_learning:
-            transfer_model = load_model(f"transfer_learning_model")
-            for layer_idx, layer in enumerate(model.layers):
-                if layer.name in transfer_model.layers[layer_idx].name:
-                    layer.set_weights(transfer_model.layers[layer_idx].get_weights())
-
-        if size < num_days:
-            raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
-
-        early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
-        #_________________Train it______________________#
-        divider = int(size/2)
-        if add_scaling:
-            indices_cache = [information_keys.index(key) for key in indicators_to_scale if key in information_keys]
-
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
-            x_total_copy[:, indices_cache] *= .75
-            y_total_copy *= .75
-
-            model.fit(x_total_copy, y_total_copy, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-            #basically 1.1 times the org data
-            x_total_copy[:, indices_cache] *= 1.47
-            y_total_copy *= 1.47
-            model.fit(x_total_copy*1.1, y_total_copy*1.1, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-            #NOTE: 2 pts is less memory overhead
-            x_total_p1 = np.copy(x_total[:divider])
-            y_total_p1 = np.copy(y_total[:divider])
-
-            x_total_p2 = np.copy(x_total[divider:])
-            y_total_p2 = np.copy(y_total[divider:])
-
-            x_total_p1[:, indices_cache] *= 2
-            y_total_p1 *= 2
-            x_total_p2[:, indices_cache] *= .5
-            y_total_p2 *= .5
-
-            model.fit(x_total_p1, y_total_p1, validation_data=(x_total_p1, y_total_p1), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-            model.fit(x_total_p2, y_total_p2, validation_data=(x_total_p2, y_total_p2), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-        if add_noise:
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
-            # Get the indices of indicators to add noise to
-            indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
-
-            # Create a noise array with the same shape as x_total's selected columns
-            noise = np.random.uniform(-0.001, 0.001)
-            # Add noise to the selected columns of x_total
-            x_total_copy[:, indices_cache] += noise
-            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
-            model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-        #Ties it together on the real data
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-        self.model = model
+        raise NotImplementedError('Subclasses must implement this method')
 
     def save(self, transfer_learning: bool=False) -> None:
         """
@@ -352,14 +216,18 @@ class BaseModel:
         test_data = data[size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
 
         x_test, y_test = create_sequences(test_data, num_days)
-        x_test = x_test[:-time_shift]
-        y_test = y_test[time_shift:]
+        if time_shift != 0:
+            x_test = x_test[:-time_shift]
+            y_test = y_test[time_shift:]
 
         #_________________TEST QUALITY______________________#
         test_predictions = self.model.predict(x_test)
 
         # NOTE: This cuts data at the start to account for `num_days`
-        test_data = data[size-1:-time_shift]
+        if time_shift > 0:
+            test_data = data[size-1:-time_shift]
+        else:
+            test_data = data[size-1:]
 
         assert len(test_predictions) == len(test_data)
 
@@ -429,7 +297,7 @@ class BaseModel:
         name = self.__class__.__name__
 
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
-        with open(f"Stocks/{self.stock_symbol}/{name}_data.json", 'r') as file:
+        with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
             self.data = json.load(file)
 
         with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
@@ -567,7 +435,7 @@ class BaseModel:
         cached_info = self.cached_info
         #NOTE: optimize bettween
         if cached_info is None:
-            start_datetime = end_datetime - relativedelta(days=280)
+            start_datetime = end_datetime - relativedelta(days=200+self.num_days+20)
             cached_info = ticker.history(start=start_datetime, end=self.end_date, interval="1d")
             if len(cached_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
@@ -602,22 +470,19 @@ class BaseModel:
             with open(f"Stocks/{self.stock_symbol}/info.json", 'r') as file:
                 cached_info = json.load(file)
 
-                if not self.start_date in cached_info['Dates']:
-                    raise ValueError("start is before or after `Dates` range")
-                if not self.end_date in cached_info['Dates']:
-                    raise ValueError("end is before or after `Dates` range")
+            if not self.end_date in cached_info['Dates']:
+                raise ValueError("end is before or after `Dates` range")
+            end_index = cached_info["Dates"].index(self.end_date)
+            cached = []
+            for key in self.information_keys:
+                if key in excluded_values:
+                    continue
+                cached.append(
+                    cached_info[key][end_index-self.num_days:end_index]
+                )
+            self.cached = np.transpose(cached)
+            self.cached_info = cached_info
 
-                end_index = cached_info["Dates"].index(self.end_date)
-                cached = []
-                for key in self.information_keys:
-                    if key not in excluded_values:
-                        cached.append(
-                            cached_info[key][end_index-self.num_days:end_index]
-                        )
-                cached = np.transpose(cached)
-
-                self.cached = cached
-                self.cached_info = cached_info
             if len(self.cached) == 0:
                 raise RuntimeError("Stock data failed to load. Reason Unknown")
         if len(self.cached) != 0:
@@ -681,6 +546,640 @@ class BaseModel:
         #NOTE: 'Dates' and 'earnings dates' will never be in information_keys
         self.cached = np.reshape(self.cached, (1, 60, self.cached.shape[1]))
         return self.cached
+
+    def predict(self, info: Optional[np.ndarray] = None) -> np.ndarray:
+        """
+        This method wraps the model's predict method using `info`.
+
+        Args: 
+            info (Optional[np.ndarray]): the information to predict on.
+            If None, it will get the info from the last relevant days back.
+        
+        Returns:
+            np.ndarray: the predictions of the model
+                The length is determined by how many are put in.
+                So, you can predict for time frames or one day
+                depending on what you want.
+                The length is the days `info` minus `num_days` plus 1
+
+        :Example:
+        >>> obj = BaseModel(num_days=5)
+        >>> obj = BaseModel(num_days=5)
+        >>> obj.num_days
+        5
+        >>> temp = obj.predict(info = np.array(
+                [2, 2],
+                [3, 2],
+                [4, 1],
+                [3, 2],
+                [0, 2]
+                [7, 0],
+                [1, 2],
+                [0, 1],
+                [2, 2],
+                )
+            ))
+        >>> print(len(temp))
+        4
+        """
+
+        raise NotImplementedError("Subclasses must implement this method")
+
+class PriceModel(BaseModel):
+    """
+    This is the base class for all the models. It handles the actual training, saving,
+    loading, predicting, etc. Setting the `information_keys` allows us to describe what
+    the model uses. The information keys themselves are retrieved from a json format
+    that was created by getInfo.py.
+
+    Args:
+        start_date (str): The start date of the training data
+        end_date (str): The end date of the training data
+        stock_symbol (str): The stock symbol of the stock you want to train on
+        num_days (int): The number of days to use for the LSTM model
+        information_keys (List[str]): The information keys that describe what the model uses
+    """
+
+    def __init__(self, start_date: str = None,
+                 end_date: Optional[Union[date, str]] = None,
+                 stock_symbol: Optional[Union[date, str]] = "AAPL",
+                 num_days: int = None,
+                 information_keys: List[str]=["Close"]) -> None:
+        super().__init__(start_date=start_date,
+                       end_date=end_date,
+                       stock_symbol=stock_symbol,
+                       num_days=num_days,
+                       information_keys=information_keys
+                       )
+
+    def train(self, epochs: int=1000,
+              patience: int=5, time_shift: int=0,
+              add_scaling: bool=True, add_noise: bool=True,
+              use_transfer_learning: bool=False, test: bool=False,
+              create_model: Callable=create_LSTM_model) -> None:
+        """
+        Trains Model off `information_keys`
+
+        Args:
+            epochs (int): The number of epochs to train the model for
+            patience (int): The amount of epochs of stagnation before early stopping
+            time_shift (int): The amount of time to shift the data by(in days)
+                EX. allows bot to predict 1 month into the future
+            add_scaling (bool): Data Augmentation using scaling
+            add_noise (bool): Data Augmentation using noise
+            use_transfer_learning (bool): Whether or not to use tranfer learnign model
+            test (bool): Whether or not to use the test data
+        
+        """
+        warn("If you saved before, use load func instead")
+        if time_shift < 0:
+            raise ValueError("`time_shift` must be equal of greater than 0")
+
+
+        start_date = self.start_date
+        end_date = self.end_date
+        stock_symbol = self.stock_symbol
+        information_keys = self.information_keys
+        num_days = self.num_days
+
+        #_________________ GET Data______________________#
+        self.data, data, self.scaler_data = get_relavant_values(
+            stock_symbol, information_keys, start_date=start_date, end_date=end_date
+        )
+
+        #_________________Process Data for LSTM______________________#
+        size = int(len(data))
+        if test:
+            x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
+        else:
+            x_total, y_total = create_sequences(data, num_days)
+        if time_shift != 0: # 0 removes everything
+            x_total = x_total[:-time_shift]
+            y_total = y_total[time_shift:]
+
+       
+        model = create_model((num_days, len(information_keys)))
+        if use_transfer_learning:
+            transfer_model = load_model(f"transfer_learning_model")
+            for layer_idx, layer in enumerate(model.layers):
+                if layer.name in transfer_model.layers[layer_idx].name:
+                    layer.set_weights(transfer_model.layers[layer_idx].get_weights())
+
+        if size < num_days:
+            raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
+
+        early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
+        #_________________Train it______________________#
+        divider = int(size/2)
+        if add_scaling:
+            indices_cache = [information_keys.index(key) for key in indicators_to_scale if key in information_keys]
+
+            x_total_copy = np.copy(x_total)
+            y_total_copy = np.copy(y_total)
+            #x_total_copy[:, indices_cache] *= .75
+            #y_total_copy *= .75
+
+            #model.fit(x_total_copy, y_total_copy, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+
+            #basically 1.1 times the org data
+            x_total_copy[:, indices_cache] *= 1.47
+            y_total_copy *= 1.47
+            model.fit(x_total_copy*1.1, y_total_copy*1.1, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+
+            #NOTE: 2 pts is less memory overhead
+            x_total_p1 = np.copy(x_total[:divider])
+            y_total_p1 = np.copy(y_total[:divider])
+
+            #x_total_p2 = np.copy(x_total[divider:])
+            #y_total_p2 = np.copy(y_total[divider:])
+
+            x_total_p1[:, indices_cache] *= 2
+            y_total_p1 *= 2
+            #x_total_p2[:, indices_cache] *= .5
+            #y_total_p2 *= .5
+
+            #model.fit(x_total_p1, y_total_p1, validation_data=(x_total_p1, y_total_p1), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+            #model.fit(x_total_p2, y_total_p2, validation_data=(x_total_p2, y_total_p2), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        if add_noise:
+            x_total_copy = np.copy(x_total)
+            y_total_copy = np.copy(y_total)
+            # Get the indices of indicators to add noise to
+            indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
+
+            # Create a noise array with the same shape as x_total's selected columns
+            noise = np.random.uniform(-0.001, 0.001)
+            # Add noise to the selected columns of x_total
+            x_total_copy[:, indices_cache] += noise
+            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
+            model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+
+        #Ties it together on the real data
+        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
+        self.model = model
+
+    def test(self, time_shift: int=0, show_graph: bool=False) -> None:
+        """
+        A method for testing purposes. 
+        
+        Args:
+            time_shift (int): The amount of time to shift the data by(in days)
+                EX. allows bot to predict 1 month into the future
+
+        Warning:
+            It is EXPENSIVE.
+        """
+        warn("Expensive, for testing purposes")
+
+        if not self.model:
+            raise LookupError("Compile or load model first")
+
+        if time_shift < 0:
+            raise ValueError("`time_shift` must be equal of greater than 0")
+
+        start_date = self.start_date
+        end_date = self.end_date
+        stock_symbol = self.stock_symbol
+        information_keys = self.information_keys
+        num_days = self.num_days
+        #_________________ GET Data______________________#
+        _, data, _ = get_relavant_values( # type: ignore[arg-type]
+            stock_symbol, information_keys, self.scaler_data, start_date, end_date
+        )
+
+        #_________________Process Data for LSTM______________________#
+        size = int(len(data) * 0.8)
+        test_data = data[size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
+
+        x_test, y_test = create_sequences(test_data, num_days)
+        if time_shift != 0:
+            x_test = x_test[:-time_shift]
+            y_test = y_test[time_shift:]
+
+        #_________________TEST QUALITY______________________#
+        test_predictions = self.model.predict(x_test)
+
+        # NOTE: This cuts data at the start to account for `num_days`
+        if time_shift > 0:
+            test_data = data[size-1:-time_shift]
+        else:
+            test_data = data[size-1:]
+
+        assert len(test_predictions) == len(test_data)
+
+        #Get first collumn
+        temp_test = test_data[:, 0]
+        def calculate_percentage_movement_together(list1, list2):
+            total = len(list1)
+            count_same_direction = 0
+            count_same_space = 0
+
+            for i in range(1, total):
+                if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
+                    count_same_direction += 1
+                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
+                    count_same_space += 1
+
+            percentage = (count_same_direction / (total - 1)) * 100
+            percentage2 = (count_same_space / (total - 1)) * 100
+            return percentage, percentage2
+        directional_test, spatial_test = calculate_percentage_movement_together(temp_test, test_predictions)
+        print("Directional Test: ", directional_test)
+        print("Spatial Test: ", spatial_test)
+        print()
+
+
+        # Calculate RMSSE for testing predictions
+        test_rmse = np.sqrt(mean_squared_error(temp_test, test_predictions))
+        test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
+        test_rmsse = test_rmse / test_abs_diff
+
+        print('Test RMSE:', test_rmse)
+        print('Test RMSSE:', test_rmsse)
+        print()
+    
+        print("Homogeneous(Should be True):")
+        homogenous = self.is_homogeneous(data)
+        print(homogenous)
+
+        if show_graph:
+            days_train = [i+size for i in range(y_test.shape[0])]
+            # Plot the actual and predicted prices
+            plt.figure(figsize=(18, 6))
+
+            predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
+            actual_test = plt.plot(days_train, y_test, label='Actual Test')
+
+            plt.title(f'{stock_symbol} Stock Price Prediction')
+            plt.xlabel('Date')
+            plt.ylabel('Price')
+            plt.legend(
+                [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
+                ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
+            )
+            plt.show()
+        return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
+
+    def indicators_past_num_days(self, stock_symbol: str, end_date: str,
+                                 information_keys: List[str], scaler_data: Dict[str, int],
+                                 cached_info: pd.DataFrame, num_days: int) -> Dict[str, Union[float, str]]:
+        """
+        This method will return the indicators for the past `num_days` days specified in the
+        information keys. It will use the cached information to calculate the indicators
+        until the `end_date`.
+
+        Args:
+            information_keys (List[str]): tells model the indicators to use
+            scaler_data (Dict[str, int]): used to scale indicators
+            cached_info (pd.DataFrame): The cached information
+            num_days (int): The number of days to calculate the indicators for
+        
+        Returns:
+            dict: A dictionary containing the indicators for the stock data
+                Values will be floats except some expections tht need to be
+                processed during run time
+        """
+        stock_data = {}
+
+        stock_data['Close'] = cached_info['Close'].iloc[-num_days:]
+
+        ema12 = cached_info['Close'].ewm(span=12, adjust=False).mean()
+        ema26 = cached_info['Close'].ewm(span=26, adjust=False).mean()
+        macd = ema12 - ema26
+        span = 9
+        signal_line = macd.rolling(window=span, min_periods=1).mean().iloc[-num_days:]
+
+        change = cached_info['Close'].diff()
+        if '12-day EMA' in information_keys:
+            stock_data['12-day EMA'] = ema12.iloc[-num_days:]
+        if '26-day EMA' in information_keys:
+            stock_data['26-day EMA'] = ema26.iloc[-num_days:]
+        if 'MACD' in information_keys:
+            stock_data['MACD'] = macd.iloc[-num_days:]
+        if 'Signal Line' in information_keys:
+            stock_data['Signal Line'] = signal_line
+        if 'Histogram' in information_keys:
+            histogram = macd - signal_line
+            stock_data['Histogram'] = histogram.iloc[-num_days:]
+        if '200-day EMA' in information_keys:
+            ewm200 = cached_info['Close'].ewm(span=200, adjust=False)
+            ema200 = ewm200.mean().iloc[-num_days:]
+            stock_data['200-day EMA'] = ema200
+        change = cached_info['Close'].diff().iloc[-num_days:]
+        if 'Change' in information_keys:
+            stock_data['Change'] = change.iloc[-num_days:]
+        if 'Momentum' in information_keys:
+            momentum = change.rolling(window=10, min_periods=1).sum().iloc[-num_days:]
+            stock_data['Momentum'] = momentum
+        if 'RSI' in information_keys:
+            gain = change.apply(lambda x: x if x > 0 else 0)
+            loss = change.apply(lambda x: abs(x) if x < 0 else 0)
+            avg_gain = gain.rolling(window=14).mean().iloc[-num_days:]
+            avg_loss = loss.rolling(window=14).mean().iloc[-num_days:]
+            relative_strength = avg_gain / avg_loss
+            stock_data['RSI'] = 100 - (100 / (1 + relative_strength))
+        if 'TRAMA' in information_keys:
+            # TRAMA
+            volatility = cached_info['Close'].diff().abs().iloc[-num_days:]
+            trama = cached_info['Close'].rolling(window=14).mean().iloc[-num_days:]
+            stock_data['TRAMA'] = trama + (volatility * 0.1)
+        if 'gradual-liquidity spike' in information_keys:
+            # Reversal
+            stock_data['gradual-liquidity spike'] = get_liquidity_spikes(
+                cached_info['Volume'], gradual=True
+            ).iloc[-num_days:]
+        if '3-liquidity spike' in information_keys:
+            stock_data['3-liquidity spike'] = get_liquidity_spikes(
+                cached_info['Volume'], z_score_threshold=4
+            ).iloc[-num_days:]
+        if 'momentum_oscillator' in information_keys:
+            stock_data['momentum_oscillator'] = calculate_momentum_oscillator(
+                cached_info['Close']
+            ).iloc[-num_days:]
+        if 'ema_flips' in information_keys:
+            #_________________12 and 26 day Ema flips______________________#
+            stock_data['ema_flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
+            stock_data['ema_flips'] = pd.Series(stock_data['ema_flips'])
+        if 'signal_flips' in information_keys:
+            stock_data['signal_flips'] = process_flips(macd[-num_days:], signal_line[-num_days:])
+            stock_data['signal_flips'] = pd.Series(stock_data['signal_flips'])
+        if 'earning diffs' in information_keys:
+            #earnings stuffs
+            earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
+            
+            end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
+            date = end_datetime - relativedelta(days=num_days)
+
+            stock_data['earnings dates'] = []
+            stock_data['earning diffs'] = [] # type: ignore[attr]
+            low = scaler_data['earning diffs']['min'] # type: ignore[index]
+            diff = scaler_data['earning diffs']['diff'] # type: ignore[index]
+
+            for i in range(num_days):
+                if not end_date in earnings_dates:
+                    stock_data['earning diffs'].append(0)
+                    continue
+                i = earnings_dates.index(date)
+                scaled = (earnings_diff[i]-low) / diff
+                stock_data['earning diffs'].append(scaled)
+
+        # Scale each column manually
+        for column in information_keys:
+            if column in excluded_values:
+                continue
+            low = scaler_data[column]['min'] # type: ignore[index]
+            diff = scaler_data[column]['diff'] # type: ignore[index]
+            column_values = stock_data[column]
+            scaled_values = (column_values - low) / diff
+            scaled_values = (column_values - low) / diff
+            stock_data[column] = scaled_values
+        return stock_data
+
+
+class PercentageModel(BaseModel):
+    """
+    Different model that uses min-max scaling on data and accuracy as output. It handles the actual training, saving,
+    loading, predicting, etc. Setting the `information_keys` allows us to describe what
+    the model uses. The information keys themselves are retrieved from a json format
+    that was created by getInfo.py.
+
+    Args:
+        start_date (str): The start date of the training data
+        end_date (str): The end date of the training data
+        stock_symbol (str): The stock symbol of the stock you want to train on
+        num_days (int): The number of days to use for the LSTM model
+        information_keys (List[str]): The information keys that describe what the model uses
+    """
+
+    def __init__(self, start_date: str = None,
+                 end_date: Optional[Union[date, str]] = None,
+                 stock_symbol: Optional[Union[date, str]] = "AAPL",
+                 num_days: int = None,
+                 information_keys: List[str]=["Close"]) -> None:
+        super().__init__(start_date=start_date,
+                       end_date=end_date,
+                       stock_symbol=stock_symbol,
+                       num_days=num_days,
+                       information_keys=information_keys
+                       )
+
+    def process_x_y_total(self, x_total, y_total, num_days, time_shift):
+        epsilon = 0#1e-8  # A small constant to avoid division by zero
+
+        y_total = y_total[1:] / (y_total[:-1] + epsilon)
+        y_total[np.isinf(y_total) | np.isnan(y_total)] = 1.0
+        y_total -= 1.0
+        y_total *= 100
+        plt.figure(figsize=(18, 6))
+
+        predicted_test = plt.plot(y_total, label='Y Total')
+
+        plt.title(f'Stock Price Prediction')
+        plt.xlabel('Date')
+        plt.ylabel('Price')
+        plt.legend(
+            [y_total],#[real_data, actual_test[0], actual_train],
+            ['Y Total']#['Real Data', 'Actual Test', 'Actual Train']
+        )
+        plt.show()
+        
+        if time_shift != 0:
+            x_total = x_total[:-time_shift]
+            y_total = y_total[time_shift:]
+
+        num_windows = x_total.shape[0] - num_days + 1
+        # Create a 3D numpy array to store the scaled data
+        scaled_data = np.zeros((num_windows, num_days, x_total.shape[1], x_total.shape[2]))
+
+        for i in range(num_windows):
+            # Get the data for the current window using the i-window_size approach
+            window = x_total[i : i + num_days]
+
+            # Calculate the high and low close prices for the current window
+            high_close = np.max(window[:, 0])  # Assuming close prices are in the first column
+            low_close = np.min(window[:, 0])
+
+            # Scale the data using broadcasting
+            scaled_window = (window - low_close) / (high_close - low_close)
+
+            # Store the scaled window in the 3D array
+            scaled_data[i] = scaled_window
+
+        y_total = y_total[:-num_days+2]
+        return scaled_data, y_total
+
+    def train(self, epochs: int=1000,
+              patience: int=10, time_shift: int=0,
+              add_noise: bool=True,
+              use_transfer_learning: bool=False, test: bool=False,
+              create_model: Callable=create_LSTM_model2) -> None:
+        """
+        Trains Model off `information_keys`
+
+        Args:
+            epochs (int): The number of epochs to train the model for
+            patience (int): The amount of epochs of stagnation before early stopping
+            time_shift (int): The amount of time to shift the data by(in days)
+                EX. allows bot to predict 1 month into the future
+            add_noise (bool): Data Augmentation using noise
+            use_transfer_learning (bool): Whether or not to use tranfer learnign model
+            test (bool): Whether or not to use the test data
+        
+        """
+        warn("If you saved before, use load func instead")
+        if time_shift < 0:
+            raise ValueError("`time_shift` must be equal of greater than 0")
+
+        start_date = self.start_date
+        end_date = self.end_date
+        stock_symbol = self.stock_symbol
+        information_keys = self.information_keys
+        num_days = self.num_days
+
+        #_________________ GET Data______________________#
+        self.data, data, self.scaler_data = get_relavant_values(
+            stock_symbol, information_keys, start_date=start_date, end_date=end_date
+        )
+        #_________________Process Data for LSTM______________________#
+        size = int(len(data))
+        if size < num_days:
+            raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
+
+        if test:
+            x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
+        else:
+            x_total, y_total = create_sequences(data, num_days)
+        x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
+
+        model = create_model((x_total.shape[1], num_days, len(information_keys)))
+        if use_transfer_learning:
+            transfer_model = load_model(f"transfer_learning_model")
+            for layer_idx, layer in enumerate(model.layers):
+                if layer.name in transfer_model.layers[layer_idx].name:
+                    layer.set_weights(transfer_model.layers[layer_idx].get_weights())
+
+        early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
+        #_________________Train it______________________#
+        if add_noise:
+            x_total_copy = np.copy(x_total)
+            y_total_copy = np.copy(y_total)
+            # Get the indices of indicators to add noise to
+            indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
+
+            # Create a noise array with the same shape as x_total's selected columns
+            noise = np.random.uniform(-0.001, 0.001)
+            # Add noise to the selected columns of x_total
+            x_total_copy[:, indices_cache] += noise
+            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
+            model.fit(x_total_copy, y_total_copy, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=128, epochs=epochs)
+
+        print(x_total.shape)
+        #Ties it together on the real data
+        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=128, epochs=epochs)
+        self.model = model
+
+    def test(self, time_shift: int=0, show_graph: bool=False) -> None:
+        """
+        A method for testing purposes. 
+        
+        Args:
+            time_shift (int): The amount of time to shift the data by(in days)
+                EX. allows bot to predict 1 month into the future
+
+        Warning:
+            It is EXPENSIVE.
+        """
+        warn("Expensive, for testing purposes")
+
+        if not self.model:
+            raise LookupError("Compile or load model first")
+
+        if time_shift < 0:
+            raise ValueError("`time_shift` must be equal of greater than 0")
+
+        start_date = self.start_date
+        end_date = self.end_date
+        stock_symbol = self.stock_symbol
+        information_keys = self.information_keys
+        num_days = self.num_days
+        #_________________ GET Data______________________#
+        _, data, _ = get_relavant_values( # type: ignore[arg-type]
+            stock_symbol, information_keys, self.scaler_data, start_date, end_date
+        )
+
+        #_________________Process Data for LSTM______________________#
+        size = int(len(data) * 0.99)
+        test_data = data[size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
+
+        x_test, y_test = create_sequences(test_data, num_days)
+        if time_shift != 0:
+            x_test = x_test[:-time_shift]
+            y_test = y_test[time_shift:]
+        x_test, y_test = self.process_x_y_total(x_test, y_test, num_days, time_shift)
+
+        #_________________TEST QUALITY______________________#
+        test_predictions = self.model.predict(x_test)
+
+        # NOTE: This cuts data at the start to account for `num_days`
+        if time_shift > 0:
+            test_data = data[size-1:-time_shift]
+        else:
+            test_data = data[size-1:]
+        test_data = test_data[:-num_days+1]
+
+        assert len(test_predictions) == len(test_data)
+
+        #Get first collumn
+        temp_test = test_data[:, 0]
+        def calculate_percentage_movement_together(list1, list2):
+            total = len(list1)
+            count_same_direction = 0
+            count_same_space = 0
+
+            for i in range(1, total):
+                if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
+                    count_same_direction += 1
+                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
+                    count_same_space += 1
+
+            percentage = (count_same_direction / (total - 1)) * 100
+            percentage2 = (count_same_space / (total - 1)) * 100
+            return percentage, percentage2
+        directional_test, spatial_test = calculate_percentage_movement_together(temp_test, test_predictions)
+        print("Directional Test: ", directional_test)
+        print("Spatial Test: ", spatial_test)
+        print()
+
+
+        # Calculate RMSSE for testing predictions
+        test_rmse = np.sqrt(mean_squared_error(temp_test, test_predictions))
+        test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
+        test_rmsse = test_rmse / test_abs_diff
+
+        print('Test RMSE:', test_rmse)
+        print('Test RMSSE:', test_rmsse)
+        print()
+    
+        print("Homogeneous(Should be True):")
+        homogenous = self.is_homogeneous(data)
+        print(homogenous)
+
+        if show_graph:
+            days_train = [i+size for i in range(y_test.shape[0])]
+            # Plot the actual and predicted prices
+            plt.figure(figsize=(18, 6))
+
+            predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
+            actual_test = plt.plot(days_train, y_test, label='Actual Test')
+
+            plt.title(f'{stock_symbol} Stock Price Prediction')
+            plt.xlabel('Date')
+            plt.ylabel('Price')
+            plt.legend(
+                [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
+                ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
+            )
+            plt.show()
+        return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
     def predict(self, info: Optional[np.ndarray] = None) -> np.ndarray:
         """
@@ -865,36 +1364,48 @@ class SuperTrendsModel(BaseModel):
             ]
         )
 
-def update_transfer_learning(num_days: int=100,
+def update_transfer_learning(model: BaseModel,
                              companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
                              ) -> None:
     """Updates Tranfer Learning Model"""
-    model = ImpulseMACDModel()
-    model.num_days = num_days
+    model.end_date = date.today()-relativedelta(days=30)
     use = False
     for company in companies:
         model.stock_symbol = company
         model.update_dates()
-        model.train(use_transfer_learning=use, add_noise=False)
+        model.end_date = date.today()-relativedelta(days=30)
+        model.train(use_transfer_learning=use)
         model.save(transfer_learning=True)
 
         if not use:
             use = True
     model.stock_symbol = "AMZN"
     model.update_dates()
+    model.end_date = date.today()-relativedelta(days=30)
     model.train(test=True)
-    model.test()
+    model.test(show_graph=True)
 
 if __name__ == "__main__":
+    model = PercentageModel(information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
+    model.num_days = 10
     modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
     test_models = []
     #for company in company_symbols:
-    for modelclass in modelclasses:
-        model = modelclass(stock_symbol="META")
-        model.train(epochs=1000, use_transfer_learning=False, test=True)
-        model.save()
-        test_models.append(model)
+    #for modelclass in modelclasses:
+    #    model = modelclass(stock_symbol="AAPL")
+    #    model.end_date = date.today()-relativedelta(days=30)
+    #    model.train(epochs=1000, test=True)
+    #    model.save()
+    #    test_models.append(model)
+
+
+    model = PercentageModel(stock_symbol="AAPL", information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
+    model.end_date = date.today()-relativedelta(days=30)
+    model.num_days = 10
+    model.train(epochs=100, patience=5, use_transfer_learning=False)
+    #model.load()
+    test_models.append(model)
 
     for model in test_models:
         model.test(show_graph=True)
