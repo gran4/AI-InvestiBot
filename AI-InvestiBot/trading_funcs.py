@@ -40,7 +40,8 @@ __all__ = (
     'get_scaler',
     'supertrends',
     'kumo_cloud',
-    'is_floats'
+    'is_floats',
+    'calculate_percentage_movement_together'
 )
 
 
@@ -484,3 +485,17 @@ def is_floats(array: List) -> bool:
     return False # for cases were the length is 0
 
 
+def calculate_percentage_movement_together(list1: Iterable, list2: Iterable) -> Tuple[float, float]:
+    total = len(list1)
+    count_same_direction = 0
+    count_same_space = 0
+
+    for i in range(1, total):
+        if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
+            count_same_direction += 1
+        if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
+            count_same_space += 1
+
+    percentage = (count_same_direction / (total - 1)) * 100
+    percentage2 = (count_same_space / (total - 1)) * 100
+    return percentage, percentage2

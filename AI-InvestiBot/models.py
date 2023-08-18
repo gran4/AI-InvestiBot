@@ -38,7 +38,8 @@ from trading_funcs import (
     check_for_holidays, get_relavant_values,
     create_sequences, process_flips,
     excluded_values, is_floats,
-    indicators_to_add_noise_to, indicators_to_scale
+    calculate_percentage_movement_together,
+    indicators_to_add_noise_to, indicators_to_scale,
 )
 from get_info import (
     calculate_momentum_oscillator,
@@ -231,21 +232,6 @@ class BaseModel:
         # NOTE: This cuts data at the start to account for `num_days`
         if time_shift > 0:
             test_data = data[:-time_shift]
-
-        def calculate_percentage_movement_together(list1, list2):
-            total = len(list1)
-            count_same_direction = 0
-            count_same_space = 0
-
-            for i in range(1, total):
-                if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
-                    count_same_direction += 1
-                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
-                    count_same_space += 1
-
-            percentage = (count_same_direction / (total - 1)) * 100
-            percentage2 = (count_same_space / (total - 1)) * 100
-            return percentage, percentage2
         directional_test, spatial_test = calculate_percentage_movement_together(y_test, test_predictions)
         print("Directional Test: ", directional_test)
         print("Spatial Test: ", spatial_test)
