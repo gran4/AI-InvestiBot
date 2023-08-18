@@ -38,7 +38,8 @@ from trading_funcs import (
     check_for_holidays, get_relavant_values,
     create_sequences, process_flips,
     excluded_values, is_floats,
-    indicators_to_add_noise_to, indicators_to_scale
+    calculate_percentage_movement_together,
+    indicators_to_add_noise_to, indicators_to_scale,
 )
 from get_info import (
     calculate_momentum_oscillator,
@@ -60,7 +61,6 @@ __all__ = (
     'RSIModel',
     'SuperTrendsModel'
 )
-
 
 
 class BaseModel:
@@ -124,6 +124,9 @@ class BaseModel:
             start_date, end_date
         )
 
+    def process_x_y_total(self, x_total, y_total, num_days, time_shift):
+        return x_total, y_total
+
     def train(self, epochs: int=100,
               patience: int=5, time_shift: int=0,
               add_scaling: bool=True, add_noise: bool=True,
@@ -181,7 +184,9 @@ class BaseModel:
         """Checks if any of the models indicators are missing"""
         return len(set(arr.dtype for arr in arr.flatten())) == 1
 
-    def test(self, time_shift: int=0, show_graph: bool=False) -> None:
+    def test(self, time_shift: int=0, show_graph: bool=False,
+             title: str="Stock Price Prediction", x_label: str='', y_label: str='Price'
+             ) -> None:
         """
         A method for testing purposes. 
         
@@ -207,54 +212,34 @@ class BaseModel:
         num_days = self.num_days
 
         #_________________ GET Data______________________#
-        _, data, _ = get_relavant_values( # type: ignore[arg-type]
+        total_data_dict, data, _ = get_relavant_values( # type: ignore[arg-type]
             stock_symbol, information_keys, self.scaler_data, start_date, end_date
         )
 
         #_________________Process Data for LSTM______________________#
-        size = int(len(data) * 0.8)
-        test_data = data[size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
+        split = int(len(data) * 0.8)
+        test_data = data[split-num_days-1:] # minus by `num_days` to get full range of values during the test period 
 
         x_test, y_test = create_sequences(test_data, num_days)
         if time_shift != 0:
             x_test = x_test[:-time_shift]
             y_test = y_test[time_shift:]
+        x_test, y_test = self.process_x_y_total(x_test, y_test, num_days, time_shift)
 
         #_________________TEST QUALITY______________________#
         test_predictions = self.model.predict(x_test)
 
         # NOTE: This cuts data at the start to account for `num_days`
         if time_shift > 0:
-            test_data = data[size-1:-time_shift]
-        else:
-            test_data = data[size-1:]
-
-        assert len(test_predictions) == len(test_data)
-
-        #Get first collumn
-        temp_test = test_data[:, 0]
-        def calculate_percentage_movement_together(list1, list2):
-            total = len(list1)
-            count_same_direction = 0
-            count_same_space = 0
-
-            for i in range(1, total):
-                if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
-                    count_same_direction += 1
-                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
-                    count_same_space += 1
-
-            percentage = (count_same_direction / (total - 1)) * 100
-            percentage2 = (count_same_space / (total - 1)) * 100
-            return percentage, percentage2
-        directional_test, spatial_test = calculate_percentage_movement_together(temp_test, test_predictions)
+            test_data = data[:-time_shift]
+        directional_test, spatial_test = calculate_percentage_movement_together(y_test, test_predictions)
         print("Directional Test: ", directional_test)
         print("Spatial Test: ", spatial_test)
         print()
 
 
         # Calculate RMSSE for testing predictions
-        test_rmse = np.sqrt(mean_squared_error(temp_test, test_predictions))
+        test_rmse = np.sqrt(mean_squared_error(y_test, test_predictions))
         test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
         test_rmsse = test_rmse / test_abs_diff
 
@@ -267,19 +252,24 @@ class BaseModel:
         print(homogenous)
 
         if show_graph:
-            days_train = [i+size for i in range(y_test.shape[0])]
+            # NOTE: +1 Bc data is not stripped in PriceModel
+            days_train = [total_data_dict["Dates"][int(i+split)] for i in range(y_test.shape[0])]
             # Plot the actual and predicted prices
             plt.figure(figsize=(18, 6))
 
             predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
             actual_test = plt.plot(days_train, y_test, label='Actual Test')
 
-            plt.title(f'{stock_symbol} Stock Price Prediction')
-            plt.xlabel('Date')
-            plt.ylabel('Price')
+            plt.title(f'{stock_symbol} {title}')
+            plt.xlabel(x_label)
+            plt.ylabel(y_label)
+
+            import matplotlib.ticker as ticker
+            plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
+
             plt.legend(
                 [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
-                ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
+                ['Predicted Test', 'Actual Data']#['Real Data', 'Actual Test', 'Actual Train']
             )
             plt.show()
         return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
@@ -585,6 +575,7 @@ class BaseModel:
 
         raise NotImplementedError("Subclasses must implement this method")
 
+
 class PriceModel(BaseModel):
     """
     This is the base class for all the models. It handles the actual training, saving,
@@ -611,6 +602,13 @@ class PriceModel(BaseModel):
                        num_days=num_days,
                        information_keys=information_keys
                        )
+
+    def process_x_y_total(self, x_total, y_total, num_days, time_shift):
+        # NOTE: Strip last day for test
+        x_total = x_total[:-1]
+        y_total = y_total[:-1]
+        return x_total, y_total
+
 
     def train(self, epochs: int=1000,
               patience: int=5, time_shift: int=0,
@@ -648,16 +646,15 @@ class PriceModel(BaseModel):
         )
 
         #_________________Process Data for LSTM______________________#
-        size = int(len(data))
+        split = int(len(data))
         if test:
-            x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
+            x_total, y_total = create_sequences(data[:int(split*.8)], num_days)
         else:
             x_total, y_total = create_sequences(data, num_days)
         if time_shift != 0: # 0 removes everything
             x_total = x_total[:-time_shift]
             y_total = y_total[time_shift:]
 
-       
         model = create_model((num_days, len(information_keys)))
         if use_transfer_learning:
             transfer_model = load_model(f"transfer_learning_model")
@@ -665,12 +662,12 @@ class PriceModel(BaseModel):
                 if layer.name in transfer_model.layers[layer_idx].name:
                     layer.set_weights(transfer_model.layers[layer_idx].get_weights())
 
-        if size < num_days:
+        if split < num_days:
             raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
 
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
         #_________________Train it______________________#
-        divider = int(size/2)
+        divider = int(split/2)
         if add_scaling:
             indices_cache = [information_keys.index(key) for key in indicators_to_scale if key in information_keys]
 
@@ -716,108 +713,6 @@ class PriceModel(BaseModel):
         #Ties it together on the real data
         model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
         self.model = model
-
-    def test(self, time_shift: int=0, show_graph: bool=False) -> None:
-        """
-        A method for testing purposes. 
-        
-        Args:
-            time_shift (int): The amount of time to shift the data by(in days)
-                EX. allows bot to predict 1 month into the future
-
-        Warning:
-            It is EXPENSIVE.
-        """
-        warn("Expensive, for testing purposes")
-
-        if not self.model:
-            raise LookupError("Compile or load model first")
-
-        if time_shift < 0:
-            raise ValueError("`time_shift` must be equal of greater than 0")
-
-        start_date = self.start_date
-        end_date = self.end_date
-        stock_symbol = self.stock_symbol
-        information_keys = self.information_keys
-        num_days = self.num_days
-        #_________________ GET Data______________________#
-        _, data, _ = get_relavant_values( # type: ignore[arg-type]
-            stock_symbol, information_keys, self.scaler_data, start_date, end_date
-        )
-
-        #_________________Process Data for LSTM______________________#
-        size = int(len(data) * 0.8)
-        test_data = data[size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
-
-        x_test, y_test = create_sequences(test_data, num_days)
-        if time_shift != 0:
-            x_test = x_test[:-time_shift]
-            y_test = y_test[time_shift:]
-
-        #_________________TEST QUALITY______________________#
-        test_predictions = self.model.predict(x_test)
-
-        # NOTE: This cuts data at the start to account for `num_days`
-        if time_shift > 0:
-            test_data = data[size-1:-time_shift]
-        else:
-            test_data = data[size-1:]
-
-        assert len(test_predictions) == len(test_data)
-
-        #Get first collumn
-        temp_test = test_data[:, 0]
-        def calculate_percentage_movement_together(list1, list2):
-            total = len(list1)
-            count_same_direction = 0
-            count_same_space = 0
-
-            for i in range(1, total):
-                if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
-                    count_same_direction += 1
-                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
-                    count_same_space += 1
-
-            percentage = (count_same_direction / (total - 1)) * 100
-            percentage2 = (count_same_space / (total - 1)) * 100
-            return percentage, percentage2
-        directional_test, spatial_test = calculate_percentage_movement_together(temp_test, test_predictions)
-        print("Directional Test: ", directional_test)
-        print("Spatial Test: ", spatial_test)
-        print()
-
-
-        # Calculate RMSSE for testing predictions
-        test_rmse = np.sqrt(mean_squared_error(temp_test, test_predictions))
-        test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
-        test_rmsse = test_rmse / test_abs_diff
-
-        print('Test RMSE:', test_rmse)
-        print('Test RMSSE:', test_rmsse)
-        print()
-    
-        print("Homogeneous(Should be True):")
-        homogenous = self.is_homogeneous(data)
-        print(homogenous)
-
-        if show_graph:
-            days_train = [i+size for i in range(y_test.shape[0])]
-            # Plot the actual and predicted prices
-            plt.figure(figsize=(18, 6))
-
-            predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
-            actual_test = plt.plot(days_train, y_test, label='Actual Test')
-
-            plt.title(f'{stock_symbol} Stock Price Prediction')
-            plt.xlabel('Date')
-            plt.ylabel('Price')
-            plt.legend(
-                [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
-                ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
-            )
-            plt.show()
-        return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
     def indicators_past_num_days(self, stock_symbol: str, end_date: str,
                                  information_keys: List[str], scaler_data: Dict[str, int],
@@ -963,25 +858,12 @@ class PercentageModel(BaseModel):
                        )
 
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
-        epsilon = 0#1e-8  # A small constant to avoid division by zero
-
-        y_total = y_total[1:] / (y_total[:-1] + epsilon)
+        # NOTE: Strips 1st day becuase -0 is 0. Look at `y_total[:-1]`
+        y_total = y_total[1:] / y_total[:-1]
         y_total[np.isinf(y_total) | np.isnan(y_total)] = 1.0
         y_total -= 1.0
-        y_total *= 100
-        plt.figure(figsize=(18, 6))
+        y_total *= 100 #normal %
 
-        predicted_test = plt.plot(y_total, label='Y Total')
-
-        plt.title(f'Stock Price Prediction')
-        plt.xlabel('Date')
-        plt.ylabel('Price')
-        plt.legend(
-            [y_total],#[real_data, actual_test[0], actual_train],
-            ['Y Total']#['Real Data', 'Actual Test', 'Actual Train']
-        )
-        plt.show()
-        
         if time_shift != 0:
             x_total = x_total[:-time_shift]
             y_total = y_total[time_shift:]
@@ -1040,12 +922,12 @@ class PercentageModel(BaseModel):
             stock_symbol, information_keys, start_date=start_date, end_date=end_date
         )
         #_________________Process Data for LSTM______________________#
-        size = int(len(data))
-        if size < num_days:
+        split = int(len(data))
+        if split < num_days:
             raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
 
         if test:
-            x_total, y_total = create_sequences(data[:int(size*.8)], num_days)
+            x_total, y_total = create_sequences(data[:int(split*.8)], num_days)
         else:
             x_total, y_total = create_sequences(data, num_days)
         x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
@@ -1072,114 +954,9 @@ class PercentageModel(BaseModel):
             y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
             model.fit(x_total_copy, y_total_copy, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=128, epochs=epochs)
 
-        print(x_total.shape)
         #Ties it together on the real data
         model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=128, epochs=epochs)
         self.model = model
-
-    def test(self, time_shift: int=0, show_graph: bool=False) -> None:
-        """
-        A method for testing purposes. 
-        
-        Args:
-            time_shift (int): The amount of time to shift the data by(in days)
-                EX. allows bot to predict 1 month into the future
-
-        Warning:
-            It is EXPENSIVE.
-        """
-        warn("Expensive, for testing purposes")
-
-        if not self.model:
-            raise LookupError("Compile or load model first")
-
-        if time_shift < 0:
-            raise ValueError("`time_shift` must be equal of greater than 0")
-
-        start_date = self.start_date
-        end_date = self.end_date
-        stock_symbol = self.stock_symbol
-        information_keys = self.information_keys
-        num_days = self.num_days
-        #_________________ GET Data______________________#
-        _, data, _ = get_relavant_values( # type: ignore[arg-type]
-            stock_symbol, information_keys, self.scaler_data, start_date, end_date
-        )
-
-        #_________________Process Data for LSTM______________________#
-        size = int(len(data) * 0.99)
-        test_data = data[size-num_days-1:] # minus by `num_days` to get full range of values during the test period 
-
-        x_test, y_test = create_sequences(test_data, num_days)
-        if time_shift != 0:
-            x_test = x_test[:-time_shift]
-            y_test = y_test[time_shift:]
-        x_test, y_test = self.process_x_y_total(x_test, y_test, num_days, time_shift)
-
-        #_________________TEST QUALITY______________________#
-        test_predictions = self.model.predict(x_test)
-
-        # NOTE: This cuts data at the start to account for `num_days`
-        if time_shift > 0:
-            test_data = data[size-1:-time_shift]
-        else:
-            test_data = data[size-1:]
-        test_data = test_data[:-num_days+1]
-
-        assert len(test_predictions) == len(test_data)
-
-        #Get first collumn
-        temp_test = test_data[:, 0]
-        def calculate_percentage_movement_together(list1, list2):
-            total = len(list1)
-            count_same_direction = 0
-            count_same_space = 0
-
-            for i in range(1, total):
-                if (list1[i] > list1[i - 1] and list2[i] > list2[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list2[i - 1]):
-                    count_same_direction += 1
-                if (list1[i] > list1[i - 1] and list2[i] > list1[i - 1]) or (list1[i] < list1[i - 1] and list2[i] < list1[i - 1]):
-                    count_same_space += 1
-
-            percentage = (count_same_direction / (total - 1)) * 100
-            percentage2 = (count_same_space / (total - 1)) * 100
-            return percentage, percentage2
-        directional_test, spatial_test = calculate_percentage_movement_together(temp_test, test_predictions)
-        print("Directional Test: ", directional_test)
-        print("Spatial Test: ", spatial_test)
-        print()
-
-
-        # Calculate RMSSE for testing predictions
-        test_rmse = np.sqrt(mean_squared_error(temp_test, test_predictions))
-        test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
-        test_rmsse = test_rmse / test_abs_diff
-
-        print('Test RMSE:', test_rmse)
-        print('Test RMSSE:', test_rmsse)
-        print()
-    
-        print("Homogeneous(Should be True):")
-        homogenous = self.is_homogeneous(data)
-        print(homogenous)
-
-        if show_graph:
-            days_train = [i+size for i in range(y_test.shape[0])]
-            # Plot the actual and predicted prices
-            plt.figure(figsize=(18, 6))
-
-            predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
-            actual_test = plt.plot(days_train, y_test, label='Actual Test')
-
-            plt.title(f'{stock_symbol} Stock Price Prediction')
-            plt.xlabel('Date')
-            plt.ylabel('Price')
-            plt.legend(
-                [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
-                ['Predicted Test', 'Actual Test']#['Real Data', 'Actual Test', 'Actual Train']
-            )
-            plt.show()
-        return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
     def predict(self, info: Optional[np.ndarray] = None) -> np.ndarray:
         """
@@ -1225,6 +1002,12 @@ class PercentageModel(BaseModel):
         if self.model:
             return self.model.predict(info) # typing: ignore[return]
         raise LookupError("Compile or load model first")
+
+    def test(self, time_shift: int = 0, show_graph: bool = False) -> None:
+        title: str = "Stock Change Prediction"
+        x_label: str = ''
+        y_label: str = 'Price Change in %'
+        return super().test(time_shift, show_graph, title, x_label, y_label)
 
 
 class DayTradeModel(BaseModel):
@@ -1386,8 +1169,6 @@ def update_transfer_learning(model: BaseModel,
     model.test(show_graph=True)
 
 if __name__ == "__main__":
-    model = PercentageModel(information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
-    model.num_days = 10
     modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
 
     test_models = []
@@ -1400,10 +1181,10 @@ if __name__ == "__main__":
     #    test_models.append(model)
 
 
-    model = PercentageModel(stock_symbol="AAPL", information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
+    model = PercentageModel(stock_symbol="HD", information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
     model.end_date = date.today()-relativedelta(days=30)
     model.num_days = 10
-    model.train(epochs=100, patience=5, use_transfer_learning=False)
+    model.train(epochs=1000, patience=5, use_transfer_learning=True, test=True)
     #model.load()
     test_models.append(model)
 

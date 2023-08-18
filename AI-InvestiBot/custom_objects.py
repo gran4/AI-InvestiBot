@@ -98,5 +98,5 @@ def create_LSTM_model2(shape: Tuple) -> Sequential:
     model.add(Dense(units=1, activation='linear'))  # Assuming regression problem
 
     # Compile the model
-    model.compile(optimizer=Adam(learning_rate=.001, clipvalue=0.1), loss=CustomLoss2())
+    model.compile(optimizer=Adam(learning_rate=.0005, clipvalue=0.1), loss=CustomLoss2())
     return model
