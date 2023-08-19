@@ -65,9 +65,15 @@ class CustomLoss2(Loss):
 
 def create_LSTM_model(shape: Tuple) -> Sequential:
     model = Sequential()
-    model.add(LSTM(16, return_sequences=True, input_shape=shape))
-    model.add(LSTM(16, return_sequences=True))
-    model.add(LSTM(16))
+    model.add(LSTM(64, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01), input_shape=shape))
+    model.add(BatchNormalization())
+    model.add(PReLU())
+    model.add(LSTM(64, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01)))
+    model.add(BatchNormalization())
+    model.add(PReLU())
+    model.add(LSTM(64, kernel_regularizer=tf.keras.regularizers.l2(0.01)))
+    model.add(BatchNormalization())
+    model.add(PReLU())
     model.add(Dense(1, activation=linear))
 
     model.compile(optimizer=Adam(learning_rate=.001), loss=Huber())

@@ -21,6 +21,7 @@ from typing import Any, Optional, Union, Callable, List, Dict
 from warnings import warn
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
+from custom_objects import create_LSTM_model, create_LSTM_model2
 from custom_objects import *
 
 from typing_extensions import Self
@@ -37,7 +38,7 @@ import yfinance as yf
 from trading_funcs import (
     check_for_holidays, get_relavant_values,
     create_sequences, process_flips,
-    excluded_values, is_floats,
+    non_daily, non_daily_no_use, is_floats,
     calculate_percentage_movement_together,
     indicators_to_add_noise_to, indicators_to_scale,
 )
@@ -127,9 +128,9 @@ class BaseModel:
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
         return x_total, y_total
 
-    def train(self, epochs: int=100,
+    def train(self, epochs: int=1000,
               patience: int=5, time_shift: int=0,
-              add_scaling: bool=True, add_noise: bool=True,
+              add_scaling: bool=False, add_noise: bool=True,
               use_transfer_learning: bool=False, test: bool=False,
               create_model: Callable=create_LSTM_model) -> None:
         """
@@ -146,7 +147,77 @@ class BaseModel:
             test (bool): Whether or not to use the test data
         
         """
-        raise NotImplementedError('Subclasses must implement this method')
+        warn("If you saved before, use load func instead")
+        if time_shift < 0:
+            raise ValueError("`time_shift` must be equal of greater than 0")
+
+        start_date = self.start_date
+        end_date = self.end_date
+        stock_symbol = self.stock_symbol
+        information_keys = self.information_keys
+        num_days = self.num_days
+
+        #_________________ GET Data______________________#
+        self.data, data, self.scaler_data = get_relavant_values(
+            stock_symbol, information_keys, start_date=start_date, end_date=end_date
+        )
+        #START DATE:  8048
+        #END DATE:  1996
+        #_________________Process Data for LSTM______________________#
+        split = int(len(data))
+        if test:
+            x_total, y_total = create_sequences(data[:int(split*.8)], num_days)
+        else:
+            x_total, y_total = create_sequences(data, num_days)
+        x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
+        if time_shift != 0: # 0 removes everything
+            x_total = x_total[:-time_shift]
+            y_total = y_total[time_shift:]
+
+        processed = [key for key in information_keys if not key in non_daily_no_use]
+        if len(x_total.shape) == 3:
+            model = create_model((num_days, len(processed)))
+        else:
+            model = create_model((x_total.shape[1], num_days, len(processed)))
+
+        if use_transfer_learning:
+            transfer_model = load_model(f"transfer_learning_model")
+            for layer_idx, layer in enumerate(model.layers):
+                if layer.name in transfer_model.layers[layer_idx].name:
+                    layer.set_weights(transfer_model.layers[layer_idx].get_weights())
+
+        early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
+        #_________________Train it______________________#
+        divider = int(split/2)
+        if add_scaling:
+            indices_cache = [information_keys.index(key) for key in indicators_to_scale if key in information_keys]
+
+            x_total_copy = np.copy(x_total)
+            y_total_copy = np.copy(y_total)
+            x_total_copy[:, indices_cache] *= 1.47
+            y_total_copy *= 1.47
+            model.fit(x_total_copy*1.1, y_total_copy*1.1, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=64, epochs=epochs)
+
+            x_total_p1 = np.copy(x_total[:divider])
+            y_total_p1 = np.copy(y_total[:divider])
+            x_total_p1[:, indices_cache] *= 2
+            y_total_p1 *= 2
+        if add_noise:
+            x_total_copy = np.copy(x_total)
+            y_total_copy = np.copy(y_total)
+            # Get the indices of indicators to add noise to
+            indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
+
+            # Create a noise array with the same shape as x_total's selected columns
+            noise = np.random.uniform(-0.001, 0.001)
+            # Add noise to the selected columns of x_total
+            x_total_copy[:, indices_cache] += noise
+            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
+            model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=64, epochs=epochs)
+
+        #Ties it together on the real data
+        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=64, epochs=epochs)
+        self.model = model
 
     def save(self, transfer_learning: bool=False) -> None:
         """
@@ -401,7 +472,7 @@ class BaseModel:
 
         # Scale each column manually
         for column in information_keys:
-            if column in excluded_values:
+            if column in non_daily:
                 continue
             low = scaler_data[column]['min'] # type: ignore[index]
             diff = scaler_data[column]['diff'] # type: ignore[index]
@@ -465,7 +536,7 @@ class BaseModel:
             end_index = cached_info["Dates"].index(self.end_date)
             cached = []
             for key in self.information_keys:
-                if key in excluded_values:
+                if key in non_daily_no_use:
                     continue
                 cached.append(
                     cached_info[key][end_index-self.num_days:end_index]
@@ -609,110 +680,8 @@ class PriceModel(BaseModel):
         y_total = y_total[:-1]
         return x_total, y_total
 
-
-    def train(self, epochs: int=1000,
-              patience: int=5, time_shift: int=0,
-              add_scaling: bool=True, add_noise: bool=True,
-              use_transfer_learning: bool=False, test: bool=False,
-              create_model: Callable=create_LSTM_model) -> None:
-        """
-        Trains Model off `information_keys`
-
-        Args:
-            epochs (int): The number of epochs to train the model for
-            patience (int): The amount of epochs of stagnation before early stopping
-            time_shift (int): The amount of time to shift the data by(in days)
-                EX. allows bot to predict 1 month into the future
-            add_scaling (bool): Data Augmentation using scaling
-            add_noise (bool): Data Augmentation using noise
-            use_transfer_learning (bool): Whether or not to use tranfer learnign model
-            test (bool): Whether or not to use the test data
-        
-        """
-        warn("If you saved before, use load func instead")
-        if time_shift < 0:
-            raise ValueError("`time_shift` must be equal of greater than 0")
-
-
-        start_date = self.start_date
-        end_date = self.end_date
-        stock_symbol = self.stock_symbol
-        information_keys = self.information_keys
-        num_days = self.num_days
-
-        #_________________ GET Data______________________#
-        self.data, data, self.scaler_data = get_relavant_values(
-            stock_symbol, information_keys, start_date=start_date, end_date=end_date
-        )
-
-        #_________________Process Data for LSTM______________________#
-        split = int(len(data))
-        if test:
-            x_total, y_total = create_sequences(data[:int(split*.8)], num_days)
-        else:
-            x_total, y_total = create_sequences(data, num_days)
-        if time_shift != 0: # 0 removes everything
-            x_total = x_total[:-time_shift]
-            y_total = y_total[time_shift:]
-
-        model = create_model((num_days, len(information_keys)))
-        if use_transfer_learning:
-            transfer_model = load_model(f"transfer_learning_model")
-            for layer_idx, layer in enumerate(model.layers):
-                if layer.name in transfer_model.layers[layer_idx].name:
-                    layer.set_weights(transfer_model.layers[layer_idx].get_weights())
-
-        if split < num_days:
-            raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
-
-        early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
-        #_________________Train it______________________#
-        divider = int(split/2)
-        if add_scaling:
-            indices_cache = [information_keys.index(key) for key in indicators_to_scale if key in information_keys]
-
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
-            #x_total_copy[:, indices_cache] *= .75
-            #y_total_copy *= .75
-
-            #model.fit(x_total_copy, y_total_copy, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-            #basically 1.1 times the org data
-            x_total_copy[:, indices_cache] *= 1.47
-            y_total_copy *= 1.47
-            model.fit(x_total_copy*1.1, y_total_copy*1.1, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-            #NOTE: 2 pts is less memory overhead
-            x_total_p1 = np.copy(x_total[:divider])
-            y_total_p1 = np.copy(y_total[:divider])
-
-            #x_total_p2 = np.copy(x_total[divider:])
-            #y_total_p2 = np.copy(y_total[divider:])
-
-            x_total_p1[:, indices_cache] *= 2
-            y_total_p1 *= 2
-            #x_total_p2[:, indices_cache] *= .5
-            #y_total_p2 *= .5
-
-            #model.fit(x_total_p1, y_total_p1, validation_data=(x_total_p1, y_total_p1), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-            #model.fit(x_total_p2, y_total_p2, validation_data=(x_total_p2, y_total_p2), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-        if add_noise:
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
-            # Get the indices of indicators to add noise to
-            indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
-
-            # Create a noise array with the same shape as x_total's selected columns
-            noise = np.random.uniform(-0.001, 0.001)
-            # Add noise to the selected columns of x_total
-            x_total_copy[:, indices_cache] += noise
-            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
-            model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-
-        #Ties it together on the real data
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=24, epochs=epochs)
-        self.model = model
+    def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_scaling: bool = True, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model) -> None:
+        return super().train(epochs, patience, time_shift, add_scaling, add_noise, use_transfer_learning, test, create_model)
 
     def indicators_past_num_days(self, stock_symbol: str, end_date: str,
                                  information_keys: List[str], scaler_data: Dict[str, int],
@@ -819,7 +788,7 @@ class PriceModel(BaseModel):
 
         # Scale each column manually
         for column in information_keys:
-            if column in excluded_values:
+            if column in non_daily:
                 continue
             low = scaler_data[column]['min'] # type: ignore[index]
             diff = scaler_data[column]['diff'] # type: ignore[index]
@@ -889,74 +858,8 @@ class PercentageModel(BaseModel):
         y_total = y_total[:-num_days+2]
         return scaled_data, y_total
 
-    def train(self, epochs: int=1000,
-              patience: int=10, time_shift: int=0,
-              add_noise: bool=True,
-              use_transfer_learning: bool=False, test: bool=False,
-              create_model: Callable=create_LSTM_model2) -> None:
-        """
-        Trains Model off `information_keys`
-
-        Args:
-            epochs (int): The number of epochs to train the model for
-            patience (int): The amount of epochs of stagnation before early stopping
-            time_shift (int): The amount of time to shift the data by(in days)
-                EX. allows bot to predict 1 month into the future
-            add_noise (bool): Data Augmentation using noise
-            use_transfer_learning (bool): Whether or not to use tranfer learnign model
-            test (bool): Whether or not to use the test data
-        
-        """
-        warn("If you saved before, use load func instead")
-        if time_shift < 0:
-            raise ValueError("`time_shift` must be equal of greater than 0")
-
-        start_date = self.start_date
-        end_date = self.end_date
-        stock_symbol = self.stock_symbol
-        information_keys = self.information_keys
-        num_days = self.num_days
-
-        #_________________ GET Data______________________#
-        self.data, data, self.scaler_data = get_relavant_values(
-            stock_symbol, information_keys, start_date=start_date, end_date=end_date
-        )
-        #_________________Process Data for LSTM______________________#
-        split = int(len(data))
-        if split < num_days:
-            raise ValueError('The length of amount of data must be more then num days \n increase the data or decrease the num days')
-
-        if test:
-            x_total, y_total = create_sequences(data[:int(split*.8)], num_days)
-        else:
-            x_total, y_total = create_sequences(data, num_days)
-        x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
-
-        model = create_model((x_total.shape[1], num_days, len(information_keys)))
-        if use_transfer_learning:
-            transfer_model = load_model(f"transfer_learning_model")
-            for layer_idx, layer in enumerate(model.layers):
-                if layer.name in transfer_model.layers[layer_idx].name:
-                    layer.set_weights(transfer_model.layers[layer_idx].get_weights())
-
-        early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
-        #_________________Train it______________________#
-        if add_noise:
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
-            # Get the indices of indicators to add noise to
-            indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
-
-            # Create a noise array with the same shape as x_total's selected columns
-            noise = np.random.uniform(-0.001, 0.001)
-            # Add noise to the selected columns of x_total
-            x_total_copy[:, indices_cache] += noise
-            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
-            model.fit(x_total_copy, y_total_copy, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=128, epochs=epochs)
-
-        #Ties it together on the real data
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=128, epochs=epochs)
-        self.model = model
+    def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_scaling: bool = False, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model2) -> None:
+        return super().train(epochs, patience, time_shift, add_scaling, add_noise, use_transfer_learning, test, create_model)
 
     def predict(self, info: Optional[np.ndarray] = None) -> np.ndarray:
         """
@@ -1010,142 +913,15 @@ class PercentageModel(BaseModel):
         return super().test(time_shift, show_graph, title, x_label, y_label)
 
 
-class DayTradeModel(BaseModel):
-    """
-    This is the DayTrade child class that inherits from
-    the BaseModel parent class.
-    
-    It contains the information keys `Close`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=['Close']
-        )
+ImpulseMACD_indicators = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
+Reversal_indicators = ['Close', 'gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
+Earnings_indicators = ['Close', 'earnings dates', 'earning diffs', 'Momentum']
+RSI_indicators = ['Close', 'RSI', 'TRAMA']
+break_out_indicators = ['Close', 'Bollinger Middle',
+    'Above Bollinger', 'Bellow Bollinger', 'Momentum']
+super_trends_indicators = ['Close', 'supertrend1', 'supertrend2',
+    'supertrend3', '200-day EMA', 'kumo_cloud']
 
-
-class MACDModel(BaseModel):
-    """
-    This is the MACD child class that inherits
-    from the BaseModel parent class.
-
-    It contains the information keys `Close`, `MACD`,
-    `Signal Line`, `Histogram`, `ema_flips`, `200-day EMA`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=['Close', 'MACD', 'Histogram', 'ema_flips', '200-day EMA']
-        )
-
-
-class ImpulseMACDModel(BaseModel):
-    """
-    This is the ImpulseMACD child class that inherits from
-    the BaseModel parent class.
-
-    The difference between this class and the MACD model class is that the Impluse MACD model
-    is more responsive to short-term market changes and can identify trends earlier. 
-
-    It contains the information keys `Close`, `Histogram`, `Momentum`,
-    `Change`, `Histogram`, `ema_flips`, `signal_flips`, `200-day EMA`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
-        )
-
-
-class ReversalModel(BaseModel):
-    """
-    This is the Reversal child class that inherits from
-    the BaseModel parent class.
-
-    It contains the information keys `Close`, `gradual-liquidity spike`,
-    `3-liquidity spike`, `momentum_oscillator`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=[
-                'Close', 'gradual-liquidity spike',
-                '3-liquidity spike', 'momentum_oscillator'
-            ]
-        )
-
-
-class EarningsModel(BaseModel):
-    """
-    This is the Earnings child class that inherits from
-    the BaseModel parent class.
-
-    It contains the information keys `Close`, `earnings dates`,
-    `earning diffs`, `Momentum`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=['Close', 'earnings dates', 'earning diffs', 'Momentum']
-        )
-
-
-class RSIModel(BaseModel):
-    """
-    This is the Breakout child class that inherits from
-    the BaseModel parent class.
-
-    It contains the information keys `Close`, `RSI`, `TRAMA`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=['Close', 'RSI', 'TRAMA']
-        )
-
-
-class BreakoutModel(BaseModel):
-    """
-    This is the Breakout child class that inherits from
-    the BaseModel parent class.
-
-    It contains the information keys `Close`, `RSI`, `TRAMA`, `Bollinger Middle`,
-                `Above Bollinger`, `Bellow Bollinger`, `Momentum`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=[
-                'Close', 'RSI', 'TRAMA', 'Bollinger Middle',
-                'Above Bollinger', 'Bellow Bollinger', 'Momentum'
-            ]
-        )
-
-
-class SuperTrendsModel(BaseModel):
-    """
-    This is the Breakout child class that inherits from
-    the BaseModel parent class.
-
-    It contains the information keys `Close`, `RSI`, `TRAMA`
-    """
-    def __init__(self,
-                 stock_symbol: str = "AAPL") -> None:
-        raise Warning("`SuperTrendsModel` is BUGGED, NOT WORKING")
-        super().__init__(
-            stock_symbol=stock_symbol,
-            information_keys=[
-                'Close', 'supertrend1', 'supertrend2',
-                'supertrend3', '200-day EMA', 'kumo_cloud'
-            ]
-        )
 
 def update_transfer_learning(model: BaseModel,
                              companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
@@ -1169,24 +945,25 @@ def update_transfer_learning(model: BaseModel,
     model.test(show_graph=True)
 
 if __name__ == "__main__":
-    modelclasses = [ImpulseMACDModel]#[DayTradeModel, MACDModel, ImpulseMACDModel, ReversalModel, EarningsModel, RSIModel, BreakoutModel]
-
+    from itertools import chain
+    modelclass = PercentageModel
+    indicators = [ImpulseMACD_indicators]#[ImpulseMACD_indicators, Reversal_indicators, Earnings_indicators, break_out_indicators, super_trends_indicators]
+    #indicators = list(set(chain(*indicators)))
+    #indicators.remove('Close')
+    #print(indicators)
+    #indicators.remove('RSI')
+    #indicators.insert(0, 'Close')
+    #indicators = [indicators]
     test_models = []
-    #for company in company_symbols:
-    #for modelclass in modelclasses:
-    #    model = modelclass(stock_symbol="AAPL")
-    #    model.end_date = date.today()-relativedelta(days=30)
-    #    model.train(epochs=1000, test=True)
-    #    model.save()
-    #    test_models.append(model)
+    for strategy in indicators:
+        model = modelclass(stock_symbol="GE", information_keys=strategy)
+        #model.load()
+        #model.stock_symbol = "T"
+        model.num_days = 10
 
-
-    model = PercentageModel(stock_symbol="HD", information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA'])
-    model.end_date = date.today()-relativedelta(days=30)
-    model.num_days = 10
-    model.train(epochs=1000, patience=5, use_transfer_learning=True, test=True)
-    #model.load()
-    test_models.append(model)
+        model.train(epochs=1000, use_transfer_learning=True, test=True)
+        #model.save()
+        test_models.append(model)
 
     for model in test_models:
         model.test(show_graph=True)

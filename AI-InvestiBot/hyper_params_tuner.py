@@ -13,13 +13,8 @@ from tensorflow.keras.backend import clear_session
 from sklearn.model_selection import ParameterGrid
 
 from math import log
-
 from models import *
-# model = ImpulseMACDModel()
-# model.train(epochs=20)
-# model.load()
-# model.test()
-# raise ValueError()
+
 def create_model(optimizer=Adam, loss=MeanSquaredError, activation_func=relu, neurons=64, learning_rate=0.001, num_days=60, information_keys=['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']):
     optimizer = optimizer(learning_rate=learning_rate)
     loss = loss()

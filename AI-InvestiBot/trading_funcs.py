@@ -28,7 +28,8 @@ import numpy as np
 import pandas as pd
 
 __all__ = (
-    'excluded_values',
+    'non_daily',
+    'non_daily_no_use',
     'indicators_to_add_noise_to',
     'company_symbols',
     'create_sequences',
@@ -47,10 +48,14 @@ __all__ = (
 
 #values that do not go from day to day
 #EX: earnings comeout every quarter
-excluded_values = (
+non_daily = (
     "Dates",
     "earnings dates",
     "earning diffs"
+)
+non_daily_no_use = (
+    "Dates",
+    "earnings dates",
 )
 
 indicators_to_add_noise_to = (
@@ -198,7 +203,7 @@ def find_best_number_of_years(symbol: str, stock_data: Optional[pd.DataFrame]=No
 
 
 def process_earnings(dates: List, diffs: List, start_date: str,
-                     end_date: str) -> Tuple[List[str], List[float]]:
+                     end_date: str, iterations: int) -> Tuple[List[str], List[float]]:
     """
     The purpose of this function is to process the earnings between the start and
     end date range, and fill in the 0s for dates without an earnings report. 
@@ -208,6 +213,7 @@ def process_earnings(dates: List, diffs: List, start_date: str,
         diffs (list): The earnings which are used to get the earnings
         start_date (str): The start date which is used to get the earnings
         end_date (str): The end date which is used to get the earnings
+        iterations (int): Time since start bc relative time is inaccurate
     
     Returns:
         tuple: A tuple containing two Lists.
@@ -226,16 +232,9 @@ def process_earnings(dates: List, diffs: List, start_date: str,
         if date > end_date:
             start = dates.index(date)
             break
-    start = 0
-    end = -1 # till the end if nothing
-    for date in dates:
-        if date < start_date:
-            end = dates.index(date)
-            break
-    for date in dates:
-        if date > end_date:
-            start = dates.index(date)
-            break
+    if start > end:
+        return [], []
+
     dates = dates[start:end]
     diffs = diffs[start:end]
 
@@ -244,10 +243,8 @@ def process_earnings(dates: List, diffs: List, start_date: str,
     filled_earnings = []
 
     current_date = datetime.strptime(start_date, "%Y-%m-%d")
-    end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
-
     # Fill out the list to match the start and end date
-    while current_date <= end_datetime:
+    for i in range(iterations):
         filled_dates.append(current_date)
         if current_date in dates:
             existing_index = dates.index(current_date)
@@ -255,7 +252,7 @@ def process_earnings(dates: List, diffs: List, start_date: str,
         else:
             filled_earnings.append(0)
         current_date += relativedelta(days=1)
-    return dates, diffs
+    return dates, filled_earnings
 
 
 def process_flips(series1: Iterable[Number], series2: Iterable[Number]) -> List[int]:
@@ -349,7 +346,7 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
         i = other_vals['Dates'].index(start_date)
         other_vals['Dates'] = other_vals['Dates'][i:]
         for key in information_keys:
-            if key in excluded_values:
+            if key in non_daily:
                 continue
             other_vals[key] = other_vals[key][i:]
     else:
@@ -359,19 +356,18 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
         i = other_vals['Dates'].index(end_date)
         other_vals['Dates'] = other_vals['Dates'][:i]
         for key in information_keys:
-            if key in excluded_values:
+            if key in non_daily:
                 continue
             other_vals[key] = other_vals[key][:i]
     else:
         raise ValueError(f"end date is not in data\nRun getInfo.py with end date after {start_date} and {end_date}")
 
-
     #_________________Process earnings______________________#
     if "earning diffs" in information_keys:
         dates = other_vals['earnings dates']
         diffs = other_vals['earning diffs']
- 
-        dates, diffs = process_earnings(dates, diffs, start_date, end_date)
+
+        dates, diffs = process_earnings(dates, diffs, start_date, end_date, len(other_vals['Close']))
         other_vals['earnings dates'] = dates
         other_vals['earning diffs'] = diffs
 
@@ -398,7 +394,8 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
     scaler_data = temp # change it if value is `None`
 
     # Convert the dictionary of lists to a NumPy array
-    filtered = [other_vals[key] for key in information_keys if key not in excluded_values]
+    print(len(other_vals['Close']), len(other_vals['earning diffs']))
+    filtered = [other_vals[key] for key in information_keys if key not in non_daily_no_use]
     filtered = np.transpose(filtered) # type: ignore[assignment]
     return other_vals, filtered, scaler_data# type: ignore[return-value]
 
@@ -420,16 +417,13 @@ def get_scaler(num: float, data: List) -> float:
 
 
 def supertrends(data: pd.DataFrame, period: int=10, factor: int=3):
-    # Calculate the average true range (ATR)
-    tr1 = data["High"] - data["Low"]
-    tr2 = abs(data["High"] - data.shift()["Close"])
-    tr3 = abs(data["Low"] - data.shift()["Close"])
-    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr = true_range.rolling(period).mean()
+    atr = calculate_average_true_range(data)
     
+    rolling_mean = data["Close"].rolling(period).mean()
+    rolling_mean = rolling_mean.fillna(rolling_mean.iloc[period - 1])
     # Calculate the basic upper and lower bands
-    upper_band = data["Close"].rolling(period).mean() + (factor * atr)
-    lower_band = data["Close"].rolling(period).mean() - (factor * atr)
+    upper_band = rolling_mean + (factor * atr)
+    lower_band = rolling_mean - (factor * atr)
 
     # Calculate the SuperTrend values using np.select()
     conditions = [

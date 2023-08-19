@@ -332,7 +332,7 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
     It uses many functions from other modules to process
     historical data and run models on them.
     """
-    if not companys:# weird global/local work around
+    if not companys:# NOTE: weird global/local work around
         companys = company_symbols
     for company_ticker in companys:
         ticker = yf.Ticker(company_ticker)
@@ -345,7 +345,9 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
             os.makedirs(f'Stocks/{company_ticker}')
 
         print(company_ticker)
-        update_dynamic_tuning(company_ticker, stock_data)
+        #temp = supertrends(stock_data)
+
+        #update_dynamic_tuning(company_ticker, stock_data)
         update_info(company_ticker, stock_data)
 
 if __name__ == '__main__':
