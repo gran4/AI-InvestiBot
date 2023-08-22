@@ -18,7 +18,7 @@
 
 # Introduction
 
-This repository is currently under active development.The project aims to provide unique features that are not commonly found in other stock bots.
+This repository is currently under active development. The project aims to be more accurate than other projects by providing innovative features not often found in other stock bots.
 
 # Contact Us
 Discord: https://discord.gg/uHqBrqrr
@@ -54,7 +54,7 @@ The following features are planned to be added in the future:
   - [ ] Bug Fixes
   - [ ] More Documentation
   - [ ] More Flexibility
-  - [x] A better name
+  - [ ] More verification of the high accuracy rate.
 
 
 # How It Works
@@ -174,6 +174,8 @@ This project offers various models to choose from, including:
   + The model has never seen the data
   + Not over fitted becuase Model used Early stopping
   + NO Transfer learning applied. Once transfer is applied, it will become even more accuracte.
+  + It has been tested on other similar stocks(on `PercentageModel` only) and has shown equally promising results
+  + More methods for testing will be added soon
 
 - Directional Test is how often the predicted and test moved together.
   + Directional Test:  93.26530612244898
