@@ -53,14 +53,14 @@ __all__ = (
     'CustomLoss',
     'CustomLoss2',
     'BaseModel',
-    'DayTradeModel',
-    'MACDModel',
-    'ImpulseMACDModel',
-    'ReversalModel',
-    'EarningsModel',
-    'BreakoutModel',
-    'RSIModel',
-    'SuperTrendsModel'
+    'PriceModel',
+    'PercentageModel',
+    'ImpulseMACD_indicators',
+    'Reversal_indicators',
+    'RSI_indicators',
+    'Earnings_indicators',
+    'break_out_indicators', 
+    'super_trends_indicators'
 )
 
 
@@ -156,13 +156,13 @@ class BaseModel:
         stock_symbol = self.stock_symbol
         information_keys = self.information_keys
         num_days = self.num_days
+        print(start_date, end_date)
 
         #_________________ GET Data______________________#
         self.data, data, self.scaler_data = get_relavant_values(
             stock_symbol, information_keys, start_date=start_date, end_date=end_date
         )
-        #START DATE:  8048
-        #END DATE:  1996
+
         #_________________Process Data for LSTM______________________#
         split = int(len(data))
         if test:
@@ -219,14 +219,15 @@ class BaseModel:
         model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=64, epochs=epochs)
         self.model = model
 
-    def save(self, transfer_learning: bool=False) -> None:
+    def save(self, transfer_learning: bool=False, name: Optional[str]=None) -> None:
         """
         This method will save the model using the tensorflow save method. It will also save the data
         into the `json` file format.
         """
         if self.model is None:
             raise LookupError("Compile or load model first")
-        name = self.__class__.__name__
+        if name is None:
+            name = self.__class__.__name__
 
         #_________________Save Model______________________#
         if transfer_learning:
@@ -249,6 +250,28 @@ class BaseModel:
 
         with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
+
+    @staticmethod
+    def plot(data):
+        """Plots any np.array that you give in"""
+        days_train = [i for i in range(data.shape[0])]
+        data = data[:, 0]
+        # Plot the actual and predicted prices
+        plt.figure(figsize=(18, 6))
+
+        predicted_test = plt.plot(days_train, data, label='Predicted Test')
+        plt.title(f'TITLE')
+        plt.xlabel("X")
+        plt.ylabel("Y")
+
+        import matplotlib.ticker as ticker
+        plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
+
+        plt.legend(
+            [predicted_test[0]],#[real_data, actual_test[0], actual_train],
+            ['Data']#['Real Data', 'Actual Test', 'Actual Train']
+        )
+        plt.show()
 
     @staticmethod
     def is_homogeneous(arr) -> bool:
@@ -345,7 +368,7 @@ class BaseModel:
             plt.show()
         return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
-    def load(self) -> Optional[Self]:
+    def load(self, name: Optional[str]=None) -> Optional[Self]:
         """
         This method will load the model using the tensorflow load method.
 
@@ -355,7 +378,8 @@ class BaseModel:
         """
         if self.model:
             return None
-        name = self.__class__.__name__
+        if not name:
+            name = self.__class__.__name__
 
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
         with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
@@ -798,6 +822,8 @@ class PriceModel(BaseModel):
             stock_data[column] = scaled_values
         return stock_data
 
+    def profit(self, pred):
+        return pred/self.cached[-1][0]
 
 class PercentageModel(BaseModel):
     """
@@ -825,6 +851,7 @@ class PercentageModel(BaseModel):
                        num_days=num_days,
                        information_keys=information_keys
                        )
+        self.cached_cached = None#(For stock caching on 4d data)
 
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
         # NOTE: Strips 1st day becuase -0 is 0. Look at `y_total[:-1]`
@@ -836,7 +863,6 @@ class PercentageModel(BaseModel):
         if time_shift != 0:
             x_total = x_total[:-time_shift]
             y_total = y_total[time_shift:]
-
         num_windows = x_total.shape[0] - num_days + 1
         # Create a 3D numpy array to store the scaled data
         scaled_data = np.zeros((num_windows, num_days, x_total.shape[1], x_total.shape[2]))
@@ -854,12 +880,11 @@ class PercentageModel(BaseModel):
 
             # Store the scaled window in the 3D array
             scaled_data[i] = scaled_window
-
         y_total = y_total[:-num_days+2]
         return scaled_data, y_total
 
-    def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_scaling: bool = False, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model2) -> None:
-        return super().train(epochs, patience, time_shift, add_scaling, add_noise, use_transfer_learning, test, create_model)
+    def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model2) -> None:
+        return super().train(epochs, patience, time_shift, False, add_noise, use_transfer_learning, test, create_model)
 
     def predict(self, info: Optional[np.ndarray] = None) -> np.ndarray:
         """
@@ -912,6 +937,29 @@ class PercentageModel(BaseModel):
         y_label: str = 'Price Change in %'
         return super().test(time_shift, show_graph, title, x_label, y_label)
 
+    def update_cached_offline(self) -> None:
+        if self.cached_cached is not None:
+            self.cached = self.cached_cached
+        super().update_cached_offline()
+        self.cached_cached = self.cached
+
+        scaled_data = np.zeros((1, self.num_days, self.cached.shape[0],self.cached.shape[1]))
+        
+        # Get the data for the current window using the i-window_size approach
+        window = self.cached[-self.num_days:]
+
+        # Calculate the high and low close prices for the current window
+        high_close = np.max(window[:, 0])  # Assuming close prices are in the first column
+        low_close = np.min(window[:, 0])
+
+        # Scale the data using broadcasting
+        scaled_window = (window - low_close) / (high_close - low_close)
+        # Store the scaled window in the 3D array
+        scaled_data[0] = scaled_window
+        self.cached = scaled_data
+
+    def profit(self, pred):
+        return pred
 
 ImpulseMACD_indicators = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
 Reversal_indicators = ['Close', 'gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
@@ -945,7 +993,6 @@ def update_transfer_learning(model: BaseModel,
     model.test(show_graph=True)
 
 if __name__ == "__main__":
-    from itertools import chain
     modelclass = PercentageModel
     indicators = [ImpulseMACD_indicators]#[ImpulseMACD_indicators, Reversal_indicators, Earnings_indicators, break_out_indicators, super_trends_indicators]
     #indicators = list(set(chain(*indicators)))
@@ -959,10 +1006,14 @@ if __name__ == "__main__":
         model = modelclass(stock_symbol="GE", information_keys=strategy)
         #model.load()
         #model.stock_symbol = "T"
+        model.start_date = "2002-04-11"
+        model.end_date = "2023-04-11"
         model.num_days = 10
 
-        model.train(epochs=1000, use_transfer_learning=True, test=True)
-        #model.save()
+        model.train(epochs=1000, use_transfer_learning=False, test=True)
+        model.stock_symbol = "HD"
+        model.start_date = "2020-04-11"
+        model.end_date = "2023-04-11"
         test_models.append(model)
 
     for model in test_models:
