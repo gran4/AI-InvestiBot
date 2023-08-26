@@ -55,6 +55,7 @@ The following features are planned to be added in the future:
   - [ ] More Documentation
   - [ ] More Flexibility
   - [ ] More verification of the high accuracy rate.
+- [ ] Fix Issues added by PercentageModel Refactor
 
 
 # How It Works
@@ -85,8 +86,8 @@ The stock bot operates based on the following principles:
 - The AI is implemented into the childclasses of `BaseModel`. 
 - Base Model: This is the parent class for all other models and has no data of its own unless specified. Holds functionality for bot NOT AI.
 - Price Model: This is the base child class that uses data scaled btw high and low of company data and outputs the predicted price
-- Percentage Model: This is the base child class that uses data scaled btw high and low of the window data and outputs the predicted % change in price
-- Training, testing, saving, and loading are handled by separate functions(Ensuring quality ai).
+- Percentage Model: This is the base child class that uses data scaled btw high and low of a window of data(the past num days) and outputs the predicted % change in price
+- Training, testing, saving, and loading are handled by separate functions(Ensuring quality code).
 - Training can be a test, using only the first 80% of data
 - Information for each day is obtained through two methods:
   - Method 1: Offline (past data only)
