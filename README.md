@@ -134,40 +134,46 @@ This project offers various models to choose from, including:
 - Percentage Model: This is the base class that uses data scaled btw high and low of the window data and outputs the predicted % change in price
 
 - Day Trade Model:
-  - Directional Test: 96.53061224489797
-  - Spatial Test: 92.44897959183673
-  - Test RMSE: 1.2622329815597677
-  - Test RMSSE: 55.46791004456621
+  - Directional Test:  97.88732394366197
+  - Spatial Test:  95.07042253521126
+
+  - Test RMSE: 1.3360315740699096
+  - Test RMSSE: 24.995202143966043
 - Impulse MACD Model:
-  - Directional Test: 94.08163265306122
-  - Spatial Test: 93.06122448979592
-  - Test RMSE: 0.5951596806097224
-  - Test RMSSE: 10.311187639192923
+  - Directional Test:  96.47887323943662
+  - Spatial Test:  95.07042253521126
+  - Test RMSE: 0.6948929238336506
+  - Test RMSSE: 7.995023009594582
 - Reversal Model:
-  - Directional Test: 95.51020408163265
-  - Spatial Test: 93.87755102040816
-  - Test RMSE: 0.695032509478849
-  - Test RMSSE: 14.778610864381438
+  - Directional Test:  97.1830985915493
+  - Spatial Test:  95.07042253521126
+  - Test RMSE: 1.1254591884267255
+  - Test RMSSE: 24.42872924716995
 - Earnings Model:
-  - Directional Test: 95.51020408163265
-  - Spatial Test: 91.42857142857143
-  - Test RMSE: 0.7749913091267872
-  - Test RMSSE: 34.070680956005674
+  - Directional Test:  98.59154929577466
+  - Spatial Test:  96.47887323943662
+  - Test RMSE: 0.8682655262847199
+  - Test RMSSE: 15.578685178744083
 - RSI Model:
   - Directional Test:  97.14285714285714
   - Spatial Test:  95.71428571428572
   - Test RMSE: 0.5837482545772584
   - Test RMSSE: 22.226485198086568
 - Breakout Model:
-  - Directional Test: 90.81632653061224
-  - Spatial Test: 88.77551020408163
-  - Test RMSE: 0.8159638992035801
-  - Test RMSSE: 25.95683177058772
+  - Directional Test:  97.88732394366197
+  - Spatial Test:  93.66197183098592
+  - Test RMSE: 1.0865094554480963
+  - Test RMSSE: 21.424078134818295
 - Super Trends Model:
-  - Directional Test: 93.26530612244898
-  - Spatial Test: 90.40816326530611
-  - Test RMSE: 1.5785158656115141
-  - Test RMSSE: 121.95386912720913
+  - Directional Test:  97.88732394366197
+  - Spatial Test:  92.25352112676056
+  - Test RMSE: 1.6947722097944153
+  - Test RMSSE: 78.60191098762428
+
+
+![Figure_1](https://github.com/gran4/AI-InvestiBot/assets/80655391/0c205922-e6f4-4113-9d9c-1f3c890d1f81)
+
+
 
 # How to interperat
 
