@@ -4,6 +4,14 @@ from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 import json
 
+from pandas_market_calendars import get_calendar
+import pandas as pd
+import numpy as np
+
+from trading_funcs import create_sequences, get_relavant_values
+from typing import List
+
+
 def test_many(model_class: BaseModel=PercentageModel, strategy=['Close'], tests: int=20, *args, **kwargs):
     averages = []
     for i in range(tests):
@@ -23,56 +31,95 @@ def test_many(model_class: BaseModel=PercentageModel, strategy=['Close'], tests:
     return [sum / len(averages) for sum in column_sums]
 
 
-def test_individual_indepth(model: BaseModel=PercentageModel()):
-    model.stock_symbol = "SBUX"
-    with open(f"Stocks/{model.stock_symbol}/info.json", 'r') as file:
-        cached_info = json.load(file)
-    with open(f'Stocks/{model.stock_symbol}/dynamic_tuning.json', 'r') as file:
-        relevant_years = json.load(file)['relevant_years']
-    print(datetime.strptime(cached_info['Dates'][-1], "%Y-%m-%d")-relativedelta(years=relevant_years))
-    model.start_date = datetime.strptime(cached_info['Dates'][-1], "%Y-%m-%d")-relativedelta(years=relevant_years)
-    model.end_date = model.start_date+relativedelta(days=200+model.num_days)
-    model.update_dates(model.start_date, model.end_date)
-    print(type(model.start_date))
-    #model.load()
+def test_indepth(models: List[BaseModel], hold_stocks=False):
+    cached_infos = []
+    processed_data = []
+    for model in models:
 
+        with open(f"Stocks/{model.stock_symbol}/info.json", 'r') as file:
+            cached_info = json.load(file)
+
+        cached_info, data2, _ = get_relavant_values(
+            model.stock_symbol, model.information_keys, start_date=model.start_date, end_date=model.end_date
+        )
+        cached_infos.append(cached_info)
+
+        temp, temp2 = create_sequences(data2, model.num_days)
+        temp_test, expected = model.process_x_y_total(temp, temp2, model.num_days, 0)
+        processed_data.append(temp_test)
     money_made = 0
-    stocks_hold = 0
     bought_at = []
 
     signals = {}
     time_stamp = 0
-    while True:
-        if model.end_date == "2023-06-05":
-            break
-        print(money_made, model.end_date)
-        import time
-        time.sleep(.2)
 
-        model.update_cached_offline()
-        temp = model.predict(info=model.cached)[0][0]
-        profit = model.profit(temp)
-        print(model.cached[0][0][:3])
-        prev_close = model.cached[0][-1][0]
-        print(prev_close)
-        if profit >= 1.01:
-            signals[time_stamp] = 1
-            if stocks_hold:
-                bought_at.append(prev_close)
-        elif profit <= 1:
+    data = []
+    real_data = []
+    index = len(cached_infos[0]['Dates'])-10-model.num_days
+    init = 0
+    while True:
+        init += 1
+        if init >= index:
+            break
+        profits = []
+        i = 0
+        for model in models:
+            expanded_array = np.expand_dims(processed_data[i][init], axis=0)
+            temp = model.predict(info=expanded_array)[0][0]
+            profit = model.profit(temp)
+            prev_close = cached_infos[i]['Close'][init]
+            profits.append((i, profit, prev_close))
+            print(init)
+            i += 1
+            #real_data.append(expected[init])#cached_info['Close'][index+1]/prev_close)
+        profits = sorted(profits, key=lambda x: x[1])
+
+        if not hold_stocks:
             for stock in bought_at:
-                money_made += prev_close-stock
+                money_made += cached_infos[stock[0]]['Close'][init]-stock[2]
+            bought_at = []
+        if profit >= 2:
+            signals[time_stamp] = 1
+            bought_at.append(profits[0])
+        elif profit <= .2:
+            for stock in bought_at:
+                money_made += cached_infos[stock[0]]['Close'][init]-stock[2]
             bought_at = []
             signals[time_stamp] = -1
-        model.start_date = datetime.strptime(model.start_date, "%Y-%m-%d")+relativedelta(days=1)
-        model.end_date = datetime.strptime(model.end_date, "%Y-%m-%d")+relativedelta(days=1)
-        model.end_date = model.end_date.strftime("%Y-%m-%d")
-        model.start_date = model.start_date.strftime("%Y-%m-%d")
+    for i in range(len(real_data)):
+        num = real_data[i]
+        #num -= 1
+        num /= 20
+        real_data[i] = num
+
+    return
+    import matplotlib.pyplot as plt
+    days_train = [i for i in range(len(data))]
+    plt.figure(figsize=(18, 6))
+
+    predicted_test = plt.plot(days_train, data, label='Predicted Test')
+    real_test = plt.plot(days_train, real_data, label='Predicted Test')
+    plt.title(f'TITLE')
+    plt.xlabel("X")
+    plt.ylabel("Y")
+
+    import matplotlib.ticker as ticker
+    plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
+
+    plt.legend(
+        [predicted_test[0], real_test],#[real_data, actual_test[0], actual_train],
+        ['Data', "REAL"]#['Real Data', 'Actual Test', 'Actual Train']
+    )
+    plt.show()
     print(money_made)
-model = PercentageModel(stock_symbol="GE", information_keys=ImpulseMACD_indicators)
-model.start_date="2010-07-04"
-model.end_date="2023-08-09"
-model.num_days = 10
-model.train(epochs=1, use_transfer_learning=False)
-test_individual_indepth(model)
+
+models = []
+for company in ["AAPL", "HD", "DIS", "GOOG"]:
+    model = PercentageModel(stock_symbol=company, information_keys=ImpulseMACD_indicators)
+    model.start_date = "2020-07-04"
+    model.end_date = "2023-08-09"
+    model.num_days = 10
+    model.load()
+    models.append(model)
+test_indepth(models)
 

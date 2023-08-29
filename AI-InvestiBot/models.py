@@ -95,7 +95,6 @@ class BaseModel:
         self.update_dates(start_date=start_date, end_date=end_date)
 
         self.model: Optional[Sequential] = None
-        self.data: Optional[Dict[str, Any]] = None
         self.scaler_data: Dict[str, float] = {}
 
 #________For offline predicting____________#
@@ -159,7 +158,7 @@ class BaseModel:
         print(start_date, end_date)
 
         #_________________ GET Data______________________#
-        self.data, data, self.scaler_data = get_relavant_values(
+        _, data, self.scaler_data = get_relavant_values(
             stock_symbol, information_keys, start_date=start_date, end_date=end_date
         )
 
@@ -235,18 +234,10 @@ class BaseModel:
             return
         self.model.save(f"Stocks/{self.stock_symbol}/{name}_model")
 
-        if os.path.exists(f'Stocks/{self.stock_symbol}/data.json'):
-            with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
-                temp = json.load(file)
-            self.data.update({key: value for key, value in temp.items() if key not in self.data})
-
-        with open(f"Stocks/{self.stock_symbol}/data.json", "w") as json_file:
-            json.dump(self.data, json_file)
-
         if os.path.exists(f'Stocks/{self.stock_symbol}/min_max_data.json'):
             with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
                 temp = json.load(file)
-            self.scaler_data.update({key: value for key, value in temp.items() if key not in self.data})
+            self.scaler_data.update({key: value for key, value in temp.items()})
 
         with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
@@ -382,9 +373,6 @@ class BaseModel:
             name = self.__class__.__name__
 
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
-        with open(f"Stocks/{self.stock_symbol}/data.json", 'r') as file:
-            self.data = json.load(file)
-
         with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
             self.scaler_data = json.load(file)
 
@@ -870,17 +858,21 @@ class PercentageModel(BaseModel):
         for i in range(num_windows):
             # Get the data for the current window using the i-window_size approach
             window = x_total[i : i + num_days]
+            #total 4218, 10 windows, num_days 10, indicators 7
 
             # Calculate the high and low close prices for the current window
-            high_close = np.max(window[:, 0])  # Assuming close prices are in the first column
-            low_close = np.min(window[:, 0])
+            high_close = np.max(window, axis=0)
+            low_close = np.min(window, axis=0)
 
-            # Scale the data using broadcasting
-            scaled_window = (window - low_close) / (high_close - low_close)
+            # Avoid division by zero if high_close and low_close are equal
+            scale_denominator = np.where(high_close == low_close, 1, high_close - low_close)
 
+            # Scale each column using broadcasting
+            scaled_window = (window - low_close) / scale_denominator
             # Store the scaled window in the 3D array
             scaled_data[i] = scaled_window
         y_total = y_total[:-num_days+2]
+
         return scaled_data, y_total
 
     def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model2) -> None:
@@ -941,22 +933,27 @@ class PercentageModel(BaseModel):
         if self.cached_cached is not None:
             self.cached = self.cached_cached
         super().update_cached_offline()
-        self.cached_cached = self.cached
+        self.cached_cached = np.copy(self.cached)
 
-        scaled_data = np.zeros((1, self.num_days, self.cached.shape[0],self.cached.shape[1]))
-        
+
+        scaled_data = np.zeros((1, self.num_days, self.cached.shape[0], self.cached.shape[1]))
+
         # Get the data for the current window using the i-window_size approach
-        window = self.cached[-self.num_days:]
+        window = self.cached#self.cached[-self.num_days:]
 
         # Calculate the high and low close prices for the current window
-        high_close = np.max(window[:, 0])  # Assuming close prices are in the first column
-        low_close = np.min(window[:, 0])
+        high_close = np.max(window, axis=0)
+        low_close = np.min(window, axis=0)
+        # Avoid division by zero if high_close and low_close are equal
+        scale_denominator = np.where(high_close == low_close, 1, high_close - low_close)
 
-        # Scale the data using broadcasting
-        scaled_window = (window - low_close) / (high_close - low_close)
+        # Scale each column using broadcasting
+        scaled_window = (window - low_close) / scale_denominator
         # Store the scaled window in the 3D array
         scaled_data[0] = scaled_window
         self.cached = scaled_data
+
+        #self.plot(self.cached[0][0])
 
     def profit(self, pred):
         return pred
@@ -1006,11 +1003,12 @@ if __name__ == "__main__":
         model = modelclass(stock_symbol="GE", information_keys=strategy)
         #model.load()
         #model.stock_symbol = "T"
-        model.start_date = "2002-04-11"
-        model.end_date = "2023-04-11"
+        model.start_date = "2002-07-24"
+        model.end_date = "2023-07-24"
         model.num_days = 10
 
         model.train(epochs=1000, use_transfer_learning=False, test=True)
+        model.save()
         model.stock_symbol = "HD"
         model.start_date = "2020-04-11"
         model.end_date = "2023-04-11"
