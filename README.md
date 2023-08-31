@@ -175,7 +175,7 @@ This project offers various models to choose from, including:
 
 
 
-# How to interperat
+# How to interpret
 
 - YOU CAN HAVE CONFIDENCE BECUASE:
   + The model has never seen the data
