@@ -655,9 +655,15 @@ class BaseModel:
         >>> print(len(temp))
         4
         """
-
-        raise NotImplementedError("Subclasses must implement this method")
-
+        if info is None:
+            info = self.get_info_today()
+        if info is None: # basically, if it is still None after get_info_today
+            raise RuntimeError(
+                "Could not get indicators for today. It may be that `end_date` is beyond today's date"
+            )
+        if self.model:
+            return self.model.predict(info) # typing: ignore[return]
+        raise LookupError("Compile or load model first")
 
 class PriceModel(BaseModel):
     """
@@ -810,8 +816,9 @@ class PriceModel(BaseModel):
             stock_data[column] = scaled_values
         return stock_data
 
-    def profit(self, pred):
-        return pred/self.cached[-1][0]
+
+    def profit(self, pred, prev):
+        return pred/prev
 
 class PercentageModel(BaseModel):
     """
@@ -878,51 +885,6 @@ class PercentageModel(BaseModel):
     def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model2) -> None:
         return super().train(epochs, patience, time_shift, False, add_noise, use_transfer_learning, test, create_model)
 
-    def predict(self, info: Optional[np.ndarray] = None) -> np.ndarray:
-        """
-        This method wraps the model's predict method using `info`.
-
-        Args: 
-            info (Optional[np.ndarray]): the information to predict on.
-            If None, it will get the info from the last relevant days back.
-        
-        Returns:
-            np.ndarray: the predictions of the model
-                The length is determined by how many are put in.
-                So, you can predict for time frames or one day
-                depending on what you want.
-                The length is the days `info` minus `num_days` plus 1
-
-        :Example:
-        >>> obj = BaseModel(num_days=5)
-        >>> obj = BaseModel(num_days=5)
-        >>> obj.num_days
-        5
-        >>> temp = obj.predict(info = np.array(
-                [2, 2],
-                [3, 2],
-                [4, 1],
-                [3, 2],
-                [0, 2]
-                [7, 0],
-                [1, 2],
-                [0, 1],
-                [2, 2],
-                )
-            ))
-        >>> print(len(temp))
-        4
-        """
-        if info is None:
-            info = self.get_info_today()
-        if info is None: # basically, if it is still None after get_info_today
-            raise RuntimeError(
-                "Could not get indicators for today. It may be that `end_date` is beyond today's date"
-            )
-        if self.model:
-            return self.model.predict(info) # typing: ignore[return]
-        raise LookupError("Compile or load model first")
-
     def test(self, time_shift: int = 0, show_graph: bool = False) -> None:
         title: str = "Stock Change Prediction"
         x_label: str = ''
@@ -955,7 +917,7 @@ class PercentageModel(BaseModel):
 
         #self.plot(self.cached[0][0])
 
-    def profit(self, pred):
+    def profit(self, pred, prev):
         return pred
 
 ImpulseMACD_indicators = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
@@ -991,7 +953,7 @@ def update_transfer_learning(model: BaseModel,
 
 if __name__ == "__main__":
     modelclass = PercentageModel
-    indicators = [ImpulseMACD_indicators]#[ImpulseMACD_indicators, Reversal_indicators, Earnings_indicators, break_out_indicators, super_trends_indicators]
+    indicators = [break_out_indicators]#[ImpulseMACD_indicators, Reversal_indicators, Earnings_indicators, break_out_indicators, super_trends_indicators]
     #indicators = list(set(chain(*indicators)))
     #indicators.remove('Close')
     #print(indicators)
@@ -1007,7 +969,7 @@ if __name__ == "__main__":
         model.end_date = "2023-07-24"
         model.num_days = 10
 
-        model.train(epochs=1000, use_transfer_learning=False, test=True)
+        model.train(epochs=10, use_transfer_learning=False, test=True)
         model.save()
         model.stock_symbol = "HD"
         model.start_date = "2020-04-11"

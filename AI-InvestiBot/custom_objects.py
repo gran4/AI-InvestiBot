@@ -40,25 +40,25 @@ class CustomLoss(Loss):
 class CustomLoss2(Loss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.huber_loss = Huber()
         self.mae_loss = MeanAbsoluteError()
 
     def call(self, y_true, y_pred):
-        huber_loss = self.huber_loss(y_true, y_pred)
         mae_loss = self.mae_loss(y_true, y_pred)
 
         # Calculate the directional penalty
+        #see if they go the same direction
         direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
+        #see if the pred going in the more extreme space in directions
         space_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_true[:-1])))
-        #direction_penalty -= .1
-        #space_penalty -= .1
-        #if direction_penalty < 0:
-        #    return mse_loss-direction_penalty
-        #if space_penalty < 0:
-        #    return mse_loss-space_penalty
+        
+        both_over_zero = tf.cast(tf.logical_and(tf.greater(y_true, 0), tf.greater(y_pred, 0)), tf.float32)
+        both_under_zero = tf.cast(tf.logical_and(tf.less(y_true, 0), tf.less(y_pred, 0)), tf.float32)
+        both_equal_zero = tf.cast(tf.logical_and(tf.equal(y_true, 0), tf.equal(y_pred, 0)), tf.float32)
+        #Sees if they are positive of negitive together
+        together_loss = both_over_zero + both_under_zero + both_equal_zero
 
         # Combine the losses with different weights
-        combined_loss = direction_penalty*.1+mae_loss*.4+space_penalty*.05#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
+        combined_loss = together_loss*.1+direction_penalty*.1+mae_loss*.4+space_penalty*.05#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
 
         return combined_loss
 

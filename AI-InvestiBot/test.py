@@ -32,22 +32,20 @@ def test_many(model_class: BaseModel=PercentageModel, strategy=['Close'], tests:
 
 
 def test_indepth(models: List[BaseModel], hold_stocks=False):
-    cached_infos = []
+    if type(models[0]) == PriceModel:
+        raise TypeError('Does not work with price model, sorry')
     processed_data = []
+    caches = []
     for model in models:
-
-        with open(f"Stocks/{model.stock_symbol}/info.json", 'r') as file:
-            cached_info = json.load(file)
-
-        cached_info, data2, _ = get_relavant_values(
+        cached, data2, _ = get_relavant_values(
             model.stock_symbol, model.information_keys, start_date=model.start_date, end_date=model.end_date
         )
-        cached_infos.append(cached_info)
+        caches.append(cached)
 
         temp, temp2 = create_sequences(data2, model.num_days)
         temp_test, expected = model.process_x_y_total(temp, temp2, model.num_days, 0)
         processed_data.append(temp_test)
-    money_made = 0
+    percent_made = 1
     bought_at = []
 
     signals = {}
@@ -55,71 +53,48 @@ def test_indepth(models: List[BaseModel], hold_stocks=False):
 
     data = []
     real_data = []
-    index = len(cached_infos[0]['Dates'])-10-model.num_days
     init = 0
+    #return
     while True:
         init += 1
-        if init >= index:
+        if init >= 200:
             break
         profits = []
         i = 0
         for model in models:
             expanded_array = np.expand_dims(processed_data[i][init], axis=0)
             temp = model.predict(info=expanded_array)[0][0]
-            profit = model.profit(temp)
-            prev_close = cached_infos[i]['Close'][init]
+            prev_close = expected[init]
+            profit = model.profit(temp, prev_close)
             profits.append((i, profit, prev_close))
-            print(init)
             i += 1
             #real_data.append(expected[init])#cached_info['Close'][index+1]/prev_close)
-        profits = sorted(profits, key=lambda x: x[1])
+        profits = sorted(profits, key=lambda x: x[1], reverse=True)
+        data.append(profits[0][1])
+        real_data.append(expected[init])
 
         if not hold_stocks:
             for stock in bought_at:
-                money_made += cached_infos[stock[0]]['Close'][init]-stock[2]
+                percent_made *= stock[2]/100+1
+                print(stock[2])
             bought_at = []
-        if profit >= 2:
+        if profits[0][1] >= 2:
             signals[time_stamp] = 1
             bought_at.append(profits[0])
         elif profit <= .2:
             for stock in bought_at:
-                money_made += cached_infos[stock[0]]['Close'][init]-stock[2]
+                percent_made += stock[1]*stock[2]/100
             bought_at = []
             signals[time_stamp] = -1
-    for i in range(len(real_data)):
-        num = real_data[i]
-        #num -= 1
-        num /= 20
-        real_data[i] = num
-
-    return
-    import matplotlib.pyplot as plt
-    days_train = [i for i in range(len(data))]
-    plt.figure(figsize=(18, 6))
-
-    predicted_test = plt.plot(days_train, data, label='Predicted Test')
-    real_test = plt.plot(days_train, real_data, label='Predicted Test')
-    plt.title(f'TITLE')
-    plt.xlabel("X")
-    plt.ylabel("Y")
-
-    import matplotlib.ticker as ticker
-    plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
-
-    plt.legend(
-        [predicted_test[0], real_test],#[real_data, actual_test[0], actual_train],
-        ['Data', "REAL"]#['Real Data', 'Actual Test', 'Actual Train']
-    )
-    plt.show()
-    print(money_made)
+    print(percent_made)
 
 models = []
 for company in ["AAPL", "HD", "DIS", "GOOG"]:
     model = PercentageModel(stock_symbol=company, information_keys=ImpulseMACD_indicators)
-    model.start_date = "2020-07-04"
-    model.end_date = "2023-08-09"
     model.num_days = 10
     model.load()
+    model.start_date = "2021-08-05"
+    model.end_date = "2023-06-09"
     models.append(model)
 test_indepth(models)
 

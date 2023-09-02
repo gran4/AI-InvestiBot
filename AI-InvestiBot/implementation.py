@@ -106,7 +106,7 @@ def update_models(models, total_info_keys):
             #input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
             prev_close = float(model.cached[0][-1][0])
             temp = model.predict(info=model.cached)[0][0]
-            profit = float(temp/prev_close)
+            profit = model.profit(prev_close)
             profits.append(profit)
         i += len(models)
 
@@ -133,8 +133,10 @@ def update_models(models, total_info_keys):
 
 def run_loop(models, total_info_keys) -> None:
     """Runs the stock bot in a loop"""
+    day = 0
     while True:
-        print("DEDNJDENDEJNDEJN")
+        day += 1
+        print("day: ", day)
         models = set_models_today(models)
         update_models(models, total_info_keys)
         time.sleep(TIME_INTERVAL)
