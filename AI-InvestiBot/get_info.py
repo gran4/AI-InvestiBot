@@ -144,7 +144,7 @@ def modify_earnings_dates(dates: List, start_date: str) -> List[int]:
     return earnings_since_time(temp, start_date)
 
 
-def get_liquidity_spikes(data, z_score_threshold: float=2.0,
+def get_liquidity_spikes(data: pd.DataFrame, z_score_threshold: float=2.0,
                          gradual: bool=False) -> pd.Series:
     """
     This function will get the spikes in liquidity for given stock data.
@@ -201,7 +201,6 @@ def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
 
     # type: ignore[no-any-return]
     return percent_momentum.fillna(method='bfill')
-
 
 
 def update_dynamic_tuning(company_ticker, stock_data) -> None:

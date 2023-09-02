@@ -361,7 +361,6 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
             other_vals[key] = other_vals[key][:i]
     else:
         raise ValueError(f"end date is not in data\nRun getInfo.py with end date after {start_date} and {end_date}")
-
     #_________________Process earnings______________________#
     if "earning diffs" in information_keys:
         dates = other_vals['earnings dates']
@@ -394,7 +393,6 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
     scaler_data = temp # change it if value is `None`
 
     # Convert the dictionary of lists to a NumPy array
-    print(len(other_vals['Close']), len(other_vals['earning diffs']))
     filtered = [other_vals[key] for key in information_keys if key not in non_daily_no_use]
     filtered = np.transpose(filtered) # type: ignore[assignment]
     return other_vals, filtered, scaler_data# type: ignore[return-value]

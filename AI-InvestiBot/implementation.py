@@ -16,7 +16,7 @@ import time
 
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
-from typing import Dict
+from typing import Dict, List
 
 from threading import Thread
 from pandas_market_calendars import get_calendar
@@ -51,7 +51,7 @@ if YOUR_SECRET_KEY is None:
 RESOURCE_MANAGER = ResourceManager(max_percent=30, api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
 
 # for caching for multiple models
-def load_models(model_classes=[ImpulseMACDModel]):
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[]):
     """
     Loads all models
 
@@ -59,12 +59,12 @@ def load_models(model_classes=[ImpulseMACDModel]):
     """
     models = []
     total_info_keys = []
-    for model in model_classes:
+    for model in strategys:
         total_info_keys += model().information_keys
 
     for company in company_symbols:
-        for model_class in model_classes:
-            model = model_class(stock_symbol=company)
+        for strategy in strategys:
+            model = model_class(stock_symbol=company, strategys=strategy)
             model.load()
             models.append(model)
 
@@ -106,7 +106,7 @@ def update_models(models, total_info_keys):
             #input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
             prev_close = float(model.cached[0][-1][0])
             temp = model.predict(info=model.cached)[0][0]
-            profit = float(temp/prev_close)
+            profit = model.profit(prev_close)
             profits.append(profit)
         i += len(models)
 
@@ -133,8 +133,10 @@ def update_models(models, total_info_keys):
 
 def run_loop(models, total_info_keys) -> None:
     """Runs the stock bot in a loop"""
+    day = 0
     while True:
-        print("DEDNJDENDEJNDEJN")
+        day += 1
+        print("day: ", day)
         models = set_models_today(models)
         update_models(models, total_info_keys)
         time.sleep(TIME_INTERVAL)
@@ -235,7 +237,7 @@ def save_state_to_s3(model, total_info_keys):
 if __name__ == "__main__":
     """NOTE: runs loop ONLY unless you change it"""
     # Create a new thread
-    model, total_info_keys = load_models(model_classes=[ImpulseMACDModel, EarningsModel, RSIModel])
+    model, total_info_keys = load_models(strategys=[ImpulseMACD_indicators, RSI_indicators, Reversal_indicators])
     thread = Thread(target=run_loop, args=(model, total_info_keys))
 
     # Start the thread
