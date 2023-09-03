@@ -1,7 +1,7 @@
 from typing import Tuple
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Conv2D, GlobalAveragePooling2D, Reshape, BatchNormalization, PReLU
+from tensorflow.keras.layers import LSTM, Dense, Conv1D, Conv2D, GlobalAveragePooling2D, Reshape, BatchNormalization, PReLU
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import Loss, MeanSquaredError, Huber, MeanAbsoluteError
 from tensorflow.keras.activations import linear
@@ -45,7 +45,6 @@ class CustomLoss2(Loss):
     def call(self, y_true, y_pred):
         mae_loss = self.mae_loss(y_true, y_pred)
 
-        # Calculate the directional penalty
         #see if they go the same direction
         direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
         #see if the pred going in the more extreme space in directions
@@ -65,18 +64,18 @@ class CustomLoss2(Loss):
 
 def create_LSTM_model(shape: Tuple) -> Sequential:
     model = Sequential()
-    model.add(LSTM(64, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01), input_shape=shape))
+    model.add(Conv1D(filters=64, kernel_size=(2), kernel_regularizer=tf.keras.regularizers.l2(0.01), input_shape=shape, kernel_initializer='he_normal'))
     model.add(BatchNormalization())
     model.add(PReLU())
-    model.add(LSTM(64, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01)))
+    model.add(LSTM(64, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
     model.add(BatchNormalization())
     model.add(PReLU())
-    model.add(LSTM(64, kernel_regularizer=tf.keras.regularizers.l2(0.01)))
+    model.add(LSTM(64, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
     model.add(BatchNormalization())
     model.add(PReLU())
     model.add(Dense(1, activation=linear))
 
-    model.compile(optimizer=Adam(learning_rate=.001), loss=Huber())
+    model.compile(optimizer=Adam(learning_rate=.001), loss=CustomLoss2())
     return model
 
 
