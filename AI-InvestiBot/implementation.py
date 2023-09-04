@@ -165,10 +165,7 @@ def update_models(models, total_info_keys):
             RESOURCE_MANAGER.sell()
         if profit < RISK_REWARD_RATIO:
             break
-        amount = RESOURCE_MANAGER.check(model[0].stock_symbol)
-        if amount == 0:
-            break
-        RESOURCE_MANAGER.buy(model[0].stock_symbol, amount=amount)
+        RESOURCE_MANAGER.buy(model[0].stock_symbol)
         i += 1
 
 
@@ -282,7 +279,7 @@ def save_state_to_s3(model, total_info_keys):
 if __name__ == "__main__":
     """NOTE: runs loop ONLY unless you change it"""
     # Create a new thread
-    models, total_info_keys = load_models(model_class=PriceModel, strategys=[ImpulseMACD_indicators])
+    models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators])
     thread = Thread(target=run_loop, args=(models, total_info_keys))
 
     # Start the thread

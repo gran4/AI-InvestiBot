@@ -63,7 +63,6 @@ class ResourceManager:
 
         # Calculate the total value of your account (including stock)
         self.total = cash + buying_power
-        self.total = cash + buying_power
 
     def check(self, symbol: str, balance: Optional[float]=None) -> float:
         """
@@ -78,36 +77,38 @@ class ResourceManager:
         Returns:
             int: The amount of stock you can buy
         """
-
-        stock_to_money_ratio = self.ratio
-        max_qty_in_stock = self.max_per
-        max_percent_in_stock = self.max_percent
-
         # Get account information
         account = self.api.get_account()
         if balance is None:
-            balance = float(account.buying_power)
+            open_orders = self.api.list_orders(status='open')
 
+            # Calculate the total cost of pending orders
+            total_pending_cost = 0
+
+            for order in open_orders:
+                last_trade = self.api.get_latest_trade(order.symbol)
+                qty = float(order.qty)-float(order.filled_qty)
+                print(order.qty, order.filled_qty, last_trade.price)
+                total_pending_cost += qty * last_trade.price
+            # Calculate available cash (subtracting funds reserved for pending orders)
+            balance = float(account.cash) - total_pending_cost
+            print(balance)
+            print(balance)
+            print(balance)
+            print(balance)
+            print(balance)
+            print(balance)
+            print(balance)
         # Get the current market price
         market_price = float(self.api.get_latest_trade(symbol).price)
 
+        max_percent_in_stock = self.max_percent/100*balance/market_price
+
         # Calculate the maximum quantity to buy based on the stock-to-money ratio
-        max_qty_based_on_ratio = int(balance / market_price * stock_to_money_ratio)
+        max_qty_based_on_ratio = int(balance / market_price * self.ratio)
 
         # Apply additional constraints
-        max_qty = min(max_qty_based_on_ratio, max_qty_in_stock)
-
-        positions = self.api.list_positions()
-        total_market_value = sum([float(position.market_value) for position in positions])
-
-        if total_market_value > 0:
-            current_allocation = float(positions[symbol].market_value) / total_market_value
-        else:
-            current_allocation = 0.0
-
-        # Check if the maximum percentage allocation is reached
-        if current_allocation >= max_percent_in_stock:
-            max_qty = 0
+        max_qty = min(max_qty_based_on_ratio, self.max_per, max_percent_in_stock)
 
         return max_qty
 
@@ -121,8 +122,9 @@ class ResourceManager:
                 if None, the `Resource` can calculate it for you
         """
         if amount is None:
-            amount = self.check(ticker)
-
+            amount = int(self.check(ticker))
+        if amount <= 0:
+            return
         self.api.submit_order(
             symbol=ticker,
             qty=amount,
