@@ -6,6 +6,7 @@
 - [Contact Us](#contact-us)
 - [Features](#features)
 - [Planned Additions](#planned-additions)
+- [How to start](#how-to-start)
 - [How it works](#how-it-works)
   - [Information Retrieval and Caching](#information-retrieval-and-caching)
   - [Unique Indicators in Models](#unique-indicators-in-models)
@@ -57,6 +58,13 @@ The following features are planned to be added in the future:
   - [ ] More verification of the high accuracy rate.
 - [ ] Fix Issues added by PercentageModel Refactor
 
+
+# How To Start
+
+WARNING: It looks like the Model is currently off by a few days of something. Do NOT use to make money yet.
+1) Download files from discord.
+2) Look at the current implementations in implementation.py.
+3) Use them if you like them or add more if you want to customize it(lamda does not work)
 
 # How It Works
 
