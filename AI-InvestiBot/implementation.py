@@ -23,8 +23,10 @@ from pandas_market_calendars import get_calendar
 
 from models import *
 from resource_manager import ResourceManager
-from trading_funcs import company_symbols, is_floats
 
+import numpy as np
+#from trading_funcs import company_symbols, is_floats
+company_symbols = ["AAPL", "HD", "DIS", "GOOG"]
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
 
@@ -34,7 +36,7 @@ YOUR_SECRET_KEY = None
 PREDICTION_THRESHOLD = 1
 
 RISK_REWARD_RATIO = 1.01# min profit expected in a stock over a day to hold or buy
-TIME_INTERVAL = 0# 86400# number of secs in 24 hours
+TIME_INTERVAL = 86400# number of secs in 24 hours
 
 # if it is lower than `MAX_HOLD_INDEX` and 
 # meets all other requirements, hold it
@@ -59,29 +61,32 @@ def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str
     """
     models = []
     total_info_keys = []
-    for model in strategys:
-        total_info_keys += model().information_keys
+    for info_keys in strategys:
+        total_info_keys += info_keys
 
     for company in company_symbols:
+        temp = []
+        models.append(temp)
         for strategy in strategys:
-            model = model_class(stock_symbol=company, strategys=strategy)
+            model = model_class(stock_symbol=company, information_keys=strategy)
             model.load()
-            models.append(model)
+            temp.append(model)
 
     return models, total_info_keys
 
 
 def set_models_today(models):
     today = date.today().strftime("%Y-%m-%d")
-    for model in models:
-        model.end_date = today
+    for company in models:
+        for model in company:
+            model.end_date = today
     return models
 
 
 def update_models(models, total_info_keys):
     profits = []
 
-    model = models[0]
+    model = models[0][0]
     end_datetime = datetime.strptime(model.end_date, "%Y-%m-%d")
     nyse = get_calendar('NYSE')
     schedule = nyse.schedule(start_date=model.end_date, end_date=end_datetime+relativedelta(days=2))
@@ -89,29 +94,64 @@ def update_models(models, total_info_keys):
         return
 
     i = 0
-    for company in company_symbols:
+    #for company in company_symbols:
+    for company_models in models:
         # NOTE: grouping together caches is a small optimization
-        temp = models[0]
+        temp = company_models[0]
         cached_info = temp.update_cached_info_online()
         cached = temp.indicators_past_num_days(
-            company, temp.end_date,
+            model.stock_symbol, temp.end_date,
             total_info_keys, temp.scaler_data,
-            cached_info, temp.num_days
+            cached_info, temp.num_days*2
         )
+        predictions = []
+        for model in company_models:
+            temp = []
+            for key in model.information_keys:
+                temp.append(cached[key])
+            temp_cached = []
+            for i in range(model.num_days):
+                n = []
+                for element in temp:
+                    n.append(element[i])
+                temp_cached.append(n)
+            temp_cached = np.array(temp_cached)
+            temp_cached = np.expand_dims(temp_cached, axis=0)
 
-        for model_index in range(i):
-            model = models[model_index]
-            model.cached = cached
+            num_days = model.num_days
+            num_windows = num_days#temp_cached.shape[0] - num_days + 1
+            # Create a 3D numpy array to store the scaled data
+            scaled_data = np.zeros((num_windows, num_days, temp_cached.shape[1], temp_cached.shape[2]))
 
-            #input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
-            prev_close = float(model.cached[0][-1][0])
+            for i in range(temp_cached.shape[0]-num_days):
+                # Get the data for the current window using the i-window_size approach
+                window = temp_cached[i : i + num_days]
+                #total 4218, 10 windows, num_days 10, indicators 7
+
+                # Calculate the high and low close prices for the current window
+                high_close = np.max(window, axis=0)
+                low_close = np.min(window, axis=0)
+
+                # Avoid division by zero if high_close and low_close are equal
+                scale_denominator = np.where(high_close == low_close, 1, high_close - low_close)
+
+                # Scale each column using broadcasting
+                scaled_window = (window - low_close) / scale_denominator
+                # Store the scaled window in the 3D array
+                scaled_data[i] = scaled_window
+
+            model.cached = scaled_data
             temp = model.predict(info=model.cached)[0][0]
-            profit = model.profit(prev_close)
-            profits.append(profit)
+            prev_close = float(model.cached[-1][0][-1][0])
+            profit = model.profit(temp, prev_close)
+            predictions.append(temp)
+            #input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
+        profits.append(predictions)
         i += len(models)
 
     processed_profits = []
     for profit in profits:
+        print(profit)
         # If it is good enough, it can possibly be bought even if one model is lower then the PREDICTION_THRESHOLD
         filtered_profit = [0 if model_prediction < PREDICTION_THRESHOLD else model_prediction for model_prediction in profit]
         average_profit = sum(filtered_profit) / len(filtered_profit)
@@ -119,15 +159,13 @@ def update_models(models, total_info_keys):
     model_weights = list(zip(models, processed_profits))
     sorted_models = sorted(model_weights, key=lambda x: x[1], reverse=True)
     i = 0
+    print(sorted_models)
     for model, profit in sorted_models:
-        if RESOURCE_MANAGER.is_in_portfolio(model.stock_symbol) and i<MAX_HOLD_INDEX:
+        if RESOURCE_MANAGER.is_in_portfolio(model[0].stock_symbol) and i<MAX_HOLD_INDEX:
             RESOURCE_MANAGER.sell()
         if profit < RISK_REWARD_RATIO:
             break
-        amount = RESOURCE_MANAGER.check(model.stock_symbol)
-        if amount == 0:
-            break
-        RESOURCE_MANAGER.buy(model.stock_symbol, amount=amount)
+        RESOURCE_MANAGER.buy(model[0].stock_symbol)
         i += 1
 
 
@@ -138,6 +176,10 @@ def run_loop(models, total_info_keys) -> None:
         day += 1
         print("day: ", day)
         models = set_models_today(models)
+        for company in models:
+            for model in company:
+                model.num_days = 10
+                model.end_date = "2023-08-31"
         update_models(models, total_info_keys)
         time.sleep(TIME_INTERVAL)
 
@@ -237,8 +279,8 @@ def save_state_to_s3(model, total_info_keys):
 if __name__ == "__main__":
     """NOTE: runs loop ONLY unless you change it"""
     # Create a new thread
-    model, total_info_keys = load_models(strategys=[ImpulseMACD_indicators, RSI_indicators, Reversal_indicators])
-    thread = Thread(target=run_loop, args=(model, total_info_keys))
+    models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators])
+    thread = Thread(target=run_loop, args=(models, total_info_keys))
 
     # Start the thread
     thread.start()

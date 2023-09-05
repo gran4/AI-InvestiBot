@@ -164,6 +164,7 @@ class BaseModel:
 
         #_________________Process Data for LSTM______________________#
         split = int(len(data))
+        print(data.shape)
         if test:
             x_total, y_total = create_sequences(data[:int(split*.8)], num_days)
         else:
@@ -193,8 +194,6 @@ class BaseModel:
 
             x_total_copy = np.copy(x_total)
             y_total_copy = np.copy(y_total)
-            x_total_copy[:, indices_cache] *= 1.47
-            y_total_copy *= 1.47
             model.fit(x_total_copy*1.1, y_total_copy*1.1, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=64, epochs=epochs)
 
             x_total_p1 = np.copy(x_total[:divider])
@@ -862,7 +861,7 @@ class PercentageModel(BaseModel):
         # Create a 3D numpy array to store the scaled data
         scaled_data = np.zeros((num_windows, num_days, x_total.shape[1], x_total.shape[2]))
 
-        for i in range(num_windows):
+        for i in range(x_total.shape[0]-num_days):
             # Get the data for the current window using the i-window_size approach
             window = x_total[i : i + num_days]
             #total 4218, 10 windows, num_days 10, indicators 7
@@ -961,17 +960,17 @@ if __name__ == "__main__":
     #indicators.insert(0, 'Close')
     #indicators = [indicators]
     test_models = []
-    for strategy in indicators:
-        model = modelclass(stock_symbol="GE", information_keys=strategy)
+    for company in ["AAPL", "HD", "DIS", "GOOG"]:
+        model = modelclass(stock_symbol=company, information_keys=ImpulseMACD_indicators)
         #model.load()
         #model.stock_symbol = "T"
-        model.start_date = "2002-07-24"
-        model.end_date = "2023-07-24"
+        model.start_date = "2006-03-24"
+        model.end_date = "2023-03-24"
         model.num_days = 10
 
-        model.train(epochs=10, use_transfer_learning=False, test=True)
-        model.save()
-        model.stock_symbol = "HD"
+        model.train(epochs=1000, use_transfer_learning=False, test=True)
+        #model.save()
+        #model.stock_symbol = "HD"
         model.start_date = "2020-04-11"
         model.end_date = "2023-04-11"
         test_models.append(model)

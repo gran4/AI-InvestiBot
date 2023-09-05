@@ -7,7 +7,7 @@ __pycache__/
 *$py.class
 
 #From project
-Stocks/
+*Stocks
 .DS_Store
 
 # C extensions
