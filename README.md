@@ -66,6 +66,9 @@ WARNING: It looks like the Model is currently off by a few days of something. Do
 2) Look at the current implementations in implementation.py.
 3) Use them if you like them or add more if you want to customize it(lamda does not work)
 
+P.S: Remember to change the api key in secret key. 
+Search for them using command-f
+
 # How It Works
 
 ## Information Retrieval and Caching
