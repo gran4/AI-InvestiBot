@@ -22,7 +22,7 @@
 This repository is currently under active development. The project aims to be more accurate than other projects by providing innovative features not often found in other stock bots.
 
 # Contact Us
-Discord: [https://discord.gg/uHqBrqrr](https://dsc.gg/ai-investibot/)
+Discord: https://dsc.gg/ai-investibot/
 
 
 # Features
