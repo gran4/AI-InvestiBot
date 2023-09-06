@@ -21,6 +21,8 @@ jobs:
         run: |
           yes | pip install --upgrade pip
           yes | pip install -r requirements.txt
+          echo done installations
+          which pylint
       - name: Analysing the code with pylint
         run: |
           git remote set-branches --add origin main
