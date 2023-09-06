@@ -27,4 +27,5 @@ jobs:
         run: |
           git remote set-branches --add origin main
           git fetch origin
-          pylint --rcfile=.pylintrc $(git diff --name-only HEAD ${{ github.base_ref }})
+          pylint --rcfile=.pylintrc $(git ls-files '*.py')
+          #$(git diff --name-only HEAD ${{ github.base_ref }})
