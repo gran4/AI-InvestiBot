@@ -9,3 +9,4 @@ boto3
 typing_extensions
 alpaca
 pandas_market_calendars
+pylint
