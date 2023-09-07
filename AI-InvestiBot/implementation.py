@@ -19,7 +19,7 @@ import warnings
 
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 from threading import Thread
 from pandas_market_calendars import get_calendar
 from models import *
@@ -69,11 +69,12 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 MAX_HOLD_INDEX = 3
 
 # for caching for multiple models
-def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[]):
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols:List[str]=["AAPL"]):
     """
     Loads all models
 
     model_classes tells the program what models to use
+    company_symbols, a list of symbols, AAPL is an example
     """
     models = []
     total_info_keys = []
