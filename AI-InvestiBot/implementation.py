@@ -17,18 +17,15 @@ import time
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import Dict, List
-
 from threading import Thread
 from pandas_market_calendars import get_calendar
-
 from models import *
 from resource_manager import ResourceManager
+from trading_funcs import company_symbols
 
 import numpy as np
-#from trading_funcs import company_symbols, is_floats
-company_symbols = ["AAPL", "HD", "DIS", "GOOG"]
 
-# API keys from alpaca
+#from trading_funcs import company_symbols, is_floats
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
 # API keys from AWS lambda, see boto3 documentation
