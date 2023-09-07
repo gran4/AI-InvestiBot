@@ -24,7 +24,6 @@ from dateutil.relativedelta import relativedelta
 from custom_objects import create_LSTM_model, create_LSTM_model2
 from custom_objects import *
 
-from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.callbacks import EarlyStopping
@@ -358,7 +357,7 @@ class BaseModel:
             plt.show()
         return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
-    def load(self, name: Optional[str]=None) -> Optional[Self]:
+    def load(self, name: Optional[str]=None) -> Optional[BaseModel]:
         """
         This method will load the model using the tensorflow load method.
 
@@ -480,7 +479,7 @@ class BaseModel:
                 i = earnings_dates.index(date)
                 scaled = (earnings_diff[i]-low) / diff
                 stock_data['earning diffs'].append(scaled)
-
+        print(stock_data['Close'])
         # Scale each column manually
         for column in information_keys:
             if column in non_daily:
@@ -507,8 +506,10 @@ class BaseModel:
         cached_info = self.cached_info
         #NOTE: optimize bettween
         if cached_info is None:
-            start_datetime = end_datetime - relativedelta(days=200+self.num_days+20)
-            cached_info = ticker.history(start=start_datetime, end=self.end_date, interval="1d")
+            start_datetime = end_datetime - relativedelta(days=self.num_days+20)
+            if 'ema_200' in self.information_keys:
+                start_datetime = start_datetime - relativedelta(days=200)
+            cached_info = ticker.history(start=start_datetime, interval="1d")
             if len(cached_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
         else:
@@ -839,6 +840,8 @@ class PercentageModel(BaseModel):
                  stock_symbol: Optional[Union[date, str]] = "AAPL",
                  num_days: int = None,
                  information_keys: List[str]=["Close"]) -> None:
+        if num_days is None:
+            num_days = 10
         super().__init__(start_date=start_date,
                        end_date=end_date,
                        stock_symbol=stock_symbol,

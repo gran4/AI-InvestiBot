@@ -62,7 +62,7 @@ The following features are planned to be added in the future:
 # How To Start
 
 WARNING: It looks like the Model is currently off by a few days of something. Do NOT use to make money yet.
-1) Train and save the models, look at the end of models.py for an example of how to do this.
+1) Train and save the models, look at the end of models.py for an example of how to do this. You have to train and save it yourself since I have removed everything in the Stocks folder.
 2) Look at the current implementations in implementation.py.
 3) Use them if you like them or add more if you want to customize it(lamda does not work)
 

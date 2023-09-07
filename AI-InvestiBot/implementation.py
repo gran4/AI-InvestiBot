@@ -17,13 +17,13 @@ import json
 import boto3
 import warnings
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 from threading import Thread
 from pandas_market_calendars import get_calendar
-from models import *
 from resource_manager import ResourceManager
+from models import *
 
 import numpy as np
 
@@ -55,7 +55,6 @@ if BUCKET_NAME is None or BUCKET_NAME=="":
 if OBJECT_KEY is None or OBJECT_KEY=="":
     warnings.warn("Set your OBJECT_KEY from AWS", category=RuntimeWarning)
 
-
 # The min predicted profit that every model has to have
 # For us to consider buying in. Each has to predict it
 # will go in % up more then `PREDICTION_THRESHOLD`
@@ -69,7 +68,7 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 MAX_HOLD_INDEX = 3
 
 # for caching for multiple models
-def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[]):
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols:List[str]=["AAPL"]):
     """
     Loads all models
 
@@ -93,8 +92,13 @@ def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str
 
 def set_models_today(models):
     today = date.today().strftime("%Y-%m-%d")
+
+    current_date = datetime.now()
+    ten_days_ago = current_date - timedelta(days=models[0][0].num_days*2.1 + 2)
+    ten_days_ago = ten_days_ago.strftime("%Y-%m-%d")
     for company in models:
         for model in company:
+            model.start_date = ten_days_ago
             model.end_date = today
     return models
 
@@ -110,7 +114,6 @@ def update_models(models, total_info_keys, manager: ResourceManager):
         return
 
     i = 0
-    #for company in company_symbols:
     for company_models in models:
         # NOTE: grouping together caches is a small optimization
         temp = company_models[0]
@@ -167,7 +170,6 @@ def update_models(models, total_info_keys, manager: ResourceManager):
 
     processed_profits = []
     for profit in profits:
-        print(profit)
         # If it is good enough, it can possibly be bought even if one model is lower then the PREDICTION_THRESHOLD
         filtered_profit = [0 if model_prediction < PREDICTION_THRESHOLD else model_prediction for model_prediction in profit]
         average_profit = sum(filtered_profit) / len(filtered_profit)
@@ -175,7 +177,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
     model_weights = list(zip(models, processed_profits))
     sorted_models = sorted(model_weights, key=lambda x: x[1], reverse=True)
     i = 0
-    print(sorted_models)
+
     for model, profit in sorted_models:
         if manager.is_in_portfolio(model[0].stock_symbol) and i<MAX_HOLD_INDEX:
             manager.sell()
@@ -195,10 +197,6 @@ def run_loop(models, total_info_keys, manager: Optional[ResourceManager]=None) -
         day += 1
         print("day: ", day)
         models = set_models_today(models)
-        for company in models:
-            for model in company:
-                model.num_days = 10
-                model.end_date = "2023-08-31"
         update_models(models, total_info_keys, manager)
         time.sleep(TIME_INTERVAL)
 
@@ -207,8 +205,6 @@ def run_loop(models, total_info_keys, manager: Optional[ResourceManager]=None) -
 
 
 #vvvvvvvvvvv---Lambda----Painless-version----RECOMENDED-vvvvvvvvv#
-
-
 def lambda_handler(event, context) -> Dict:
     """
     This function is the handler for the lambda function.
