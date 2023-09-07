@@ -13,6 +13,9 @@ __pycache__/
 # C extensions
 *.so
 
+# config file
+secrets.config
+
 # Distribution / packaging
 .Python
 build/
