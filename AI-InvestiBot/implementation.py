@@ -24,10 +24,11 @@ from threading import Thread
 from pandas_market_calendars import get_calendar
 from resource_manager import ResourceManager
 from trading_funcs import company_symbols
-
 from models import *
 
 import numpy as np
+
+
 try: # import keys from config file
     with open("secrets.config","rb") as f:
         secrets = json.load(f)
