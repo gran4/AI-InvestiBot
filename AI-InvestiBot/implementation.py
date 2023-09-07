@@ -15,14 +15,13 @@ See also:
 import time
 import json
 import boto3
+import warnings
 
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from typing import Dict, List
-
 from threading import Thread
 from pandas_market_calendars import get_calendar
-
 from models import *
 from resource_manager import ResourceManager
 
@@ -52,9 +51,9 @@ if YOUR_API_KEY_ID is None or YOUR_API_KEY_ID=="":
 if YOUR_SECRET_KEY is None or YOUR_SECRET_KEY=="":
     raise ValueError("Set your secret key from alpaca")
 if BUCKET_NAME is None or BUCKET_NAME=="":
-    raise ValueError("Set your BUCKET_NAME from AWS")
+    warnings.warn("Set your BUCKET_NAME from AWS", category=RuntimeWarning)
 if OBJECT_KEY is None or OBJECT_KEY=="":
-    raise ValueError("Set your OBJECT_KEY from AWS")
+    warnings.warn("Set your OBJECT_KEY from AWS", category=RuntimeWarning)
 
 
 # The min predicted profit that every model has to have
