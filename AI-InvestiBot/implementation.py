@@ -49,9 +49,13 @@ except KeyError:
     raise
 
 if YOUR_API_KEY_ID is None or YOUR_API_KEY_ID=="":
-    raise ValueError("Set your API key ID")
+    raise ValueError("Set your API key ID from alpaca")
 if YOUR_SECRET_KEY is None or YOUR_SECRET_KEY=="":
-    raise ValueError("Set your secret key")
+    raise ValueError("Set your secret key from alpaca")
+if BUCKET_NAME is None or BUCKET_NAME=="":
+    raise ValueError("Set your BUCKET_NAME from AWS")
+if OBJECT_KEY is None or OBJECT_KEY=="":
+    raise ValueError("Set your OBJECT_KEY from AWS")
 
 
 # The min predicted profit that every model has to have
