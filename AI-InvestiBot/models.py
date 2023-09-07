@@ -24,7 +24,6 @@ from dateutil.relativedelta import relativedelta
 from custom_objects import create_LSTM_model, create_LSTM_model2
 from custom_objects import *
 
-from typing_extensions import Self
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.callbacks import EarlyStopping
@@ -358,7 +357,7 @@ class BaseModel:
             plt.show()
         return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
-    def load(self, name: Optional[str]=None) -> Optional[Self]:
+    def load(self, name: Optional[str]=None) -> Optional[BaseModel]:
         """
         This method will load the model using the tensorflow load method.
 
