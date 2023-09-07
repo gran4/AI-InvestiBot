@@ -25,15 +25,21 @@ from models import *
 from resource_manager import ResourceManager
 
 import numpy as np
+import json
 #from trading_funcs import company_symbols, is_floats
+
 company_symbols = ["AAPL", "HD", "DIS", "GOOG"]
 
+# import keys from config file
+with open("secrets.config","rb") as f:
+    secrets = json.load(f)
+
 # API keys from alpaca
-YOUR_API_KEY_ID = None
-YOUR_SECRET_KEY = None
+YOUR_API_KEY_ID = secrets["alpaca_api_key"]
+YOUR_SECRET_KEY = secrets["alpaca_secret_key"]
 # API keys from AWS lambda, see boto3 documentation
-BUCKET_NAME = 'your_s3_bucket_name'
-OBJECT_KEY = 'your_s3_object_key'
+BUCKET_NAME = secrets["aws_bucket_name"]
+OBJECT_KEY = secrets["aws_object_key"]
 
 # The min predicted profit that every model has to have
 # For us to consider buying in. Each has to predict it
