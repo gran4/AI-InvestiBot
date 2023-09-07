@@ -27,8 +27,6 @@ from resource_manager import ResourceManager
 from trading_funcs import company_symbols
 
 import numpy as np
-
-
 try: # import keys from config file
     with open("secrets.config","rb") as f:
         secrets = json.load(f)
@@ -55,7 +53,6 @@ if BUCKET_NAME is None or BUCKET_NAME=="":
     warnings.warn("Set your BUCKET_NAME from AWS", category=RuntimeWarning)
 if OBJECT_KEY is None or OBJECT_KEY=="":
     warnings.warn("Set your OBJECT_KEY from AWS", category=RuntimeWarning)
-
 
 # The min predicted profit that every model has to have
 # For us to consider buying in. Each has to predict it
@@ -208,8 +205,6 @@ def run_loop(models, total_info_keys, manager: Optional[ResourceManager]=None) -
 
 
 #vvvvvvvvvvv---Lambda----Painless-version----RECOMENDED-vvvvvvvvv#
-
-
 def lambda_handler(event, context) -> Dict:
     """
     This function is the handler for the lambda function.
