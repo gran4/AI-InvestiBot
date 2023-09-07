@@ -22,9 +22,10 @@ from dateutil.relativedelta import relativedelta
 from typing import Dict, List, Optional
 from threading import Thread
 from pandas_market_calendars import get_calendar
-from models import *
 from resource_manager import ResourceManager
 from trading_funcs import company_symbols
+
+from models import *
 
 import numpy as np
 try: # import keys from config file
