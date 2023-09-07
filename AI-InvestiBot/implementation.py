@@ -13,10 +13,13 @@ See also:
     Other modules related to running the stock bot -> resource_manager
 """
 import time
+import json
+import boto3
+import warnings
 
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 from threading import Thread
 from pandas_market_calendars import get_calendar
 from models import *
@@ -25,12 +28,34 @@ from trading_funcs import company_symbols
 
 import numpy as np
 
-#from trading_funcs import company_symbols, is_floats
-YOUR_API_KEY_ID = None
-YOUR_SECRET_KEY = None
-# API keys from AWS lambda, see boto3 documentation
-BUCKET_NAME = 'your_s3_bucket_name'
-OBJECT_KEY = 'your_s3_object_key'
+
+try: # import keys from config file
+    with open("secrets.config","rb") as f:
+        secrets = json.load(f)
+except FileNotFoundError:
+    print("missing 'secrets.config' file, look at the 'secrets_example.config' file for an example of what to do")
+    raise
+
+try:
+    # API keys from alpaca
+    YOUR_API_KEY_ID = secrets["alpaca_api_key"]
+    YOUR_SECRET_KEY = secrets["alpaca_secret_key"]
+    # API keys from AWS lambda, see boto3 documentation
+    BUCKET_NAME = secrets["aws_bucket_name"]
+    OBJECT_KEY = secrets["aws_object_key"]
+except KeyError:
+    print("missing keys in 'secrets.config' file.")
+    raise
+
+if YOUR_API_KEY_ID is None or YOUR_API_KEY_ID=="":
+    raise ValueError("Set your API key ID from alpaca")
+if YOUR_SECRET_KEY is None or YOUR_SECRET_KEY=="":
+    raise ValueError("Set your secret key from alpaca")
+if BUCKET_NAME is None or BUCKET_NAME=="":
+    warnings.warn("Set your BUCKET_NAME from AWS", category=RuntimeWarning)
+if OBJECT_KEY is None or OBJECT_KEY=="":
+    warnings.warn("Set your OBJECT_KEY from AWS", category=RuntimeWarning)
+
 
 # The min predicted profit that every model has to have
 # For us to consider buying in. Each has to predict it
@@ -42,16 +67,7 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 
 # if it is lower than `MAX_HOLD_INDEX` and 
 # meets all other requirements, hold it
-MAX_HOLD_INDEX = 10
-
-
-
-if YOUR_API_KEY_ID is None:
-    raise ValueError("Set your API key ID")
-if YOUR_SECRET_KEY is None:
-    raise ValueError("Set your secret key")
-
-RESOURCE_MANAGER = ResourceManager(max_percent=30, api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
+MAX_HOLD_INDEX = 3
 
 # for caching for multiple models
 def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[]):
@@ -89,7 +105,7 @@ def set_models_today(models):
     return models
 
 
-def update_models(models, total_info_keys):
+def update_models(models, total_info_keys, manager: ResourceManager):
     profits = []
 
     model = models[0][0]
@@ -166,24 +182,25 @@ def update_models(models, total_info_keys):
     i = 0
 
     for model, profit in sorted_models:
-        print(model[0].stock_symbol, profit)
-        continue
-        if RESOURCE_MANAGER.is_in_portfolio(model[0].stock_symbol) and i<MAX_HOLD_INDEX:
-            RESOURCE_MANAGER.sell()
+        if manager.is_in_portfolio(model[0].stock_symbol) and i<MAX_HOLD_INDEX:
+            manager.sell()
         if profit < RISK_REWARD_RATIO:
             break
-        RESOURCE_MANAGER.buy(model[0].stock_symbol)
+        manager.buy(model[0].stock_symbol)
         i += 1
 
 
-def run_loop(models, total_info_keys) -> None:
+def run_loop(models, total_info_keys, manager: Optional[ResourceManager]=None) -> None:
     """Runs the stock bot in a loop"""
+    if manager is None:
+        manager = ResourceManager(max_percent=30, api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
+
     day = 0
     while True:
         day += 1
         print("day: ", day)
         models = set_models_today(models)
-        update_models(models, total_info_keys)
+        update_models(models, total_info_keys, manager)
         time.sleep(TIME_INTERVAL)
 
 
@@ -191,9 +208,6 @@ def run_loop(models, total_info_keys) -> None:
 
 
 #vvvvvvvvvvv---Lambda----Painless-version----RECOMENDED-vvvvvvvvv#
-
-import boto3
-import json
 
 
 def lambda_handler(event, context) -> Dict:
@@ -213,12 +227,13 @@ def lambda_handler(event, context) -> Dict:
     current_state = read_state_from_s3()
     model = current_state.get('model', {})
     total_info_keys = current_state.get('total_info_keys', {})
+    manager = current_state.get('manager', {})
 
     models = set_models_today(models)
-    update_models(models, total_info_keys)
+    update_models(models, total_info_keys, manager)
 
     # Save the updated state to S3
-    save_state_to_s3(model, total_info_keys)
+    save_state_to_s3(model, total_info_keys, manager)
 
     #Optional
     return {
@@ -226,9 +241,12 @@ def lambda_handler(event, context) -> Dict:
         'body': 'Buy order executed sucessfully'
     }
 
-def start_lambda(model, total_info_keys):
+def start_lambda(model, total_info_keys, manager: Optional[ResourceManager]=None):
     """This function will attempt to create a CloudWatch event
     rule that will trigger the lambda function."""
+    if manager is None:
+        manager = ResourceManager(max_percent=30, api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
+    
     #create Cloud watch event rules
     events_client = boto3.client('events')
     rule_name = 'StockTradingBotRules'
@@ -257,28 +275,25 @@ def start_lambda(model, total_info_keys):
     )
 
     # Save the updated state to S3
-    save_state_to_s3(model, total_info_keys)
+    save_state_to_s3(model, total_info_keys, manager)
 
 def read_state_from_s3():
     s3 = boto3.resource('s3')
-    try:
-        obj = s3.Object(BUCKET_NAME, OBJECT_KEY).get()
-        return json.loads(obj['Body'].read())
-    except s3.meta.client.exceptions.NoSuchKey:
-        # Return an empty state if the key does not exist
-        return {}
+    obj = s3.Object(BUCKET_NAME, OBJECT_KEY).get()
+    return json.loads(obj['Body'].read())
 
-def save_state_to_s3(model, total_info_keys):
+def save_state_to_s3(model, total_info_keys, manager: ResourceManager):
     s3 = boto3.resource('s3')
     state = {
         'model': model,
-        'total_info_keys': total_info_keys
+        'total_info_keys': total_info_keys,
+        'manager': manager
     }
     s3.Object(BUCKET_NAME, OBJECT_KEY).put(Body=json.dumps(state))
 
 
 if __name__ == "__main__":
-    """NOTE: runs loop ONLY unless you change it"""
+    # NOTE: runs loop ONLY unless you change it
     # Create a new thread
     models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators])
     thread = Thread(target=run_loop, args=(models, total_info_keys))
