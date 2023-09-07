@@ -7,6 +7,7 @@ scikit-learn
 bs4
 boto3
 typing_extensions
-alpaca_trade_api
 pandas_market_calendars
 pylint
+alpaca_trade_api
+warnings
