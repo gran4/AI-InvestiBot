@@ -357,7 +357,7 @@ class BaseModel:
             plt.show()
         return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
-    def load(self, name: Optional[str]=None) -> Optional[BaseModel]:
+    def load(self, name: Optional[str]=None):
         """
         This method will load the model using the tensorflow load method.
 
