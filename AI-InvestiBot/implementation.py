@@ -27,8 +27,13 @@ from resource_manager import ResourceManager
 import numpy as np
 #from trading_funcs import company_symbols, is_floats
 company_symbols = ["AAPL", "HD", "DIS", "GOOG"]
+
+# API keys from alpaca
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
+# API keys from AWS lambda, see boto3 documentation
+BUCKET_NAME = 'your_s3_bucket_name'
+OBJECT_KEY = 'your_s3_object_key'
 
 # The min predicted profit that every model has to have
 # For us to consider buying in. Each has to predict it
@@ -43,8 +48,7 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 MAX_HOLD_INDEX = 10
 
 
-YOUR_API_KEY_ID = "PKJWNCBFPYBEFZ9GLA5B"
-YOUR_SECRET_KEY = "Jl2ujDJ6AsrK8Ytu1DqBuuxcZb6hh6RbiKjzLYup"
+
 if YOUR_API_KEY_ID is None:
     raise ValueError("Set your API key ID")
 if YOUR_SECRET_KEY is None:
@@ -191,8 +195,6 @@ def run_loop(models, total_info_keys) -> None:
 
 import boto3
 import json
-BUCKET_NAME = 'your_s3_bucket_name'
-OBJECT_KEY = 'your_s3_object_key'
 
 
 def lambda_handler(event, context) -> Dict:
