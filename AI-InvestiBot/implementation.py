@@ -285,7 +285,7 @@ def save_state_to_s3(model, total_info_keys, manager: ResourceManager):
     s3 = boto3.resource('s3')
     state = {
         'model': model,
-        'total_info_keys': total_info_keys
+        'total_info_keys': total_info_keys,
         'manager': manager
     }
     s3.Object(BUCKET_NAME, OBJECT_KEY).put(Body=json.dumps(state))
