@@ -23,7 +23,6 @@ from typing import Dict, List, Optional
 from threading import Thread
 from pandas_market_calendars import get_calendar
 from resource_manager import ResourceManager
-from trading_funcs import company_symbols
 from models import *
 
 import numpy as np
@@ -69,7 +68,7 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 MAX_HOLD_INDEX = 3
 
 # for caching for multiple models
-def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[]):
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols:List[str]=["AAPL"]):
     """
     Loads all models
 
@@ -115,7 +114,6 @@ def update_models(models, total_info_keys, manager: ResourceManager):
         return
 
     i = 0
-    #for company in company_symbols:
     for company_models in models:
         # NOTE: grouping together caches is a small optimization
         temp = company_models[0]
