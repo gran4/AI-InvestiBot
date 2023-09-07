@@ -48,6 +48,12 @@ except KeyError:
     print("missing keys in 'secrets.config' file.")
     raise
 
+if YOUR_API_KEY_ID is None or YOUR_API_KEY_ID=="":
+    raise ValueError("Set your API key ID")
+if YOUR_SECRET_KEY is None or YOUR_SECRET_KEY=="":
+    raise ValueError("Set your secret key")
+
+
 # The min predicted profit that every model has to have
 # For us to consider buying in. Each has to predict it
 # will go in % up more then `PREDICTION_THRESHOLD`
@@ -59,13 +65,6 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 # if it is lower than `MAX_HOLD_INDEX` and 
 # meets all other requirements, hold it
 MAX_HOLD_INDEX = 10
-
-
-
-if YOUR_API_KEY_ID is None:
-    raise ValueError("Set your API key ID")
-if YOUR_SECRET_KEY is None:
-    raise ValueError("Set your secret key")
 
 RESOURCE_MANAGER = ResourceManager(max_percent=30, api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
 
