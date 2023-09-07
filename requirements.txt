@@ -10,3 +10,4 @@ typing_extensions
 pandas_market_calendars
 pylint
 alpaca_trade_api
+warnings
