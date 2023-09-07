@@ -31,8 +31,6 @@ company_symbols = ["AAPL", "HD", "DIS", "GOOG"]
 # API keys from alpaca
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
-YOUR_API_KEY_ID = "PKJWNCBFPYBEFZ9GLA5B"
-YOUR_SECRET_KEY = "Jl2ujDJ6AsrK8Ytu1DqBuuxcZb6hh6RbiKjzLYup"
 # API keys from AWS lambda, see boto3 documentation
 BUCKET_NAME = 'your_s3_bucket_name'
 OBJECT_KEY = 'your_s3_object_key'
