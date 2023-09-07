@@ -14,7 +14,7 @@ See also:
 """
 import time
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import Dict, List
 
@@ -26,7 +26,6 @@ from resource_manager import ResourceManager
 
 import numpy as np
 #from trading_funcs import company_symbols, is_floats
-company_symbols = ["AAPL", "HD", "DIS", "GOOG"]
 YOUR_API_KEY_ID = None
 YOUR_SECRET_KEY = None
 
@@ -77,8 +76,13 @@ def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str
 
 def set_models_today(models):
     today = date.today().strftime("%Y-%m-%d")
+
+    current_date = datetime.now()
+    ten_days_ago = current_date - timedelta(days=models[0][0].num_days*2.1 + 2)
+    ten_days_ago = ten_days_ago.strftime("%Y-%m-%d")
     for company in models:
         for model in company:
+            model.start_date = ten_days_ago
             model.end_date = today
     return models
 
@@ -151,7 +155,6 @@ def update_models(models, total_info_keys):
 
     processed_profits = []
     for profit in profits:
-        print(profit)
         # If it is good enough, it can possibly be bought even if one model is lower then the PREDICTION_THRESHOLD
         filtered_profit = [0 if model_prediction < PREDICTION_THRESHOLD else model_prediction for model_prediction in profit]
         average_profit = sum(filtered_profit) / len(filtered_profit)
@@ -159,8 +162,10 @@ def update_models(models, total_info_keys):
     model_weights = list(zip(models, processed_profits))
     sorted_models = sorted(model_weights, key=lambda x: x[1], reverse=True)
     i = 0
-    print(sorted_models)
+
     for model, profit in sorted_models:
+        print(model[0].stock_symbol, profit)
+        continue
         if RESOURCE_MANAGER.is_in_portfolio(model[0].stock_symbol) and i<MAX_HOLD_INDEX:
             RESOURCE_MANAGER.sell()
         if profit < RISK_REWARD_RATIO:
@@ -176,10 +181,6 @@ def run_loop(models, total_info_keys) -> None:
         day += 1
         print("day: ", day)
         models = set_models_today(models)
-        for company in models:
-            for model in company:
-                model.num_days = 10
-                model.end_date = "2023-08-31"
         update_models(models, total_info_keys)
         time.sleep(TIME_INTERVAL)
 
