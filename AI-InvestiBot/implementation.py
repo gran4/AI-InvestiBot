@@ -30,16 +30,23 @@ import json
 
 company_symbols = ["AAPL", "HD", "DIS", "GOOG"]
 
-# import keys from config file
-with open("secrets.config","rb") as f:
-    secrets = json.load(f)
+try: # import keys from config file
+    with open("secrets.config","rb") as f:
+        secrets = json.load(f)
+except FileNotFoundError:
+    print("missing 'secrets.config' file, rename the 'secrets_example.config' file")
+    raise
 
-# API keys from alpaca
-YOUR_API_KEY_ID = secrets["alpaca_api_key"]
-YOUR_SECRET_KEY = secrets["alpaca_secret_key"]
-# API keys from AWS lambda, see boto3 documentation
-BUCKET_NAME = secrets["aws_bucket_name"]
-OBJECT_KEY = secrets["aws_object_key"]
+try:
+    # API keys from alpaca
+    YOUR_API_KEY_ID = secrets["alpaca_api_key"]
+    YOUR_SECRET_KEY = secrets["alpaca_secret_key"]
+    # API keys from AWS lambda, see boto3 documentation
+    BUCKET_NAME = secrets["aws_bucket_name"]
+    OBJECT_KEY = secrets["aws_object_key"]
+except KeyError:
+    print("missing keys in 'secrets.config' file.")
+    raise
 
 # The min predicted profit that every model has to have
 # For us to consider buying in. Each has to predict it
