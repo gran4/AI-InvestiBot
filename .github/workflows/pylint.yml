@@ -29,5 +29,9 @@ jobs:
           git fetch origin
           echo commented pylint for now
           #pylint --rcfile=.pylintrc $(git ls-files '*.py')
-          
           #$(git diff --name-only HEAD ${{ github.base_ref }})
+      - name: now running tests for code base
+        run: |
+          cd AI-InvestiBot
+          python implementation.py
+          echo test completed!!!
