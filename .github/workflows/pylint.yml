@@ -34,7 +34,7 @@ jobs:
       - name: now running tests for code base
         run: |
           echo copy SECRETCONFIG from github to a file...
-          echo ${{ secrets.SECRETCONFIG }} > secrets.config
+          echo "${{ secrets.SECRETCONFIG }}" > secrets.config
           echo running the test
           python AI-InvestiBot/implementation.py
           echo test completed!!!
