@@ -33,6 +33,8 @@ jobs:
           #$(git diff --name-only HEAD ${{ github.base_ref }})
       - name: now running tests for code base
         run: |
-          cd AI-InvestiBot
-          python implementation.py
+          echo copy SECRETCONFIG from github to a file...
+          echo ${{ secrets.SECRETCONFIG }} > secrets.config
+          echo running the test
+          python AI-InvestiBot/implementation.py
           echo test completed!!!
