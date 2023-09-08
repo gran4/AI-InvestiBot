@@ -121,7 +121,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
         cached = temp.indicators_past_num_days(
             model.stock_symbol, temp.end_date,
             total_info_keys, temp.scaler_data,
-            cached_info, temp.num_days*2
+            cached_info, temp.num_days
         )
         predictions = []
         for model in company_models:
@@ -158,9 +158,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
                 scaled_window = (window - low_close) / scale_denominator
                 # Store the scaled window in the 3D array
                 scaled_data[i] = scaled_window
-
-            model.cached = scaled_data
-            temp = model.predict(info=model.cached)[0][0]
+            temp = model.predict(info=scaled_data)[0][0]
             prev_close = float(model.cached[-1][0][-1][0])
             profit = model.profit(temp, prev_close)
             predictions.append(temp)
@@ -178,12 +176,15 @@ def update_models(models, total_info_keys, manager: ResourceManager):
     sorted_models = sorted(model_weights, key=lambda x: x[1], reverse=True)
     i = 0
 
+    sellable_amounts = manager.get_sellable_amounts()
+    # Get a list of your positions and open orders
     for model, profit in sorted_models:
-        if manager.is_in_portfolio(model[0].stock_symbol) and i<MAX_HOLD_INDEX:
-            manager.sell()
+        symbol = model[0].stock_symbol
+        if manager.is_in_portfolio(symbol) and i<MAX_HOLD_INDEX and sellable_amounts[symbol] > 0:
+            manager.sell(sellable_amounts[symbol], symbol)
         if profit < RISK_REWARD_RATIO:
             break
-        manager.buy(model[0].stock_symbol)
+        manager.buy(symbol)
         i += 1
 
 

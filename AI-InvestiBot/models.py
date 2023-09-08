@@ -371,8 +371,11 @@ class BaseModel:
             name = self.__class__.__name__
 
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
-        with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
-            self.scaler_data = json.load(file)
+        try:
+            with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
+                self.scaler_data = json.load(file)
+        except FileNotFoundError:
+            pass
 
         # type: ignore[no-any-return]
         return self.model
@@ -479,17 +482,17 @@ class BaseModel:
                 i = earnings_dates.index(date)
                 scaled = (earnings_diff[i]-low) / diff
                 stock_data['earning diffs'].append(scaled)
-        print(stock_data['Close'])
-        # Scale each column manually
-        for column in information_keys:
-            if column in non_daily:
-                continue
-            low = scaler_data[column]['min'] # type: ignore[index]
-            diff = scaler_data[column]['diff'] # type: ignore[index]
-            column_values = stock_data[column]
-            scaled_values = (column_values - low) / diff
-            scaled_values = (column_values - low) / diff
-            stock_data[column] = scaled_values
+        if self.scaler_data is None:
+            # Scale each column manually
+            for column in information_keys:
+                if column in non_daily:
+                    continue
+                low = scaler_data[column]['min'] # type: ignore[index]
+                diff = scaler_data[column]['diff'] # type: ignore[index]
+                column_values = stock_data[column]
+                scaled_values = (column_values - low) / diff
+                scaled_values = (column_values - low) / diff
+                stock_data[column] = scaled_values
         return stock_data
 
     def update_cached_info_online(self):
@@ -700,122 +703,6 @@ class PriceModel(BaseModel):
 
     def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_scaling: bool = True, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model) -> None:
         return super().train(epochs, patience, time_shift, add_scaling, add_noise, use_transfer_learning, test, create_model)
-
-    def indicators_past_num_days(self, stock_symbol: str, end_date: str,
-                                 information_keys: List[str], scaler_data: Dict[str, int],
-                                 cached_info: pd.DataFrame, num_days: int) -> Dict[str, Union[float, str]]:
-        """
-        This method will return the indicators for the past `num_days` days specified in the
-        information keys. It will use the cached information to calculate the indicators
-        until the `end_date`.
-
-        Args:
-            information_keys (List[str]): tells model the indicators to use
-            scaler_data (Dict[str, int]): used to scale indicators
-            cached_info (pd.DataFrame): The cached information
-            num_days (int): The number of days to calculate the indicators for
-        
-        Returns:
-            dict: A dictionary containing the indicators for the stock data
-                Values will be floats except some expections tht need to be
-                processed during run time
-        """
-        stock_data = {}
-
-        stock_data['Close'] = cached_info['Close'].iloc[-num_days:]
-
-        ema12 = cached_info['Close'].ewm(span=12, adjust=False).mean()
-        ema26 = cached_info['Close'].ewm(span=26, adjust=False).mean()
-        macd = ema12 - ema26
-        span = 9
-        signal_line = macd.rolling(window=span, min_periods=1).mean().iloc[-num_days:]
-
-        change = cached_info['Close'].diff()
-        if '12-day EMA' in information_keys:
-            stock_data['12-day EMA'] = ema12.iloc[-num_days:]
-        if '26-day EMA' in information_keys:
-            stock_data['26-day EMA'] = ema26.iloc[-num_days:]
-        if 'MACD' in information_keys:
-            stock_data['MACD'] = macd.iloc[-num_days:]
-        if 'Signal Line' in information_keys:
-            stock_data['Signal Line'] = signal_line
-        if 'Histogram' in information_keys:
-            histogram = macd - signal_line
-            stock_data['Histogram'] = histogram.iloc[-num_days:]
-        if '200-day EMA' in information_keys:
-            ewm200 = cached_info['Close'].ewm(span=200, adjust=False)
-            ema200 = ewm200.mean().iloc[-num_days:]
-            stock_data['200-day EMA'] = ema200
-        change = cached_info['Close'].diff().iloc[-num_days:]
-        if 'Change' in information_keys:
-            stock_data['Change'] = change.iloc[-num_days:]
-        if 'Momentum' in information_keys:
-            momentum = change.rolling(window=10, min_periods=1).sum().iloc[-num_days:]
-            stock_data['Momentum'] = momentum
-        if 'RSI' in information_keys:
-            gain = change.apply(lambda x: x if x > 0 else 0)
-            loss = change.apply(lambda x: abs(x) if x < 0 else 0)
-            avg_gain = gain.rolling(window=14).mean().iloc[-num_days:]
-            avg_loss = loss.rolling(window=14).mean().iloc[-num_days:]
-            relative_strength = avg_gain / avg_loss
-            stock_data['RSI'] = 100 - (100 / (1 + relative_strength))
-        if 'TRAMA' in information_keys:
-            # TRAMA
-            volatility = cached_info['Close'].diff().abs().iloc[-num_days:]
-            trama = cached_info['Close'].rolling(window=14).mean().iloc[-num_days:]
-            stock_data['TRAMA'] = trama + (volatility * 0.1)
-        if 'gradual-liquidity spike' in information_keys:
-            # Reversal
-            stock_data['gradual-liquidity spike'] = get_liquidity_spikes(
-                cached_info['Volume'], gradual=True
-            ).iloc[-num_days:]
-        if '3-liquidity spike' in information_keys:
-            stock_data['3-liquidity spike'] = get_liquidity_spikes(
-                cached_info['Volume'], z_score_threshold=4
-            ).iloc[-num_days:]
-        if 'momentum_oscillator' in information_keys:
-            stock_data['momentum_oscillator'] = calculate_momentum_oscillator(
-                cached_info['Close']
-            ).iloc[-num_days:]
-        if 'ema_flips' in information_keys:
-            #_________________12 and 26 day Ema flips______________________#
-            stock_data['ema_flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
-            stock_data['ema_flips'] = pd.Series(stock_data['ema_flips'])
-        if 'signal_flips' in information_keys:
-            stock_data['signal_flips'] = process_flips(macd[-num_days:], signal_line[-num_days:])
-            stock_data['signal_flips'] = pd.Series(stock_data['signal_flips'])
-        if 'earning diffs' in information_keys:
-            #earnings stuffs
-            earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
-            
-            end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
-            date = end_datetime - relativedelta(days=num_days)
-
-            stock_data['earnings dates'] = []
-            stock_data['earning diffs'] = [] # type: ignore[attr]
-            low = scaler_data['earning diffs']['min'] # type: ignore[index]
-            diff = scaler_data['earning diffs']['diff'] # type: ignore[index]
-
-            for i in range(num_days):
-                if not end_date in earnings_dates:
-                    stock_data['earning diffs'].append(0)
-                    continue
-                i = earnings_dates.index(date)
-                scaled = (earnings_diff[i]-low) / diff
-                stock_data['earning diffs'].append(scaled)
-
-        # Scale each column manually
-        for column in information_keys:
-            if column in non_daily:
-                continue
-            low = scaler_data[column]['min'] # type: ignore[index]
-            diff = scaler_data[column]['diff'] # type: ignore[index]
-            column_values = stock_data[column]
-            scaled_values = (column_values - low) / diff
-            scaled_values = (column_values - low) / diff
-            stock_data[column] = scaled_values
-        return stock_data
-
 
     def profit(self, pred, prev):
         return pred/prev
