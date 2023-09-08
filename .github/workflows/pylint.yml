@@ -31,10 +31,14 @@ jobs:
           echo commented pylint for now
           #pylint --rcfile=.pylintrc $(git ls-files '*.py')
           #$(git diff --name-only HEAD ${{ github.base_ref }})
+      - name: Copy SECRETCONFIG from github to a file...
+        run: |
+          python -c "import os; file = open('secrets.config', 'w'); file.write(os.environ['YOUR_SECRET']); file.close()"
+        shell: bash
+        env:
+          YOUR_SECRET : ${{ secrets.SECRETCONFIG }}
       - name: now running tests for code base
         run: |
-          echo copy SECRETCONFIG from github to a file...
-          echo "${{ secrets.SECRETCONFIG }}" > secrets.config
           echo running the test
           python AI-InvestiBot/implementation.py
           echo test completed!!!
