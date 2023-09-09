@@ -14,7 +14,7 @@ See also:
     Other modules related to running the stock bot -> lambda_implementation, loop_implementation
 """
 
-from typing import Optional
+from typing import Optional, Dict
 
 from alpaca_trade_api import REST
 
@@ -88,17 +88,10 @@ class ResourceManager:
             for order in open_orders:
                 last_trade = self.api.get_latest_trade(order.symbol)
                 qty = float(order.qty)-float(order.filled_qty)
-                print(order.qty, order.filled_qty, last_trade.price)
+
                 total_pending_cost += qty * last_trade.price
             # Calculate available cash (subtracting funds reserved for pending orders)
             balance = float(account.cash) - total_pending_cost
-            print(balance)
-            print(balance)
-            print(balance)
-            print(balance)
-            print(balance)
-            print(balance)
-            print(balance)
         # Get the current market price
         market_price = float(self.api.get_latest_trade(symbol).price)
 
@@ -133,7 +126,7 @@ class ResourceManager:
             time_in_force='day',
         )
 
-    def sell(self, amount: Optional[int], ticker: str) -> None:
+    def sell(self, amount: int, ticker: str) -> None:
         """
         This method will allow you to sell a stock.
 
@@ -148,6 +141,35 @@ class ResourceManager:
             type='market',
             time_in_force='day',
         )
+
+    def get_sellable_amounts(self) -> Dict:
+        # Get a list of your positions and open orders
+        positions = self.api.list_positions()
+        orders = self.api.list_orders(status='open')
+
+        # Create a dictionary to store combined information by company (stock symbol)
+        combined_info = {}
+
+        # Combine positions and orders by stock symbol
+        for position in positions:
+            symbol = position.symbol
+            if symbol not in combined_info:
+                combined_info[symbol] = {'position': position, 'order': None}
+
+        for order in orders:
+            symbol = order.symbol
+            if symbol in combined_info:
+                combined_info[symbol]['order'] = order
+        
+        qtys_to_sell = {}
+        for key, item in combined_info.items():
+            if item['order'] is None:
+                num = 0
+            else:
+                num = int(item['order'].qty)
+            qty = int(item['position'].qty) - num
+            qtys_to_sell[key] = qty
+        return qtys_to_sell
 
     def is_in_portfolio(self, symbol):
         # Get positions
