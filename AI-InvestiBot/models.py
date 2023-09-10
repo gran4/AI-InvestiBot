@@ -39,8 +39,7 @@ from trading_funcs import (
     create_sequences, process_flips,
     non_daily, non_daily_no_use, is_floats,
     calculate_percentage_movement_together,
-    indicators_to_add_noise_to, indicators_to_scale,
-    company_symbols
+    indicators_to_add_noise_to, indicators_to_scale
 )
 from get_info import (
     calculate_momentum_oscillator,
@@ -821,7 +820,7 @@ super_trends_indicators = ['Close', 'supertrend1', 'supertrend2',
 
 
 def update_transfer_learning(model: BaseModel,
-                             company_symbols: List= company_symbols
+                             company_symbols: List= ["AAPL"]
                              ) -> None:
     """Updates Tranfer Learning Model"""
     model.end_date = date.today()-relativedelta(days=30)
@@ -844,12 +843,6 @@ def update_transfer_learning(model: BaseModel,
 if __name__ == "__main__":
     modelclass = PercentageModel
     indicators = [break_out_indicators]#[ImpulseMACD_indicators, Reversal_indicators, Earnings_indicators, break_out_indicators, super_trends_indicators]
-    #indicators = list(set(chain(*indicators)))
-    #indicators.remove('Close')
-    #print(indicators)
-    #indicators.remove('RSI')
-    #indicators.insert(0, 'Close')
-    #indicators = [indicators]
     test_models = []
     for company in company_symbols:
         model = modelclass(stock_symbol=company, information_keys=ImpulseMACD_indicators)
