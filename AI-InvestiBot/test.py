@@ -44,6 +44,9 @@ def test_indepth(models: List[BaseModel], hold_stocks=False):
 
         temp, temp2 = create_sequences(data2, model.num_days)
         temp_test, expected = model.process_x_y_total(temp, temp2, model.num_days, 0)
+        print(temp_test.shape)
+        for t in temp_test:
+            model.plot(t[:, 0])
         processed_data.append(temp_test)
     percent_made = 1
     bought_at = []

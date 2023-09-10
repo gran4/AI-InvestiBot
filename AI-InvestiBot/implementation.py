@@ -68,7 +68,7 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 MAX_HOLD_INDEX = 3
 
 # for caching for multiple models
-def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols:List[str]=["AAPL"]):
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols: List[str]=["AAPL"]):
     """
     Loads all models
 
@@ -93,13 +93,16 @@ def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str
 def set_models_today(models):
     today = date.today().strftime("%Y-%m-%d")
 
-    current_date = datetime.now()
+    current_date = datetime.now() - timedelta(days=4)
     ten_days_ago = current_date - timedelta(days=models[0][0].num_days*2.1 + 2)
+    today = current_date - timedelta(days=4)
     ten_days_ago = ten_days_ago.strftime("%Y-%m-%d")
+    today = today.strftime("%Y-%m-%d")
     for company in models:
         for model in company:
             model.start_date = ten_days_ago
             model.end_date = today
+            print(today)
     return models
 
 
@@ -121,46 +124,76 @@ def update_models(models, total_info_keys, manager: ResourceManager):
         cached = temp.indicators_past_num_days(
             model.stock_symbol, temp.end_date,
             total_info_keys, temp.scaler_data,
-            cached_info, temp.num_days
+            cached_info, temp.num_days*2
         )
+
         predictions = []
         for model in company_models:
             temp = []
             for key in model.information_keys:
                 temp.append(cached[key])
             temp_cached = []
-            for i in range(model.num_days):
-                n = []
-                for element in temp:
-                    n.append(element[i])
-                temp_cached.append(n)
+            #for i in range(model.num_days*2):
+            #    n = []
+            #    for element in temp:
+            #        n.append(element[i])
+            #    temp_cached.append(n)
+            for i in range(model.num_days, model.num_days*2):
+                indicators = []
+                for indicator in temp:
+                    min_value = indicator[i-model.num_days:i].min()
+                    max_value = indicator[i-model.num_days:i].max()
+                    # Scale the Series between its high and low values
+                    scaled_data = (indicator[i-model.num_days:i] - min_value) / (max_value - min_value)
+                    scaled_data = scaled_data.fillna(0)
+                    indicators.append(scaled_data.tolist())
+                indicators = [
+                    [float(cell) for cell in row] for row in indicators
+                ]
+                #print(len(indicators))
+                #print(len(indicators[0]))
+                #import time
+                #time.sleep(123)
+                #indicators = list(map(list, zip(*indicators)))
+                indicators = list(map(list, zip(*indicators)))
+                temp_cached.append(indicators)
+
             temp_cached = np.array(temp_cached)
             temp_cached = np.expand_dims(temp_cached, axis=0)
 
-            num_days = model.num_days
-            num_windows = num_days#temp_cached.shape[0] - num_days + 1
-            # Create a 3D numpy array to store the scaled data
-            scaled_data = np.zeros((num_windows, num_days, temp_cached.shape[1], temp_cached.shape[2]))
+            # num_days = model.num_days
+            # num_windows = num_days#temp_cached.shape[0] - num_days + 1
+            # # Create a 3D numpy array to store the scaled data
+            # scaled_data = np.zeros((num_windows, num_days, temp_cached.shape[1], temp_cached.shape[2]))
 
-            for i in range(temp_cached.shape[0]-num_days):
-                # Get the data for the current window using the i-window_size approach
-                window = temp_cached[i : i + num_days]
-                #total 4218, 10 windows, num_days 10, indicators 7
+            # for i in range(temp_cached.shape[0]):
+            #     # Get the data for the current window using the i-window_size approach
+            #     window = temp_cached[i : i + num_days]
+            #     #total 4218, 10 windows, num_days 10, indicators 7
 
-                # Calculate the high and low close prices for the current window
-                high_close = np.max(window, axis=0)
-                low_close = np.min(window, axis=0)
+            #     # Calculate the high and low close prices for the current window
+            #     high_close = np.max(window, axis=0)
+            #     low_close = np.min(window, axis=0)
 
-                # Avoid division by zero if high_close and low_close are equal
-                scale_denominator = np.where(high_close == low_close, 1, high_close - low_close)
+            #     # Avoid division by zero if high_close and low_close are equal
+            #     scale_denominator = np.where(high_close == low_close, 1, high_close - low_close)
 
-                # Scale each column using broadcasting
-                scaled_window = (window - low_close) / scale_denominator
-                # Store the scaled window in the 3D array
-                scaled_data[i] = scaled_window
-            temp = model.predict(info=scaled_data)[0][0]
+            #     # Scale each column using broadcasting
+            #     scaled_window = (window - low_close) / scale_denominator
+            #     # Store the scaled window in the 3D array
+            #     print(scaled_window, "BLAH")
+            #     scaled_data[i] = scaled_window
+            # temp = model.predict(info=scaled_data)[-1][0]
+            model.cached = temp_cached
+            temp = model.predict(info=temp_cached)
+            #l = []
+            #for i in temp_cached[-1][0]:
+            #    l.append(i)
+            #l = np.array(l)
+            #l = np.expand_dims(l, axis=0)
+            #model.plot(l)
             prev_close = float(model.cached[-1][0][-1][0])
-            profit = model.profit(temp, prev_close)
+            profit = model.profit(temp, prev_close)[0][0]
             predictions.append(temp)
             #input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
         profits.append(predictions)
@@ -291,7 +324,7 @@ def save_state_to_s3(model, total_info_keys, manager: ResourceManager):
 if __name__ == "__main__":
     # NOTE: runs loop ONLY unless you change it
     # Create a new thread
-    models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators])
+    models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators], company_symbols=["AAPL", "GOOG", "DIS", "HD"])
     thread = Thread(target=run_loop, args=(models, total_info_keys))
 
     # Start the thread

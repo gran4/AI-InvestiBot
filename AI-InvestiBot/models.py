@@ -509,7 +509,7 @@ class BaseModel:
         cached_info = self.cached_info
         #NOTE: optimize bettween
         if cached_info is None:
-            start_datetime = end_datetime - relativedelta(days=self.num_days+20)
+            start_datetime = end_datetime - relativedelta(days=self.num_days*4+20)
             if 'ema_200' in self.information_keys:
                 start_datetime = start_datetime - relativedelta(days=200)
             cached_info = ticker.history(start=start_datetime, interval="1d")
