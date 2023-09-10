@@ -38,12 +38,16 @@ jobs:
         shell: bash
         env:
           YOUR_SECRET : ${{ secrets.SECRETCONFIG }}
-      - name: now running tests for code base
+      - name: now running the get info
         run: |
           echo running the get info
           python AI-InvestiBot/get_info.py
-          echo running the models
+      - name: now training the models
+        run: |
+          echo training the models
           python AI-InvestiBot/models.py
+      - name: now running the implementation
+        run: |
           echo running the implementation
           python AI-InvestiBot/implementation.py
           echo test completed!!! (this should show up if everything ran well)
