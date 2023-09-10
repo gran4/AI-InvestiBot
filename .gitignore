@@ -7,8 +7,10 @@ __pycache__/
 *$py.class
 
 #From project
-*Stocks
-!Stocks/AAPL*
+!Stocks/
+Stocks/*
+!Stocks/AAPL/
+
 .DS_Store
 
 # C extensions
