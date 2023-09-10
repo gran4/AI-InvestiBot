@@ -91,34 +91,6 @@ indicators_to_scale = (
 )
 
 
-
-company_symbols = (
-    "AAPL",
-    "GOOG",
-    # "TLSA",
-    # "META",
-    # "AMZN",
-    # "DIS",
-    # "BRK-B",
-    # "BA",
-    # "HD",
-    # "NKE",
-    # "SBUX",
-    # "NVDA",
-    # "CVS",
-    # "MSFT",# 5:59
-    # "NFLX",
-    # "MCD",
-    # "KO",
-    # "V",
-    # "IBM",
-    # "WMT",
-    # "XOM",
-    # "ADBE",
-    # "T",
-    "GE"
-)
-
 scale_indicators = {
     'Close': 2,
     'MACD': 1
