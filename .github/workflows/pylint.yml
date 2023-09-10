@@ -40,5 +40,7 @@ jobs:
       - name: now running tests for code base
         run: |
           echo running the test
+          python AI-InvestiBot/get_info.py
+          echo done running getting info, now for the implementation
           python AI-InvestiBot/implementation.py
-          echo test completed!!!
+          echo test completed!!! (this should show up if everything ran well)
