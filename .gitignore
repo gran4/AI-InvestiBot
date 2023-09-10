@@ -8,7 +8,7 @@ __pycache__/
 
 #From project
 *Stocks
-!Stocks/AAPL/
+!Stocks/AAPL*
 .DS_Store
 
 # C extensions
