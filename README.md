@@ -62,12 +62,12 @@ The following features are planned to be added in the future:
 # How To Start
 
 WARNING: It looks like the Model is currently off by a few days of something. Do NOT use to make money yet.
-1) Train and save the models, look at the end of models.py for an example of how to do this. You have to train and save it yourself since I have removed everything in the Stocks folder.
-2) Look at the current implementations in implementation.py.
-3) Use them if you like them or add more if you want to customize it(lamda does not work)
+1) Get data using get_info.py
+2) Train and save the models, look at the end of models.py for an example of how to do this. You have to train and save it yourself since I have removed everything in the Stocks folder.
+3) Look at the current implementations in implementation.py.
+4) Use them if you like them or add more if you want to customize it(lamda version does not work)
 
 P.S: Remember to change the api key in secret key. 
-Search for them using command-f
 
 # How It Works
 
@@ -181,7 +181,7 @@ This project offers various models to choose from, including:
   - Test RMSE: 1.6947722097944153
   - Test RMSSE: 78.60191098762428
 
-
+model.test(show_graph=True)
 ![Figure_1](https://github.com/gran4/AI-InvestiBot/assets/80655391/0c205922-e6f4-4113-9d9c-1f3c890d1f81)
 
 
