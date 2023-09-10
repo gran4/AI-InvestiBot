@@ -40,6 +40,7 @@ from trading_funcs import (
     non_daily, non_daily_no_use, is_floats,
     calculate_percentage_movement_together,
     indicators_to_add_noise_to, indicators_to_scale,
+    company_symbols
 )
 from get_info import (
     calculate_momentum_oscillator,
@@ -820,12 +821,12 @@ super_trends_indicators = ['Close', 'supertrend1', 'supertrend2',
 
 
 def update_transfer_learning(model: BaseModel,
-                             companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
+                             company_symbols: List= company_symbols
                              ) -> None:
     """Updates Tranfer Learning Model"""
     model.end_date = date.today()-relativedelta(days=30)
     use = False
-    for company in companies:
+    for company in company_symbols:
         model.stock_symbol = company
         model.update_dates()
         model.end_date = date.today()-relativedelta(days=30)
@@ -850,15 +851,15 @@ if __name__ == "__main__":
     #indicators.insert(0, 'Close')
     #indicators = [indicators]
     test_models = []
-    for company in ["AAPL", "HD", "DIS", "GOOG"]:
+    for company in company_symbols:
         model = modelclass(stock_symbol=company, information_keys=ImpulseMACD_indicators)
         #model.load()
         #model.stock_symbol = "T"
         model.start_date = "2006-03-24"
-        model.end_date = "2023-03-24"
+        model.end_date = "2020-03-11"
         model.num_days = 10
 
-        model.train(epochs=1000, use_transfer_learning=False, test=True)
+        model.train(epochs=10, use_transfer_learning=False, test=True)
         #model.save()
         #model.stock_symbol = "HD"
         model.start_date = "2020-04-11"
