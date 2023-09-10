@@ -509,7 +509,7 @@ class BaseModel:
         cached_info = self.cached_info
         #NOTE: optimize bettween
         if cached_info is None:
-            start_datetime = end_datetime - relativedelta(days=self.num_days+20)
+            start_datetime = end_datetime - relativedelta(days=self.num_days*4+20)
             if 'ema_200' in self.information_keys:
                 start_datetime = start_datetime - relativedelta(days=200)
             cached_info = ticker.history(start=start_datetime, interval="1d")
@@ -859,7 +859,7 @@ if __name__ == "__main__":
         model.num_days = 10
 
         model.train(epochs=1000, use_transfer_learning=False, test=True)
-        #model.save()
+        model.save()
         #model.stock_symbol = "HD"
         model.start_date = "2020-04-11"
         model.end_date = "2023-04-11"
