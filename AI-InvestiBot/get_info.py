@@ -349,7 +349,7 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
         #temp = supertrends(stock_data)
 
         update_dynamic_tuning(company_ticker, stock_data)
-        #update_info(company_ticker, stock_data)
+        update_info(company_ticker, stock_data)
 
 if __name__ == '__main__':
     get_historical_info()
