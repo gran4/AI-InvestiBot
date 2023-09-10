@@ -31,6 +31,7 @@ jobs:
           echo commented pylint for now
           #pylint --rcfile=.pylintrc $(git ls-files '*.py')
           #$(git diff --name-only HEAD ${{ github.base_ref }})
+          
       - name: Copy SECRETCONFIG from github to a file...
         run: |
           python -c "import os; file = open('secrets.config', 'w'); file.write(os.environ['YOUR_SECRET']); file.close()"
@@ -39,8 +40,10 @@ jobs:
           YOUR_SECRET : ${{ secrets.SECRETCONFIG }}
       - name: now running tests for code base
         run: |
-          echo running the test
+          echo running the get info
           python AI-InvestiBot/get_info.py
-          echo done running getting info, now for the implementation
+          echo running the models
+          python AI-InvestiBot/models.py
+          echo running the implementation
           python AI-InvestiBot/implementation.py
           echo test completed!!! (this should show up if everything ran well)
