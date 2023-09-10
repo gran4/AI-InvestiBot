@@ -26,7 +26,6 @@ from resource_manager import ResourceManager
 from models import *
 
 import numpy as np
-from trading_funcs import company_symbols
 
 try: # import keys from config file
     with open("secrets.config","rb") as f:
@@ -69,7 +68,7 @@ MAX_HOLD_INDEX = 3
 
 # for caching for multiple models
 
-def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols:List[str]=company_symbols):
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols:List[str]=["AAPL"]):
     """
     Loads all models
 
