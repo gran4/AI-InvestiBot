@@ -122,7 +122,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
         cached = temp.indicators_past_num_days(
             model.stock_symbol, temp.end_date,
             total_info_keys, temp.scaler_data,
-            cached_info, temp.num_days*2
+            cached_info, temp.num_days
         )
 
         predictions = []
@@ -190,6 +190,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
             #l = np.array(l)
             #l = np.expand_dims(l, axis=0)
             #model.plot(l)
+
             prev_close = float(model.cached[-1][0][-1][0])
             profit = model.profit(temp, prev_close)[0][0]
             predictions.append(temp)
