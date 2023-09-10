@@ -852,7 +852,7 @@ if __name__ == "__main__":
         model.end_date = "2020-03-11"
         model.num_days = 10
 
-        model.train(epochs=10, use_transfer_learning=False, test=True)
+        model.train(epochs=1000, use_transfer_learning=False, test=True)
         #model.save()
         #model.stock_symbol = "HD"
         model.start_date = "2020-04-11"
