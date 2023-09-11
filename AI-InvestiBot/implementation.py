@@ -122,7 +122,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
         cached = temp.indicators_past_num_days(
             model.stock_symbol, temp.end_date,
             total_info_keys, temp.scaler_data,
-            cached_info, temp.num_days
+            cached_info, temp.num_days*2
         )
 
         predictions = []
@@ -323,7 +323,7 @@ def save_state_to_s3(model, total_info_keys, manager: ResourceManager):
 if __name__ == "__main__":
     # NOTE: runs loop ONLY unless you change it
     # Create a new thread
-    models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators])
+    models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators], company_symbols=["AAPL", "GOOG", "DIS", "HD"])
     thread = Thread(target=run_loop, args=(models, total_info_keys))
 
     # Start the thread
