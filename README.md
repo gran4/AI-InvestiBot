@@ -27,11 +27,11 @@ Discord: https://dsc.gg/ai-investibot/
 
 # Features
 
-- **Unique Indicators**: The project includes unique indicators, which can be found in the `get_info.py` file.
-- **Non-Daily Indicators**: Unlike most bots that rely on daily indicators, this project incorporates indicators that are not limited to daily data, such as earnings.
+- **Unique Indicators**: The project uses unique indicators.
+- **Non-Daily Indicators**: Unlike most bots, AI-InvestiBot uses indicators that are not limited to daily data, such as earnings.
 - **Flexible Model Creation**: Users have the freedom to create their own models using the `information_keys` feature.
-- **Ingenious Method for Custom Models**: A callback function can be passed to the `train` function(traning the model) that creates the custom model. This allows you do use LSTMs, CNNs, Tranformers, or any type of model you want
-- **Ingenious Method for Adding New AI Models**: BaseModel is the base that basically handles all the non-ai related stock bot functionality. This allows for child classes that easily use different structures.
+- **Ingenious Method for Custom Models**: A callback function can be passed to the `train` function(traning the model) that creates the custom model. This allows you do use any type of model you want
+- **Ingenious Method for Adding New AI Models**: BaseModel basically handles all the non-ai related stock bot functionality. This allows for child classes that easily use different structures.
 - **ResourceManager Class**: The `ResourceManager` class is implemented to manage and direct financial resources effectively.
 - **Predictions for Multiple Companies**: This project offers predictions for multiple companies per day, rather than just one.
 - **Holding Stocks**: The stock bot has the capability to hold stocks.
@@ -136,7 +136,7 @@ The project processes earnings in the following manner:
 
 
 
-# RESULTS
+# RESULTS(FOR Price Model only)
 
 This project offers various models to choose from, including:
 
