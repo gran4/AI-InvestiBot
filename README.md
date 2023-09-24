@@ -42,8 +42,7 @@ Discord: https://dsc.gg/ai-investibot/
   + Transfer learning
   + Early Stopping
   + Etc
-- **Active Development**: The project is actively being developed, with regular updates and improvements.
-
+- **Active Development Planned**: Taking a small break from the project.
 
 # Planned Additions
 
