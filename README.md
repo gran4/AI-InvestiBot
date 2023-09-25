@@ -187,12 +187,15 @@ model.test(show_graph=True)
 
 # How to interpret
 
-- YOU CAN HAVE CONFIDENCE BECUASE:
+- You can have have confidence becuase:
   + The model has never seen the data
   + Not over fitted becuase Model used Early stopping
   + NO Transfer learning applied. Once transfer is applied, it will become even more accuracte.
   + It has been tested on other similar stocks(on `PercentageModel` only) and has shown equally promising results
   + More methods for testing will be added soon
+
+    * The only thing being tested for, is whether the model is getting future data.
+
 
 - Directional Test is how often the predicted and test moved together.
   + Directional Test:  93.26530612244898
