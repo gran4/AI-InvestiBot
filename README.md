@@ -29,9 +29,9 @@ Discord: https://dsc.gg/ai-investibot/
 
 - **Unique Indicators**: The project uses unique indicators.
 - **Non-Daily Indicators**: Unlike most bots, AI-InvestiBot uses indicators that are not limited to daily data, such as earnings.
-- **Flexible Model Creation**: Users have the freedom to create their own models using the `information_keys` feature.
-- **Ingenious Method for Custom Models**: A callback function can be passed to the `train` function(traning the model) that creates the custom model. This allows you do use any type of model you want
-- **Ingenious Method for Adding New AI Models**: BaseModel basically handles all the non-ai related stock bot functionality. This allows for child classes that easily use different structures.
+- **Flexible**:
+    + **Flexible Model Creation** Users have the freedom to create their own models using the `information_keys` feature.
+    + **Fexible AI**: A callback function can be passed to the `train` function(traning the model) that creates the custom model. This allows you do use any type of model you want
 - **ResourceManager Class**: The `ResourceManager` class is implemented to manage and direct financial resources effectively.
 - **Predictions for Multiple Companies**: This project offers predictions for multiple companies per day, rather than just one.
 - **Holding Stocks**: The stock bot has the capability to hold stocks.
@@ -118,7 +118,7 @@ The bot selects stocks based on the following criteria:
 - Stocks are bought if specific conditions are met, including:
   - All models' profit ratios are above `PREDICTION_THRESHOLD`.
   - The average profit ratio exceeds the `RISK_REWARD_RATIO`.
-- The lambda and loop implemenations use the same functions.
+- The lambda and loop implemenations use the same base functions.
   - Therefore, more implementations can easily be added
 
 ## Earnings Processing
@@ -193,8 +193,7 @@ model.test(show_graph=True)
   + NO Transfer learning applied. Once transfer is applied, it will become even more accuracte.
   + It has been tested on other similar stocks(on `PercentageModel` only) and has shown equally promising results
   + More methods for testing will be added soon
-
-    * The only thing being tested for, is whether the model is getting future data.
+    * The only thing being tested for, is whether the model accedently is getting future data.
 
 
 - Directional Test is how often the predicted and test moved together.
@@ -204,5 +203,4 @@ model.test(show_graph=True)
 - Spatial is what sees if the predicted is correctly positioned in relation to the real data. So if it goes up, the predicted should be over, but if it goes down, the predicted should go down
   + Spatial Test:  94.26530612244898
   + Means 94% accuracy
-
-- RMSE and RMSSE show the amount it is off. RMSSE is more impacted by larger differences. Remember that the lower the value of these metrics, the better the performance.
+- RMSE and RMSSE shows how incorrect the bot is. RMSSE is more impacted by larger differences. Remember that the lower the value of these metrics, the better the performance.
