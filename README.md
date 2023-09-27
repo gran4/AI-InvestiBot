@@ -108,12 +108,10 @@ The stock bot operates based on the following principles:
     - Once 280 days of past data are obtained, the oldest day is removed, and a new day is added at the end.
     - In this case, `model.cached_info` is always a pandas DataFrame or None.
 
-## Bot Selection Process
-
-The bot selects stocks based on the following criteria:
+## How the Bot Runs
 
 - The bot identifies the most promising stocks.
-- It utilizes the available funds, following the rules set by the `ResourceManager` class.
+- It utilizes your available funds, following the rules set by the `ResourceManager` class.
 - Stocks are held if their performance exceeds a certain threshold (`MAX_HOLD_INDEX`).
 - Stocks are bought if specific conditions are met, including:
   - All models' profit ratios are above `PREDICTION_THRESHOLD`.
@@ -190,10 +188,10 @@ model.test(show_graph=True)
 - You can have have confidence becuase:
   + The model has never seen the data
   + Not over fitted becuase Model used Early stopping
-  + NO Transfer learning applied. Once transfer is applied, it will become even more accuracte.
+  + NO Transfer learning applied. Once transfer is applied, it will become even more accuracte(hopefully).
   + It has been tested on other similar stocks(on `PercentageModel` only) and has shown equally promising results
-  + More methods for testing will be added soon
-    * The only thing being tested for, is whether the model accedently is getting future data.
+
+  * The only thing that may be wrong is that the model may accedently get future data.
 
 
 - Directional Test is how often the predicted and test moved together.
