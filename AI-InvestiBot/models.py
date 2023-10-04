@@ -748,7 +748,8 @@ class PercentageModel(BaseModel):
             x_total = x_total[:-time_shift]
             y_total = y_total[time_shift:]
         num_windows = x_total.shape[0] - num_days + 1
-        # Create a 3D numpy array to store the scaled data
+        # Create a 3D numpy array to store the scaled data 
+        print(len(x_total))
         scaled_data = np.zeros((num_windows, num_days, x_total.shape[1], x_total.shape[2]))
 
         for i in range(x_total.shape[0]-num_days):
@@ -768,6 +769,7 @@ class PercentageModel(BaseModel):
             # Store the scaled window in the 3D array
             scaled_data[i] = scaled_window
         y_total = y_total[:-num_days+2]
+        print(scaled_data.shape)
 
         return scaled_data, y_total
 
@@ -850,7 +852,7 @@ if __name__ == "__main__":
     #indicators.insert(0, 'Close')
     #indicators = [indicators]
     test_models = []
-    for company in ["AAPL", "HD", "DIS", "GOOG"]:
+    for company in ["AAPL"]:
         model = modelclass(stock_symbol=company, information_keys=ImpulseMACD_indicators)
         #model.load()
         #model.stock_symbol = "T"
