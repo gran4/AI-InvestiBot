@@ -60,7 +60,7 @@ The following features are planned to be added in the future:
 
 # How To Start
 
-WARNING: It looks like the Model is currently off by a few days of something. Do NOT use to make money yet.
+WARNING: The real time trading features need more testing. Do NOT use to make money yet.
 1) Get data using get_info.py
 2) Train and save the models, look at the end of models.py for an example of how to do this. You have to train and save it yourself since I have removed everything in the Stocks folder.
 3) Look at the current implementations in implementation.py.
