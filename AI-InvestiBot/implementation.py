@@ -122,67 +122,15 @@ def update_models(models, total_info_keys, manager: ResourceManager):
         cached = temp.indicators_past_num_days(
             model.stock_symbol, temp.end_date,
             total_info_keys, temp.scaler_data,
-            cached_info, temp.num_days*3
+            cached_info, temp.num_days
         )
         predictions = []
         for model in company_models:
-            temp = []
-            for key in model.information_keys:
-                temp.append(cached[key])
-            temp_cached = []
-            #for i in range(model.num_days*2):
-            #    n = []
-            #    for element in temp:
-            #        n.append(element[i])
-            #    temp_cached.append(n)
-            for i in range(model.num_days, model.num_days*3):
-                indicators = []
-                for indicator in temp:
-                    min_value = indicator[i-model.num_days:i].min()
-                    max_value = indicator[i-model.num_days:i].max()
-                    # Scale the Series between its high and low values
-                    scaled_data = (indicator[i-model.num_days:i] - min_value) / (max_value - min_value)
-                    scaled_data = scaled_data.fillna(0)
-                    indicators.append(scaled_data.tolist())
-                indicators = [
-                    [float(cell) for cell in row] for row in indicators
-                ]
-                indicators = list(map(list, zip(*indicators)))
-                temp_cached.append(indicators)
-            temp_cached = np.array(temp_cached)
+            processed_data = model.process_cached(cached)
+            temp = model.predict(info=processed_data)[0][-1]
+            print(model.predict(info=processed_data))
 
-            num_days = model.num_days
-            num_windows = num_days#temp_cached.shape[0] - num_days + 1
-            # Create a 3D numpy array to store the scaled data
-            scaled_data = np.zeros((num_windows, temp_cached.shape[1], num_days, len(model.information_keys)))
-            for i in range(num_days):
-                print(len(temp_cached))
-                print(len(temp_cached[i : i + num_days]))
-                # Get the data for the current window using the i-window_size approach
-                window = temp_cached[i : i + num_days]
-                #total 4218, 10 windows, num_days 10, indicators 7
-
-                # Calculate the high and low close prices for the current window
-                high_close = np.max(window, axis=0)
-                low_close = np.min(window, axis=0)
-
-                # Avoid division by zero if high_close and low_close are equal
-                scale_denominator = np.where(high_close == low_close, 1, high_close - low_close)
-
-                # Scale each column using broadcasting
-                scaled_window = (window - low_close) / scale_denominator
-                # Store the scaled window in the 3D array
-                scaled_data[i] = scaled_window
-
-            #scaled_data = scaled_data[-num_days:]
-            print(scaled_data)
-            temp = model.predict(info=scaled_data)[0][-1]
-            print(model.predict(info=scaled_data))
-            print(temp)
-            model.cached = temp_cached
-            #temp = model.predict(info=temp_cached)
-
-            prev_close = float(model.cached[-1][0][-1])
+            prev_close = float(cached['Close'][-1])
             profit = model.profit(temp, prev_close)
             predictions.append(temp)
             #input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))

@@ -19,7 +19,7 @@
 
 # Introduction
 
-This repository is currently under active development. The project aims to be more accurate than other projects by providing innovative features not often found in other stock bots.
+This repository is currently under active development. The project aims to be more accurate than other projects by providing innovative features not often found in other stock bots; with cleaner and more modular code.
 
 # Contact Us
 Discord: https://dsc.gg/ai-investibot/  (Uses a dsc link in order to get a custom link)
@@ -35,9 +35,9 @@ Discord: https://dsc.gg/ai-investibot/  (Uses a dsc link in order to get a custo
 - **ResourceManager Class**: The `ResourceManager` class is implemented to manage and direct financial resources effectively.
 - **Predictions for Multiple Companies**: This project offers predictions for multiple companies per day, rather than just one.
 - **Holding Stocks**: The stock bot has the capability to hold stocks.
-- **Lambda Version**: Allows the bot to be run without keeping a laptop open(It is also very, very cheap to use).
+- **Lambda Version**: Allows the bot to be run without keeping a laptop open(It is also should be cheap to use).
 - **AI Techniques such as**:
-  + Price AND Percentage Models
+  + Multiple Models
   + Data Augmentation
   + Transfer learning
   + Early Stopping
@@ -200,5 +200,5 @@ model.test(show_graph=True)
 
 - Spatial is what sees if the predicted is correctly positioned in relation to the real data. So if it goes up, the predicted should be over, but if it goes down, the predicted should go down
   + Spatial Test:  94.26530612244898
-  + Means 94% accuracy
+  + Means 94% accuracy(in the space)
 - RMSE and RMSSE shows how incorrect the bot is. RMSSE is more impacted by larger differences. Remember that the lower the value of these metrics, the better the performance.
