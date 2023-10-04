@@ -93,7 +93,7 @@ def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str
 def set_models_today(models):
     today = date.today().strftime("%Y-%m-%d")
 
-    current_date = datetime.now() - timedelta(days=1)
+    current_date = datetime.now()
     ten_days_ago = current_date - timedelta(days=models[0][0].num_days*2 + 2)
     ten_days_ago = ten_days_ago.strftime("%Y-%m-%d")
     for company in models:
