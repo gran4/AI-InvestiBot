@@ -61,12 +61,13 @@ The following features are planned to be added in the future:
 # How To Start
 
 WARNING: The real time trading features need more testing. Do NOT use to make money yet.
+ + Little code snippets at the bottom of each file, shows how to run it(in if __name__ == "__main__").
 1) Get data using get_info.py
 2) Train and save the models, look at the end of models.py for an example of how to do this. You have to train and save it yourself since I have removed everything in the Stocks folder.
 3) Look at the current implementations in implementation.py.
 4) Use them if you like them or add more if you want to customize it(lamda version does not work)
 
-P.S: Remember to change the api key in secret key. 
+P.S: Remember to change the api and secret key in secrets.config. 
 
 # How It Works
 
