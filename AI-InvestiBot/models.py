@@ -748,7 +748,8 @@ class PercentageModel(BaseModel):
             x_total = x_total[:-time_shift]
             y_total = y_total[time_shift:]
         num_windows = x_total.shape[0] - num_days + 1
-        # Create a 3D numpy array to store the scaled data
+        # Create a 3D numpy array to store the scaled data 
+        print(len(x_total))
         scaled_data = np.zeros((num_windows, num_days, x_total.shape[1], x_total.shape[2]))
 
         for i in range(x_total.shape[0]-num_days):
@@ -768,8 +769,55 @@ class PercentageModel(BaseModel):
             # Store the scaled window in the 3D array
             scaled_data[i] = scaled_window
         y_total = y_total[:-num_days+2]
+        print(scaled_data.shape)
 
         return scaled_data, y_total
+
+    def process_cached(self, cached: List) -> np.ndarray:
+        num_days = self.num_days
+        temp = []
+        for key in self.information_keys:
+            temp.append(cached[key])
+        temp_cached = []
+        for i in range(num_days, num_days*3):
+            indicators = []
+            for indicator in temp:
+                min_value = indicator[i-num_days:i].min()
+                max_value = indicator[i-num_days:i].max()
+                # Scale the Series between its high and low values
+                scaled_data = (indicator[i-num_days:i] - min_value) / (max_value - min_value)
+                scaled_data = scaled_data.fillna(0)
+                indicators.append(scaled_data.tolist())
+            indicators = [
+                [float(cell) for cell in row] for row in indicators
+            ]
+            indicators = list(map(list, zip(*indicators)))
+            temp_cached.append(indicators)
+        temp_cached = np.array(temp_cached)
+
+        num_windows = num_days#temp_cached.shape[0] - num_days + 1
+        # Create a 3D numpy array to store the scaled data
+        scaled_data = np.zeros((num_windows, temp_cached.shape[1], num_days, len(self.information_keys)))
+        for i in range(num_days):
+            # Get the data for the current window using the i-window_size approach
+            window = temp_cached[i : i + num_days]
+
+            # Calculate the high and low close prices for the current window
+            high_close = np.max(window, axis=0)
+            low_close = np.min(window, axis=0)
+
+            # Avoid division by zero if high_close and low_close are equal
+            scale_denominator = np.where(high_close == low_close, 1, high_close - low_close)
+
+            # Scale each column using broadcasting
+            scaled_window = (window - low_close) / scale_denominator
+            # Store the scaled window in the 3D array
+            scaled_data[i] = scaled_window
+        return scaled_data
+
+    def indicators_past_num_days(self, stock_symbol: str, end_date: str, information_keys: List[str], scaler_data: Dict[str, int], cached_info: pd.DataFrame, num_days: int) -> Dict[str, float | str]:
+        num_days *= 3
+        return super().indicators_past_num_days(stock_symbol, end_date, information_keys, scaler_data, cached_info, num_days)
 
     def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model2) -> None:
         return super().train(epochs, patience, time_shift, False, add_noise, use_transfer_learning, test, create_model)
@@ -850,7 +898,7 @@ if __name__ == "__main__":
     #indicators.insert(0, 'Close')
     #indicators = [indicators]
     test_models = []
-    for company in ["AAPL", "HD", "DIS", "GOOG"]:
+    for company in ["AAPL"]:
         model = modelclass(stock_symbol=company, information_keys=ImpulseMACD_indicators)
         #model.load()
         #model.stock_symbol = "T"
