@@ -815,7 +815,7 @@ class PercentageModel(BaseModel):
             scaled_data[i] = scaled_window
         return scaled_data
 
-    def indicators_past_num_days(self, stock_symbol: str, end_date: str, information_keys: List[str], scaler_data: Dict[str, int], cached_info: pd.DataFrame, num_days: int) -> Dict[str, float | str]:
+    def indicators_past_num_days(self, stock_symbol: str, end_date: str, information_keys: List[str], scaler_data: Dict[str, int], cached_info: pd.DataFrame, num_days: int) -> Dict[str, Union[float, str]]:
         num_days *= 3
         return super().indicators_past_num_days(stock_symbol, end_date, information_keys, scaler_data, cached_info, num_days)
 
