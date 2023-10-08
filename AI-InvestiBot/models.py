@@ -78,10 +78,10 @@ class BaseModel:
         information_keys (List[str]): The information keys that describe what the model uses
     """
 
-    def __init__(self, start_date: str = None,
+    def __init__(self, start_date: Optional[Union[date, str]] = None,
                  end_date: Optional[Union[date, str]] = None,
-                 stock_symbol: Optional[Union[date, str]] = "AAPL",
-                 num_days: int = None,
+                 stock_symbol: str = "AAPL",
+                 num_days: Optional[int] = None,
                  information_keys: List[str]=["Close"]) -> None:
         if num_days is None:
             with open(f'Stocks/{stock_symbol}/dynamic_tuning.json', 'r') as file:
@@ -154,7 +154,6 @@ class BaseModel:
         stock_symbol = self.stock_symbol
         information_keys = self.information_keys
         num_days = self.num_days
-        print(start_date, end_date)
 
         #_________________ GET Data______________________#
         _, data, self.scaler_data = get_relavant_values(
@@ -241,35 +240,13 @@ class BaseModel:
             json.dump(self.scaler_data, json_file)
 
     @staticmethod
-    def plot(data):
-        """Plots any np.array that you give in"""
-        days_train = [i for i in range(data.shape[0])]
-        data = data[:, 0]
-        # Plot the actual and predicted prices
-        plt.figure(figsize=(18, 6))
-
-        predicted_test = plt.plot(days_train, data, label='Predicted Test')
-        plt.title(f'TITLE')
-        plt.xlabel("X")
-        plt.ylabel("Y")
-
-        import matplotlib.ticker as ticker
-        plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
-
-        plt.legend(
-            [predicted_test[0]],#[real_data, actual_test[0], actual_train],
-            ['Data']#['Real Data', 'Actual Test', 'Actual Train']
-        )
-        plt.show()
-
-    @staticmethod
     def is_homogeneous(arr) -> bool:
         """Checks if any of the models indicators are missing"""
         return len(set(arr.dtype for arr in arr.flatten())) == 1
 
     def test(self, time_shift: int=0, show_graph: bool=False,
              title: str="Stock Price Prediction", x_label: str='', y_label: str='Price'
-             ) -> None:
+             ) -> Tuple[float, float, float, float, bool]:
         """
         A method for testing purposes. 
         
@@ -670,10 +647,7 @@ class BaseModel:
 
 class PriceModel(BaseModel):
     """
-    This is the base class for all the models. It handles the actual training, saving,
-    loading, predicting, etc. Setting the `information_keys` allows us to describe what
-    the model uses. The information keys themselves are retrieved from a json format
-    that was created by getInfo.py.
+    This is the model to predict the price. It is not very good. Use the other one
 
     Args:
         start_date (str): The start date of the training data
@@ -851,8 +825,6 @@ class PercentageModel(BaseModel):
         # Store the scaled window in the 3D array
         scaled_data[0] = scaled_window
         self.cached = scaled_data
-
-        #self.plot(self.cached[0][0])
 
     def profit(self, pred, prev):
         return pred

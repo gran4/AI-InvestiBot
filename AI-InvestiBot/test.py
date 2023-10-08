@@ -1,14 +1,10 @@
 from models import *
 
-from datetime import datetime, date
-from dateutil.relativedelta import relativedelta
-import json
-
 from pandas_market_calendars import get_calendar
 import pandas as pd
 import numpy as np
 
-from trading_funcs import create_sequences, get_relavant_values
+from trading_funcs import create_sequences, get_relavant_values, plot
 from typing import List
 
 
@@ -46,7 +42,7 @@ def test_indepth(models: List[BaseModel], hold_stocks=False):
         temp_test, expected = model.process_x_y_total(temp, temp2, model.num_days, 0)
         print(temp_test.shape)
         for t in temp_test:
-            model.plot(t[:, 0])
+            plot(t[:, 0])
         processed_data.append(temp_test)
     percent_made = 1
     bought_at = []

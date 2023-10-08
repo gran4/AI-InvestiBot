@@ -26,6 +26,7 @@ from pandas_market_calendars import get_calendar
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 __all__ = (
     'non_daily',
@@ -42,7 +43,8 @@ __all__ = (
     'supertrends',
     'kumo_cloud',
     'is_floats',
-    'calculate_percentage_movement_together'
+    'calculate_percentage_movement_together',
+    'plot'
 )
 
 
@@ -491,3 +493,27 @@ def calculate_percentage_movement_together(list1: Iterable, list2: Iterable) -> 
     percentage = (count_same_direction / (total - 1)) * 100
     percentage2 = (count_same_space / (total - 1)) * 100
     return percentage, percentage2
+
+def plot(data):
+    """
+    Plots any np.array that you give in
+    Purely for testing
+    """
+    days_train = [i for i in range(data.shape[0])]
+    data = data[:, 0]
+    # Plot the actual and predicted prices
+    plt.figure(figsize=(18, 6))
+
+    predicted_test = plt.plot(days_train, data, label='Predicted Test')
+    plt.title(f'TITLE')
+    plt.xlabel("X")
+    plt.ylabel("Y")
+
+    import matplotlib.ticker as ticker
+    plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
+
+    plt.legend(
+        [predicted_test[0]],
+        ['Data']
+    )
+    plt.show()
