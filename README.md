@@ -76,26 +76,15 @@ P.S: Remember to change the api and secret key in secrets.config.
 The project retrieves and caches information in the following manner:
 
 - The `get_info.py` file processes all data obtained from yfinance.
-- The information is stored as a dictionary in a JSON file.
-- The `information_keys` feature retrieves values from each key in the JSON.
-
-## Unique Indicators in Models
-
-The models in this project incorporate unique indicators as follows:
-
-- Models utilize the `information_keys` attribute.
-- These keys correspond to the names of indicators created from `get_info.py`.
-- The model retrieves a dictionary from the JSON file and extracts the list associated with the key.
-- Features in the form of NumPy arrays are then fed into the Sequential model.
-- Use different Features by inputing a list of information_keys into either `PriceModel` or `PercentageModel`
+- The information is stored as a dictionary in a JSON file, according to indicator.
+- The `information_keys` feature retrieves values from each key(indicator) in the JSON.
 
 ## Stock Bot Functionality
 
 The stock bot operates based on the following principles:
-
-
-- The AI is implemented into the childclasses of `BaseModel`. 
+ 
 - Base Model: This is the parent class for all other models and has no data of its own unless specified. Holds functionality for bot NOT AI.
+- The AI is implemented into the childclasses of `BaseModel`.
 - Price Model: This is the base child class that uses data scaled btw high and low of company data and outputs the predicted price
 - Percentage Model: This is the base child class that uses data scaled btw high and low of a window of data(the past num days) and outputs the predicted % change in price
 - Training, testing, saving, and loading are handled by separate functions(Ensuring quality code).
@@ -108,9 +97,6 @@ The stock bot operates based on the following principles:
     - Utilizes data from yfinance.
     - Once 280 days of past data are obtained, the oldest day is removed, and a new day is added at the end.
     - In this case, `model.cached_info` is always a pandas DataFrame or None.
-
-## How the Bot Runs
-
 - The bot identifies the most promising stocks.
 - It utilizes your available funds, following the rules set by the `ResourceManager` class.
 - Stocks are held if their performance exceeds a certain threshold (`MAX_HOLD_INDEX`).
@@ -122,7 +108,7 @@ The stock bot operates based on the following principles:
 
 ## Earnings Processing
 
-The project processes earnings in the following manner:
+The project processes earnings in the following manner becuase it is not daily data:
 
 - All earnings are obtained and separated into two lists: dates and the difference between actual and estimated values.
 - During runtime, earnings outside of a specific range are removed.
@@ -141,6 +127,8 @@ This project offers various models to choose from, including:
 - Base Model: This is the parent class for all other models and has no data of its own unless specified.
 - Price Model: This is the base class that uses data scaled btw high and low of company data and outputs the predicted price
 - Percentage Model: This is the base class that uses data scaled btw high and low of the window data and outputs the predicted % change in price
+
+## For Percentage Model(Price model is not accurate)
 
 - Day Trade Model:
   - Directional Test:  97.88732394366197
