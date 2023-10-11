@@ -178,7 +178,7 @@ def find_best_number_of_years(symbol: str, stock_data: Optional[pd.DataFrame]=No
 
     today = date.today().strftime('%Y-%m-%d')
     today_datetime = datetime.strptime(today, '%Y-%m-%d')
-    
+
     iso_date = stock_data.index[0].strftime('%Y-%m-%d')
     iso_date = datetime.strptime(iso_date, '%Y-%m-%d')
     if max_years_back is None:

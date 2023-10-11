@@ -129,6 +129,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
             processed_data = model.process_cached(cached)
             temp = model.predict(info=processed_data)[0][-1]
             print(model.predict(info=processed_data))
+            print(temp)
 
             prev_close = float(cached['Close'][-1])
             profit = model.profit(temp, prev_close)
@@ -262,7 +263,7 @@ def save_state_to_s3(model, total_info_keys, manager: ResourceManager):
 if __name__ == "__main__":
     # NOTE: runs loop ONLY unless you change it
     # Create a new thread
-    models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators])
+    models, total_info_keys = load_models(strategys=[break_out_indicators])
     thread = Thread(target=run_loop, args=(models, total_info_keys))
 
     # Start the thread

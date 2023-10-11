@@ -420,6 +420,18 @@ class BaseModel:
             volatility = cached_info['Close'].diff().abs().iloc[-num_days:]
             trama = cached_info['Close'].rolling(window=14).mean().iloc[-num_days:]
             stock_data['TRAMA'] = trama + (volatility * 0.1)
+        bollinger_middle = stock_data['Close'].rolling(window=20, min_periods=1).mean()
+        std_dev = stock_data['Close'].rolling(window=20, min_periods=1).std()
+        if "Bollinger Middle" in information_keys:
+            stock_data['Bollinger Middle'] = bollinger_middle
+        if "Above Bollinger" in information_keys:
+            bollinger_upper = bollinger_middle + (2 * std_dev)
+            above_bollinger = np.where(stock_data['Close'] > bollinger_upper, 1, 0)
+            stock_data['Above Bollinger'] = pd.Series(above_bollinger)
+        if "Bellow Bollinger" in information_keys:
+            bollinger_lower = bollinger_middle - (2 * std_dev)
+            bellow_bollinger = np.where(stock_data['Close'] < bollinger_lower, 1, 0)
+            stock_data['Bellow Bollinger'] = pd.Series(bellow_bollinger)
         if 'gradual-liquidity spike' in information_keys:
             # Reversal
             stock_data['gradual-liquidity spike'] = get_liquidity_spikes(
@@ -871,15 +883,15 @@ if __name__ == "__main__":
     #indicators = [indicators]
     test_models = []
     for company in ["AAPL"]:
-        model = modelclass(stock_symbol=company, information_keys=ImpulseMACD_indicators)
+        model = modelclass(stock_symbol=company, information_keys=break_out_indicators)
         #model.load()
         #model.stock_symbol = "T"
         model.start_date = "2006-03-24"
         model.end_date = "2023-03-24"
-        model.num_days = 10
+        model.num_days = 14
 
         model.train(epochs=1000, use_transfer_learning=False, test=True)
-        model.save()
+        #model.save()
         #model.stock_symbol = "HD"
         model.start_date = "2020-04-11"
         model.end_date = "2023-04-11"

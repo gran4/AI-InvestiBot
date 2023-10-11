@@ -291,11 +291,13 @@ def update_info(company_ticker, stock_data) -> None:
     dates = stock_data.index.strftime('%Y-%m-%d').tolist()
 
 
+    futures_data = yf.download(company_ticker)
     #_________________Process to json______________________#
     converted_data = {
         'Dates': dates,
         'Volume': stock_data['Volume'].values.tolist(),
         'Close': stock_data['Close'].values.tolist(),
+        'Future Close': futures_data['Close'].tolist(),
         '12-day EMA': ema12.values.tolist(),
         '26-day EMA': ema26.values.tolist(),
         'MACD': signal_line.values.tolist(),
@@ -335,6 +337,7 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
     """
     if not companys:# NOTE: weird global/local work around
         companys = company_symbols
+    companys = ["AAPL"]
     for company_ticker in companys:
         ticker = yf.Ticker(company_ticker)
         #_________________ GET Data______________________#
