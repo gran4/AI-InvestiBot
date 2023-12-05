@@ -311,8 +311,8 @@ def check_for_holidays(start_date: str, end_date: str) -> Tuple[str, str]:
 
 
 def get_relavant_values(stock_symbol: str, information_keys: List[str],
-                        scaler_data: Optional[Dict]=None, start_date: Optional[str]=None,
-                        end_date: Optional[str]=None,
+                        scaler_data: Optional[Dict]=None, scale:bool=False,
+                        start_date: Optional[str]=None, end_date: Optional[str]=None,
                         ) -> Tuple[Dict, np.ndarray, List]:
     """
     The purpose of this function is to get the relevant values between the start and end date range
@@ -371,29 +371,33 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
         dates, diffs = process_earnings(dates, diffs, start_date, end_date, len(other_vals['Close']))
         other_vals['earnings dates'] = dates
         other_vals['earning diffs'] = diffs
+        print("EDNJEJNDEJNE")
+    scaler_data = {}
+    if scale:
+        #_________________Scale Data______________________#
+        temp = {}
+        for key in information_keys:
+            if len(other_vals[key]) == 0:
+                continue
+            if type(other_vals[key][0]) not in (float, int):
+                continue
 
-    #_________________Scale Data______________________#
-    temp = {}
-    for key in information_keys:
-        if len(other_vals[key]) == 0:
-            continue
-        if type(other_vals[key][0]) not in (float, int):
-            continue
+            if scaler_data is None:
+                min_val = min(other_vals[key])
+                diff = max(other_vals[key])-min_val
+                temp[key] = {'min': min_val, 'diff': diff}
+            else:
+                min_val = scaler_data[key]['min']
+                diff = scaler_data[key]['diff']
+            if diff != 0: # Ignore rare, extreme cases
+                other_vals[key] = [(x - min_val) / diff for x in other_vals[key]]
+            if key in scale_indicators:
+                scaler = scale_indicators[key]
+                other_vals[key] = [x*scaler for x in other_vals[key]]
+        scaler_data = temp # change it if value is `None`
 
-        if scaler_data is None:
-            min_val = min(other_vals[key])
-            diff = max(other_vals[key])-min_val
-            temp[key] = {'min': min_val, 'diff': diff}
-        else:
-            min_val = scaler_data[key]['min']
-            diff = scaler_data[key]['diff']
-        if diff != 0: # Ignore rare, extreme cases
-            other_vals[key] = [(x - min_val) / diff for x in other_vals[key]]
-        if key in scale_indicators:
-            scaler = scale_indicators[key]
-            other_vals[key] = [x*scaler for x in other_vals[key]]
-    scaler_data = temp # change it if value is `None`
-
+    for i in other_vals.items():
+        print(len(i))
     # Convert the dictionary of lists to a NumPy array
     filtered = [other_vals[key] for key in information_keys if key not in non_daily_no_use]
     filtered = np.transpose(filtered) # type: ignore[assignment]

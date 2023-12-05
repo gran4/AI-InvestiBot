@@ -162,7 +162,22 @@ class BaseModel:
 
         #_________________Process Data for LSTM______________________#
         split = int(len(data))
-        print(data.shape)
+
+        arr = data
+        threshold = 1e2
+
+        over_threshold_indices = np.where(arr >= threshold)
+
+        # Find indices of values under the negative threshold
+        under_threshold_indices = np.where(arr <= -threshold)
+        all_extreme_indices = np.hstack([over_threshold_indices, under_threshold_indices])
+
+        # Get the values at the extreme indices
+        extreme_values = arr[all_extreme_indices]
+
+        print("All Extreme Indices:", all_extreme_indices)
+        print("Extreme Values:", extreme_values)
+
         if test:
             x_total, y_total = create_sequences(data[:int(split*.8)], num_days)
         else:
@@ -223,7 +238,8 @@ class BaseModel:
         if self.model is None:
             raise LookupError("Compile or load model first")
         if name is None:
-            name = self.__class__.__name__
+            name = ''
+        name += self.__class__.__name__
 
         #_________________Save Model______________________#
         if transfer_learning:
@@ -244,7 +260,7 @@ class BaseModel:
         """Checks if any of the models indicators are missing"""
         return len(set(arr.dtype for arr in arr.flatten())) == 1
 
-    def test(self, time_shift: int=0, show_graph: bool=False,
+    def test(self, time_shift: int=0, show_graph: bool=False, scale:bool=True,
              title: str="Stock Price Prediction", x_label: str='', y_label: str='Price'
              ) -> Tuple[float, float, float, float, bool]:
         """
@@ -273,17 +289,25 @@ class BaseModel:
 
         #_________________ GET Data______________________#
         total_data_dict, data, _ = get_relavant_values( # type: ignore[arg-type]
-            stock_symbol, information_keys, self.scaler_data, start_date, end_date
+            stock_symbol, information_keys, self.scaler_data, scale, start_date, end_date
         )
 
         #_________________Process Data for LSTM______________________#
         split = int(len(data) * 0.8)
         test_data = data[split-num_days-1:] # minus by `num_days` to get full range of values during the test period 
+        print(test_data[:, 0])
+        your_array = test_data[:, 0]
+        # Find extreme values smaller than +/- 1e-4
+        extreme_indices = np.where((your_array >= -1e-4) & (your_array <= 1e-4))
+
+        # Get the extreme values
+        extreme_values = your_array[extreme_indices]
+
+        print("Extreme Values:", extreme_values)
+        print("Indices:", extreme_indices)
+        print(your_array[600:602])
 
         x_test, y_test = create_sequences(test_data, num_days)
-        if time_shift != 0:
-            x_test = x_test[:-time_shift]
-            y_test = y_test[time_shift:]
         x_test, y_test = self.process_x_y_total(x_test, y_test, num_days, time_shift)
 
         #_________________TEST QUALITY______________________#
@@ -345,7 +369,8 @@ class BaseModel:
         if self.model:
             return None
         if not name:
-            name = self.__class__.__name__
+            name = ''
+        name += self.__class__.__name__
 
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
         try:
@@ -725,15 +750,33 @@ class PercentageModel(BaseModel):
 
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
         # NOTE: Strips 1st day becuase -0 is 0. Look at `y_total[:-1]`
+        t = np.copy(y_total)
         y_total = y_total[1:] / y_total[:-1]
         y_total[np.isinf(y_total) | np.isnan(y_total)] = 1.0
         y_total -= 1.0
         y_total *= 100 #normal %
 
+        arr = y_total
+        threshold = 1e2
+
+        over_threshold_indices = np.where(arr >= threshold)
+
+        # Find indices of values under the negative threshold
+        under_threshold_indices = np.where(arr <= -threshold)
+        all_extreme_indices = np.hstack([over_threshold_indices, under_threshold_indices])
+
+        # Get the values at the extreme indices
+        extreme_values = arr[all_extreme_indices]
+
+        #print("All Extreme Indices:", all_extreme_indices)
+        #print("Extreme Values:", extreme_values)
+        #print(t[449:454])
+        #print(arr[449:454])
+
         if time_shift != 0:
             x_total = x_total[:-time_shift]
             y_total = y_total[time_shift:]
-        num_windows = x_total.shape[0] - num_days + 1
+        num_windows = x_total.shape[0] - num_days
         # Create a 3D numpy array to store the scaled data 
         print(len(x_total))
         scaled_data = np.zeros((num_windows, num_days, x_total.shape[1], x_total.shape[2]))
@@ -754,31 +797,30 @@ class PercentageModel(BaseModel):
             scaled_window = (window - low_close) / scale_denominator
             # Store the scaled window in the 3D array
             scaled_data[i] = scaled_window
-        y_total = y_total[:-num_days+2]
-        print(scaled_data.shape)
-
+        y_total = y_total[:-num_days+1]
         return scaled_data, y_total
 
-    def process_cached(self, cached: List) -> np.ndarray:
+    def process_cached(self, cached: Dict) -> np.ndarray:
         num_days = self.num_days
         temp = []
         for key in self.information_keys:
             temp.append(cached[key])
         temp_cached = []
-        for i in range(num_days, num_days*3):
+        for i in range(num_days, len(temp[0])):
             indicators = []
             for indicator in temp:
                 min_value = indicator[i-num_days:i].min()
                 max_value = indicator[i-num_days:i].max()
                 # Scale the Series between its high and low values
-                scaled_data = (indicator[i-num_days:i] - min_value) / (max_value - min_value)
-                scaled_data = scaled_data.fillna(0)
-                indicators.append(scaled_data.tolist())
+                temp_scaled = (indicator[i-num_days:i] - min_value) / (max_value - min_value)
+                temp_scaled = temp_scaled.fillna(0)
+                indicators.append(temp_scaled.tolist())
             indicators = [
                 [float(cell) for cell in row] for row in indicators
             ]
             indicators = list(map(list, zip(*indicators)))
             temp_cached.append(indicators)
+
         temp_cached = np.array(temp_cached)
 
         num_windows = num_days#temp_cached.shape[0] - num_days + 1
@@ -812,7 +854,7 @@ class PercentageModel(BaseModel):
         title: str = "Stock Change Prediction"
         x_label: str = ''
         y_label: str = 'Price Change in %'
-        return super().test(time_shift, show_graph, title, x_label, y_label)
+        return super().test(time_shift, show_graph, False, title, x_label, y_label)
 
     def update_cached_offline(self) -> None:
         if self.cached_cached is not None:
@@ -843,7 +885,7 @@ class PercentageModel(BaseModel):
 
 ImpulseMACD_indicators = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
 Reversal_indicators = ['Close', 'gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
-Earnings_indicators = ['Close', 'earnings dates', 'earning diffs', 'Momentum']
+Earnings_indicators = ['Close', 'earnings dates', 'earning diffs', 'Future Close', 'Momentum']
 RSI_indicators = ['Close', 'RSI', 'TRAMA']
 break_out_indicators = ['Close', 'Bollinger Middle',
     'Above Bollinger', 'Bellow Bollinger', 'Momentum']
@@ -852,7 +894,7 @@ super_trends_indicators = ['Close', 'supertrend1', 'supertrend2',
 
 
 def update_transfer_learning(model: BaseModel,
-                             companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
+                             companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"],
                              ) -> None:
     """Updates Tranfer Learning Model"""
     model.end_date = date.today()-relativedelta(days=30)
@@ -872,9 +914,22 @@ def update_transfer_learning(model: BaseModel,
     model.train(test=True)
     model.test(show_graph=True)
 
+def get_initial_public_offering_date(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        ipo_date = info.get('start_date')
+        return ipo_date
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
 if __name__ == "__main__":
     modelclass = PercentageModel
-    indicators = [break_out_indicators]#[ImpulseMACD_indicators, Reversal_indicators, Earnings_indicators, break_out_indicators, super_trends_indicators]
+    #ImpulseMACD_indicators, Reversal_indicators, RSI_indicators, 
+    indicators = [ImpulseMACD_indicators, Reversal_indicators, RSI_indicators, break_out_indicators, super_trends_indicators]
+    names = ['ImpulseMACD', 'Reversal', 'RSI', 'breakout', 'supertrends']
+    temp_model = PercentageModel(information_keys=break_out_indicators)
     #indicators = list(set(chain(*indicators)))
     #indicators.remove('Close')
     #print(indicators)
@@ -882,20 +937,19 @@ if __name__ == "__main__":
     #indicators.insert(0, 'Close')
     #indicators = [indicators]
     test_models = []
-    for company in ["AAPL"]:
-        model = modelclass(stock_symbol=company, information_keys=break_out_indicators)
-        #model.load()
-        #model.stock_symbol = "T"
-        model.start_date = "2006-03-24"
-        model.end_date = "2023-03-24"
-        model.num_days = 14
+    for company in ["AAPL", "GOOG", "AMZN", "META", 'MSFT', 'TSLA', 'V', 'JPM', 'WMT', 'DIS', 'INTC', 'GE']:
+        for i in range(len(indicators)):
+            model = modelclass(stock_symbol=company, information_keys=indicators[i])
+            model.start_date = get_initial_public_offering_date(company)
+            model.end_date = "2023-10-17"
+            model.num_days = 14
 
-        model.train(epochs=1000, use_transfer_learning=False, test=True)
-        #model.save()
-        #model.stock_symbol = "HD"
-        model.start_date = "2020-04-11"
-        model.end_date = "2023-04-11"
-        test_models.append(model)
+            model.train(epochs=200, use_transfer_learning=False, test=True)
+            model.save(name=names[i])
+            #model.stock_symbol = "HD"
+            #model.start_date = "2020-04-11"
+            #model.end_date = "2023-04-11"
+            test_models.append(model)
 
     for model in test_models:
         model.test(show_graph=True)

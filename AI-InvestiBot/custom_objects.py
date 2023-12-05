@@ -7,6 +7,7 @@ from tensorflow.keras.losses import Loss, MeanSquaredError, Huber, MeanAbsoluteE
 from tensorflow.keras.activations import linear
 from tensorflow import sign, reduce_mean
 import tensorflow as tf
+import keras.backend as K
 
 
 @tf.keras.saving.register_keras_serializable()
@@ -41,10 +42,12 @@ class CustomLoss2(Loss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.mae_loss = MeanAbsoluteError()
+        self.threshold = 10
 
     def call(self, y_true, y_pred):
         mae_loss = self.mae_loss(y_true, y_pred)
 
+        penalty = K.abs(K.maximum(K.abs(y_pred) - self.threshold, 0))
         #see if they go the same direction
         direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
         #see if the pred going in the more extreme space in directions

@@ -252,9 +252,12 @@ def update_info(company_ticker, stock_data) -> None:
     relative_strength_index.fillna(relative_strength_index.iloc[1], inplace=True)
 
     volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
+    volatility.fillna(volatility.iloc[1], inplace=True)
+
     # Calculate the initial TRAMA with the specified period
     trama = stock_data['Close'].rolling(window=14, min_periods=1).mean()
     trama = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility
+    trama.fillna(trama.iloc[1], inplace=True)
 
     bollinger_middle = stock_data['Close'].rolling(window=20, min_periods=1).mean()
     std_dev = stock_data['Close'].rolling(window=20, min_periods=1).std()
@@ -277,9 +280,9 @@ def update_info(company_ticker, stock_data) -> None:
     signal_flips = process_flips(macd, signal_line)
 
     #_______________SuperTrendsModel______________#
-    super_trend1 = supertrends(stock_data, 3, 12)
-    super_trend2 = supertrends(stock_data, 2, 11)
-    super_trend3 = supertrends(stock_data, 1, 10)
+    super_trend1 = supertrends(stock_data, period=12, factor=3)
+    super_trend2 = supertrends(stock_data, period=11, factor=2)
+    super_trend3 = supertrends(stock_data, period=10, factor=1)
 
     kumo_status = kumo_cloud(stock_data)
 
@@ -337,7 +340,7 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
     """
     if not companys:# NOTE: weird global/local work around
         companys = company_symbols
-    companys = ["AAPL"]
+    companys = ["AAPL", "GOOG", "AMZN", "META", 'MSFT', 'TSLA', 'V', 'JPM', 'WMT', 'DIS', 'INTC', 'GE']
     for company_ticker in companys:
         ticker = yf.Ticker(company_ticker)
         #_________________ GET Data______________________#

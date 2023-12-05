@@ -26,7 +26,10 @@ from resource_manager import ResourceManager
 from models import *
 
 import numpy as np
+import pandas as pd
 
+import matplotlib
+matplotlib.use('Agg')
 
 try: # import keys from config file
     with open("secrets.config","rb") as f:
@@ -68,12 +71,15 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 MAX_HOLD_INDEX = 3
 
 # for caching for multiple models
-def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols: List[str]=["AAPL"]):
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], names: List[str]=[], company_symbols: List[str]=["AAPL", "GOOG", "AMZN", "META", 'MSFT', 'TSLA', 'V', 'JPM', 'WMT', 'DIS']):
     """
     Loads all models
 
     model_classes tells the program what models to use
     """
+    if len(names) == 0: # no names given when loading, just use base names
+        names = [None for i in range(len(strategys))]
+
     models = []
     total_info_keys = []
     for info_keys in strategys:
@@ -82,11 +88,11 @@ def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str
     for company in company_symbols:
         temp = []
         models.append(temp)
-        for strategy in strategys:
-            model = model_class(stock_symbol=company, information_keys=strategy)
-            model.load()
+        for i in range(len(strategys)):
+            model = model_class(stock_symbol=company, information_keys=strategys[i])
+            model.num_days = 14
+            model.load(name=names[i])
             temp.append(model)
-
     return models, total_info_keys
 
 
@@ -94,7 +100,7 @@ def set_models_today(models):
     today = date.today().strftime("%Y-%m-%d")
 
     current_date = datetime.now()
-    ten_days_ago = current_date - timedelta(days=models[0][0].num_days*2 + 2)
+    ten_days_ago = current_date# - timedelta(days=models[0][0].num_days*2 + 2)
     ten_days_ago = ten_days_ago.strftime("%Y-%m-%d")
     for company in models:
         for model in company:
@@ -103,6 +109,15 @@ def set_models_today(models):
             print(today)
     return models
 
+def accuracy(close_vals, predicted, days):
+    temp = close_vals.pct_change() * 100
+    import pandas as pd
+    df = pd.DataFrame({'Predicted': predicted.flatten(), 'Actual': temp.tail(days)[:-1]})
+    # Create a column indicating whether the predicted direction matches the actual direction
+    df['DirectionMatch'] = np.sign(df['Predicted']) == np.sign(df['Actual'])
+    accuracy = (df['DirectionMatch'].sum() / len(df)) * 100
+    # Display accuracy
+    print(f'Accuracy: {accuracy:.2f}%')
 
 def update_models(models, total_info_keys, manager: ResourceManager):
     profits = []
@@ -128,13 +143,10 @@ def update_models(models, total_info_keys, manager: ResourceManager):
         for model in company_models:
             processed_data = model.process_cached(cached)
             temp = model.predict(info=processed_data)[0][-1]
-            print(model.predict(info=processed_data))
-            print(temp)
 
             prev_close = float(cached['Close'][-1])
             profit = model.profit(temp, prev_close)
             predictions.append(temp)
-            #input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
         profits.append(predictions)
         i += len(models)
 
@@ -261,10 +273,51 @@ def save_state_to_s3(model, total_info_keys, manager: ResourceManager):
 
 
 if __name__ == "__main__":
-    # NOTE: runs loop ONLY unless you change it
+    # NOTE: runs loop ONLY, unless you change it
     # Create a new thread
     models, total_info_keys = load_models(strategys=[break_out_indicators])
     thread = Thread(target=run_loop, args=(models, total_info_keys))
 
     # Start the thread
     thread.start()
+
+trading_calendar = get_calendar('XNYS')
+def save_data_for_predictions(company_models, start_date):
+    predictions = []
+    for model in company_models:
+        predictions.append([])
+    initial_date = pd.Timestamp(start_date, tz='America/Los_Angeles')
+    initial_date = initial_date.tz_convert('UTC')
+    new_date = trading_calendar.valid_days(start_date=initial_date, end_date=initial_date + pd.DateOffset(days=14))[-1]
+    # Define the comparison date (2023-10-11 in this case)
+    comparison_date = pd.Timestamp("2023-10-11", tz='America/Los_Angeles')
+    # Check if the new date is past the comparison date
+    assert new_date.tzinfo == initial_date.tzinfo
+    
+    first_model = company_models[0]
+    cached_info = first_model.update_cached_info_online()
+    cached = first_model.indicators_past_num_days(
+        model.stock_symbol, start_date,
+        total_info_keys, first_model.scaler_data,
+        cached_info, first_model.num_days
+    )
+    while new_date < comparison_date:
+        i = 0
+        for model in company_models:
+            processed_data = model.process_cached(cached)
+            temp = model.predict(info=processed_data).flatten()
+            temp = temp[::-1].tolist()
+            predictions[i] += temp
+            i += 1
+        new_date = trading_calendar.valid_days(start_date=new_date, end_date=new_date + pd.DateOffset(days=14))[-1]
+    return predictions
+models, total_info_keys = load_models(strategys=[break_out_indicators, ImpulseMACD_indicators, Reversal_indicators, RSI_indicators, super_trends_indicators], names=['breakout', 'ImpulseMACD', 'Reversal', 'RSI', 'supertrends'])
+data = {}
+for company_models in models:
+    print(type(company_models[0]))
+    data[company_models[0].stock_symbol] = save_data_for_predictions(company_models, "2015-01-01")
+with open(f"Stocks/data_for_decision_tree.json", "w") as json_file:
+    json.dump(data, json_file)
+
+
+
