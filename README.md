@@ -48,13 +48,13 @@ Discord: https://dsc.gg/ai-investibot/  (Uses a dsc link in order to get a custo
 
 The following features are planned to be added in the future:
 
-- [x] Achieving a 80% accuracy rate on previously untrained data.
+- [x] Getting the model to learn on the data.
 - [x] Easy way to add many models using call backs
 - [ ] Reach Library standards such as:
   - [ ] Bug Fixes
   - [ ] More Documentation
   - [ ] More Flexibility
-  - [ ] More verification of the high accuracy rate.
+  - [ ] More verification of a high accuracy rate.
 - [ ] Fix Issues added by PercentageModel Refactor
 
 
