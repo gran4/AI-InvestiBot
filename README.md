@@ -1,4 +1,5 @@
 # AI-InvestiBot
+## This project is under development, but the changes since last year are not on github.
 
 ## Table of Contents
 
@@ -19,7 +20,7 @@
 
 # Introduction
 
-This repository is currently under active development. The project aims to be more accurate than other projects by providing innovative features not often found in other stock bots.
+The project aims to be a flexable stock predictor using AI. This project is under development, but the changes since last year are not on github.
 
 # Contact Us
 Discord: https://dsc.gg/ai-investibot/  (Uses a dsc link in order to get a custom link)
@@ -42,7 +43,6 @@ Discord: https://dsc.gg/ai-investibot/  (Uses a dsc link in order to get a custo
   + Transfer learning
   + Early Stopping
   + Etc
-- **Active Development Planned**: Taking a small break from the project.
 
 # Planned Additions
 
@@ -55,7 +55,7 @@ The following features are planned to be added in the future:
   - [ ] More Documentation
   - [ ] More Flexibility
   - [ ] More verification of a high accuracy rate.
-- [ ] Fix Issues added by PercentageModel Refactor
+- [x] Fix Issues added by PercentageModel Refactor
 
 
 # How To Start
@@ -141,47 +141,6 @@ This project offers various models to choose from, including:
 - Price Model: This is the base class that uses data scaled btw high and low of company data and outputs the predicted price
 - Percentage Model: This is the base class that uses data scaled btw high and low of the window data and outputs the predicted % change in price
 
-- Day Trade Model:
-  - Directional Test:  97.88732394366197
-  - Spatial Test:  95.07042253521126
-
-  - Test RMSE: 1.3360315740699096
-  - Test RMSSE: 24.995202143966043
-- Impulse MACD Model:
-  - Directional Test:  96.47887323943662
-  - Spatial Test:  95.07042253521126
-  - Test RMSE: 0.6948929238336506
-  - Test RMSSE: 7.995023009594582
-- Reversal Model:
-  - Directional Test:  97.1830985915493
-  - Spatial Test:  95.07042253521126
-  - Test RMSE: 1.1254591884267255
-  - Test RMSSE: 24.42872924716995
-- Earnings Model:
-  - Directional Test:  98.59154929577466
-  - Spatial Test:  96.47887323943662
-  - Test RMSE: 0.8682655262847199
-  - Test RMSSE: 15.578685178744083
-- RSI Model:
-  - Directional Test:  97.14285714285714
-  - Spatial Test:  95.71428571428572
-  - Test RMSE: 0.5837482545772584
-  - Test RMSSE: 22.226485198086568
-- Breakout Model:
-  - Directional Test:  97.88732394366197
-  - Spatial Test:  93.66197183098592
-  - Test RMSE: 1.0865094554480963
-  - Test RMSSE: 21.424078134818295
-- Super Trends Model:
-  - Directional Test:  97.88732394366197
-  - Spatial Test:  92.25352112676056
-  - Test RMSE: 1.6947722097944153
-  - Test RMSSE: 78.60191098762428
-
-model.test(show_graph=True)
-![Figure_1](https://github.com/gran4/AI-InvestiBot/assets/80655391/0c205922-e6f4-4113-9d9c-1f3c890d1f81)
-
-
 
 # How to interpret
 
@@ -195,10 +154,10 @@ model.test(show_graph=True)
 
 
 - Directional Test is how often the predicted and test moved together.
-  + Directional Test:  93.26530612244898
-  + Means 93% accuracy
+  + Directional Test:  75.4345
+  + Means 75% accuracy in the change in direction
 
 - Spatial is what sees if the predicted is correctly positioned in relation to the real data. So if it goes up, the predicted should be over, but if it goes down, the predicted should go down
-  + Spatial Test:  94.26530612244898
-  + Means 94% accuracy
+  + Spatial Test:  68.3548398
+  + Means 68% accuracy if the % predicted is above if the % is positive and bellow if the A% is negative
 - RMSE and RMSSE shows how incorrect the bot is. RMSSE is more impacted by larger differences. Remember that the lower the value of these metrics, the better the performance.
