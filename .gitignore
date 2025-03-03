@@ -7,9 +7,9 @@ __pycache__/
 *$py.class
 
 #From project
-!Stocks/
 Stocks/*
-!Stocks/AAPL/
+Stocks_copy/*
+transfer_learning_models/*
 
 .DS_Store
 

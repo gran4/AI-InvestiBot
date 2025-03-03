@@ -22,8 +22,10 @@ from dateutil.relativedelta import relativedelta
 from typing import Dict, List, Optional
 from threading import Thread
 from pandas_market_calendars import get_calendar
+
 from resource_manager import ResourceManager
 from models import *
+from trading_funcs import suggested_companies, suggested_strategies, get_indicators_for_date
 
 import numpy as np
 
@@ -68,63 +70,65 @@ TIME_INTERVAL = 86400# number of secs in 24 hours
 MAX_HOLD_INDEX = 3
 
 # for caching for multiple models
-def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols: List[str]=["AAPL"]):
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], company_symbols: List[str]=[]):
     """
     Loads all models
 
     model_classes tells the program what models to use
     """
+    if not company_symbols:
+        company_symbols = suggested_companies
     models = []
     total_info_keys = []
-    for info_keys in strategys:
+    for name, info_keys in strategys.items():
         total_info_keys += info_keys
+    total_info_keys = list(dict.fromkeys(total_info_keys))
 
-    for company in company_symbols:
+    #for company in company_symbols:
+    for company in suggested_companies:
         temp = []
         models.append(temp)
-        for strategy in strategys:
+        for name, strategy in strategys.items():
             model = model_class(stock_symbol=company, information_keys=strategy)
-            model.load()
+            model.load(name=name)
             temp.append(model)
-
     return models, total_info_keys
 
 
 def set_models_today(models):
-    today = date.today().strftime("%Y-%m-%d")
-
+    today = date.today()
+    today = today.strftime("%Y-%m-%d")
     current_date = datetime.now()
-    ten_days_ago = current_date - timedelta(days=models[0][0].num_days*2.1 + 2)
-    ten_days_ago = ten_days_ago.strftime("%Y-%m-%d")
+    some_days_ago = current_date - timedelta(days=models[0][0].num_days*3 + 1)
+    some_days_ago = some_days_ago.strftime("%Y-%m-%d")
     for company in models:
         for model in company:
-            model.start_date = ten_days_ago
+            model.num_days = 7
+            model.start_date = some_days_ago
+            if 'ema_200' in model.information_keys:
+                model.start_date = current_date - timedelta(days=200).strftime("%Y-%m-%d")
             model.end_date = today
-            print(today)
     return models
 
 
 def update_models(models, total_info_keys, manager: ResourceManager):
     profits = []
-
     model = models[0][0]
     end_datetime = datetime.strptime(model.end_date, "%Y-%m-%d")
     nyse = get_calendar('NYSE')
     schedule = nyse.schedule(start_date=model.end_date, end_date=end_datetime+relativedelta(days=2))
-    if model.end_date not in schedule.index: # holiday or week ends
-        return
+    #if model.end_date not in schedule.index: # holiday or week ends
+    #    return
 
     i = 0
     for company_models in models:
         # NOTE: grouping together caches is a small optimization
         temp = company_models[0]
         cached_info = temp.update_cached_info_online()
-        cached = temp.indicators_past_num_days(
+        cached = get_indicators_for_date(
             model.stock_symbol, temp.end_date,
-            total_info_keys, temp.scaler_data,
-            cached_info, temp.num_days*2
+            total_info_keys, cached_info, model.num_days, scaler_data=temp.scaler_data
         )
-
         predictions = []
         for model in company_models:
             temp = []
@@ -143,7 +147,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
                     max_value = indicator[i-model.num_days:i].max()
                     # Scale the Series between its high and low values
                     scaled_data = (indicator[i-model.num_days:i] - min_value) / (max_value - min_value)
-                    scaled_data = scaled_data.fillna(0)
+                    scaled_data = np.nan_to_num(scaled_data)
                     indicators.append(scaled_data.tolist())
                 indicators = [
                     [float(cell) for cell in row] for row in indicators
@@ -155,7 +159,7 @@ def update_models(models, total_info_keys, manager: ResourceManager):
                 #indicators = list(map(list, zip(*indicators)))
                 indicators = list(map(list, zip(*indicators)))
                 temp_cached.append(indicators)
-
+                t = np.array(indicators)
             temp_cached = np.array(temp_cached)
             temp_cached = np.expand_dims(temp_cached, axis=0)
 
@@ -194,37 +198,44 @@ def update_models(models, total_info_keys, manager: ResourceManager):
             prev_close = float(model.cached[-1][0][-1][0])
             profit = model.profit(temp, prev_close)[0][0]
             predictions.append(temp)
+            
             #input_data_reshaped = np.reshape(model.cached, (1, 60, model.cached.shape[1]))
         profits.append(predictions)
         i += len(models)
-
     processed_profits = []
+    unanimity = []
+    i = 0
     for profit in profits:
         # If it is good enough, it can possibly be bought even if one model is lower then the PREDICTION_THRESHOLD
-        filtered_profit = [0 if model_prediction < PREDICTION_THRESHOLD else model_prediction for model_prediction in profit]
-        average_profit = sum(filtered_profit) / len(filtered_profit)
+        is_unanimous = all(x > 0 for x in profit) or all(x < 0 for x in profit)
+        average_profit = sum(profit) / len(profit)
+        #print(average_profit)
+        #print("kmemked")
+        unanimity.append(is_unanimous)
         processed_profits.append(average_profit)
-    model_weights = list(zip(models, processed_profits))
-    sorted_models = sorted(model_weights, key=lambda x: x[1], reverse=True)
+        if is_unanimous:
+            print(average_profit, suggested_companies[i])
+        i += 1
+    model_weights = list(zip(models, unanimity, processed_profits))
+    sorted_models = sorted(model_weights, key=lambda x: x[2], reverse=True)
     i = 0
 
     sellable_amounts = manager.get_sellable_amounts()
     # Get a list of your positions and open orders
-    for model, profit in sorted_models:
+    for model, is_unanimous, profit in sorted_models:
         symbol = model[0].stock_symbol
-        if manager.is_in_portfolio(symbol) and i<MAX_HOLD_INDEX and sellable_amounts[symbol] > 0:
-            manager.sell(sellable_amounts[symbol], symbol)
-        if profit < RISK_REWARD_RATIO:
-            break
-        manager.buy(symbol)
+        # if manager.is_in_portfolio(symbol) and i<MAX_HOLD_INDEX and sellable_amounts[symbol] > 0 and is_unanimous == False:
+        #     manager.sell(sellable_amounts[symbol], symbol)
+        # if profit < RISK_REWARD_RATIO and is_unanimous:
+        #     break
+        # manager.buy(symbol)
         i += 1
-
 
 def run_loop(models, total_info_keys, manager: Optional[ResourceManager]=None) -> None:
     """Runs the stock bot in a loop"""
     if manager is None:
         manager = ResourceManager(max_percent=30, api_key=YOUR_API_KEY_ID, secret_key=YOUR_SECRET_KEY)
-
+    print("EDJENJDENJNJED")
     day = 0
     while True:
         day += 1
@@ -323,8 +334,11 @@ def save_state_to_s3(model, total_info_keys, manager: ResourceManager):
 if __name__ == "__main__":
     # NOTE: runs loop ONLY unless you change it
     # Create a new thread
-    models, total_info_keys = load_models(strategys=[ImpulseMACD_indicators])
+    models, total_info_keys = load_models(strategys=suggested_strategies, company_symbols=suggested_companies)
     thread = Thread(target=run_loop, args=(models, total_info_keys))
-
     # Start the thread
     thread.start()
+
+
+
+

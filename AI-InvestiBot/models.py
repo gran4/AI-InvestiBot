@@ -19,9 +19,8 @@ import os
 
 from typing import Any, Optional, Union, Callable, List, Dict
 from warnings import warn
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-from custom_objects import create_LSTM_model, create_LSTM_model2
 from custom_objects import *
 
 from sklearn.metrics import mean_squared_error
@@ -35,33 +34,89 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 
 from trading_funcs import (
+    all_indicators,
+    suggested_strategies, suggested_companies, 
     check_for_holidays, get_relavant_values,
-    create_sequences, process_flips,
-    non_daily, non_daily_no_use, is_floats,
+    create_sequences, non_daily_no_use, is_floats,
     calculate_percentage_movement_together,
     indicators_to_add_noise_to, indicators_to_scale,
-)
-from get_info import (
-    calculate_momentum_oscillator,
-    get_liquidity_spikes,
-    get_earnings_history
+    get_indicators_for_date
 )
 
 
 __all__ = (
     'CustomLoss',
     'CustomLoss2',
+    'CustomLoss2_without_moving_avg_error',
     'BaseModel',
     'PriceModel',
     'PercentageModel',
-    'ImpulseMACD_indicators',
-    'Reversal_indicators',
-    'RSI_indicators',
-    'Earnings_indicators',
-    'break_out_indicators', 
-    'super_trends_indicators'
 )
 
+def update_dates(
+        stock_symbol,
+        start_date=None,
+        end_date=None,
+    ):
+    with open(f'Stocks/{stock_symbol}/info.json', 'r') as file:
+        Dates = json.load(file)['Dates']
+    if start_date is None:
+        start_date = Dates[0]
+    if end_date is None:
+        end_date = Dates[-1]
+
+    if type(start_date) == date:
+        start_date = start_date.strftime("%Y-%m-%d")
+    if type(end_date) == date:
+        end_date = end_date.strftime("%Y-%m-%d")
+    return check_for_holidays(
+        start_date, end_date
+    )
+
+def plot(total_data_dict: dict, split: int,
+         test_predictions: np.ndarray, y_test: np.ndarray,
+         stock_symbol: str, title: str,
+         x_label: str, y_label: str) -> None:
+    """Plots any np.array that you give in"""
+    # NOTE: +1 Bc data is not stripped in PriceModel
+    days_train = [total_data_dict["Dates"][int(i+split)] for i in range(y_test.shape[0])]
+    # Plot the actual and predicted prices
+    plt.figure(figsize=(18, 6))
+
+    predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
+    actual_test = plt.plot(days_train, y_test, label='Actual Test')
+
+    plt.title(f'{stock_symbol} {title}')
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+
+    import matplotlib.ticker as ticker
+    plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
+
+    plt.legend(
+        [predicted_test[0], actual_test[0]],
+        ['Predicted Test', 'Actual Data']
+    )
+    plt.show()
+
+def is_homogeneous(arr) -> bool:
+        """Checks if any of the models indicators are missing"""
+        return len(set(arr.dtype for arr in arr.flatten())) == 1
+
+def check_early_stop(model, history, patience, patience_counter, best_val_loss, best_weights):
+    current_val_loss = history.history['val_loss'][0]
+    # Check for improvement
+    early_stop_triggered = False
+    if current_val_loss < best_val_loss:
+        best_val_loss = current_val_loss
+        patience_counter = 0  # Reset patience since we've improved
+        best_weights = model.get_weights() # Save the current best model weights to memory
+    else:
+        patience_counter += 1  # Increment patience counter
+        # Early stopping check
+        if patience_counter > patience:
+            early_stop_triggered = True
+    return early_stop_triggered, best_val_loss, best_weights
 
 class BaseModel:
     """
@@ -81,19 +136,20 @@ class BaseModel:
     def __init__(self, start_date: str = None,
                  end_date: Optional[Union[date, str]] = None,
                  stock_symbol: Optional[Union[date, str]] = "AAPL",
-                 num_days: int = None,
+                 num_days: int = None, name: str = "model",
                  information_keys: List[str]=["Close"]) -> None:
         if num_days is None:
             with open(f'Stocks/{stock_symbol}/dynamic_tuning.json', 'r') as file:
                 num_days = json.load(file)['num_days']
 
-        self.stock_symbol = stock_symbol
         self.information_keys = information_keys
         self.num_days = num_days
-
-        self.update_dates(start_date=start_date, end_date=end_date)
+        self.name = name
+        self.start_date, self.end_date = update_dates(stock_symbol, start_date=start_date, end_date=end_date)
+        self.stock_symbol = stock_symbol
 
         self.model: Optional[Sequential] = None
+        self.scale: bool = False
         self.scaler_data: Dict[str, float] = {}
 
 #________For offline predicting____________#
@@ -103,34 +159,14 @@ class BaseModel:
         # while it is a Dict offline
         self.cached_info: Optional[Union[pd.DataFrame, Dict[str, Any]]] = None
 
-    def update_dates(
-            self, start_date=None,
-            end_date=None,
-        ):
-        if end_date is None:
-            end_date = date.today()
-            #lower type(end_date) == date turns it into string
-        if start_date is None:
-            with open(f'Stocks/{self.stock_symbol}/dynamic_tuning.json', 'r') as file:
-                relevant_years = json.load(file)['relevant_years']
-            start_date = end_date - relativedelta(years=relevant_years)
-
-        if type(end_date) == date:
-            end_date = end_date.strftime("%Y-%m-%d")
-        if type(start_date) == date:
-            start_date = start_date.strftime("%Y-%m-%d")
-        self.start_date, self.end_date = check_for_holidays(
-            start_date, end_date
-        )
-
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
         return x_total, y_total
 
-    def train(self, epochs: int=1000,
+    def train(self, epochs: int=100,
               patience: int=5, time_shift: int=0,
               add_scaling: bool=False, add_noise: bool=True,
               use_transfer_learning: bool=False, test: bool=False,
-              create_model: Callable=create_LSTM_model) -> None:
+              create_model: Callable=create_LSTM_model, loss: Loss=CustomLoss2()) -> None:
         """
         Trains Model off `information_keys`
 
@@ -154,7 +190,6 @@ class BaseModel:
         stock_symbol = self.stock_symbol
         information_keys = self.information_keys
         num_days = self.num_days
-        print(start_date, end_date)
 
         #_________________ GET Data______________________#
         _, data, self.scaler_data = get_relavant_values(
@@ -163,57 +198,108 @@ class BaseModel:
 
         #_________________Process Data for LSTM______________________#
         split = int(len(data))
-        print(data.shape)
         if test:
-            x_total, y_total = create_sequences(data[:int(split*.8)], num_days)
+            x_train, y_train = create_sequences(data[:int(split*.8)], num_days)
         else:
-            x_total, y_total = create_sequences(data, num_days)
-        x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
-        if time_shift != 0: # 0 removes everything
-            x_total = x_total[:-time_shift]
-            y_total = y_total[time_shift:]
+            x_train, y_train = create_sequences(data, num_days)
+        x_train, y_train = self.process_x_y_total(x_train, y_train, num_days, time_shift)
+        x_val, y_val = create_sequences(data[int(split*.8)-num_days:], num_days)
+        x_val, y_val = self.process_x_y_total(x_val, y_val, num_days, time_shift)
+
+        num_windows = x_train.shape[0]
 
         processed = [key for key in information_keys if not key in non_daily_no_use]
-        if len(x_total.shape) == 3:
-            model = create_model((num_days, len(processed)))
+        if self.model:
+            model = self.model
+        elif len(x_train.shape) == 3:
+            model = create_model((num_days, len(information_keys)), loss=loss)
         else:
-            model = create_model((x_total.shape[1], num_days, len(processed)))
+            model = create_model((x_train.shape[1], num_days, len(information_keys)), loss=loss)
 
         if use_transfer_learning:
-            transfer_model = load_model(f"transfer_learning_model")
+            transfer_model = load_model(f"transfer_learning_models/{self.name}_model")
             for layer_idx, layer in enumerate(model.layers):
                 if layer.name in transfer_model.layers[layer_idx].name:
                     layer.set_weights(transfer_model.layers[layer_idx].get_weights())
 
-        early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
+        # Initialize monitoring variables
+        best_val_loss = float('inf')  # Set initial best to infinity
+        patience_counter = 0
+        try:
+            best_weights = model.get_weights()
+        except:
+            best_weights = None
         #_________________Train it______________________#
+        epoch = 0
+        while True:
+            epoch += 1
+            if epoch > epochs:
+                break
+            print(f'Starting Epoch {epoch}/{epochs}')
+
+            # Standard training pass with EarlyStopping
+            loss.focused_training = False
+            history = model.fit(x_train, y_train, epochs=1, validation_data=(x_val, y_val), verbose=1)
+            early_stop_triggered, best_val_loss, best_weights = check_early_stop(model, history, patience, patience_counter, best_val_loss, best_weights)
+            if early_stop_triggered:
+                print("Early stopping triggered")
+                # Restore the best weights from memory
+                model.set_weights(best_weights)
+                break
+            elif epochs < 10:
+                continue
+            # Evaluate to identify mispredictions based on sign difference
+            predictions = model.predict(x_train).flatten()
+            sign_diff = np.sign(predictions) != np.sign(y_train)
+            X_sign_diff = x_train[sign_diff]
+            y_sign_diff = y_train[sign_diff]
+
+            epoch += 1
+            if epoch > epochs:
+                break
+            print(f'Starting Epoch {epoch}/{epochs}')
+
+            loss.focused_training = True
+            # Focused training on instances with sign differences, with EarlyStopping
+            history = model.fit(X_sign_diff, y_sign_diff, epochs=1, validation_data=(x_val, y_val), verbose=1)
+            early_stop_triggered, best_val_loss, best_weights = check_early_stop(model, history, patience, patience_counter, best_val_loss, best_weights)
+            # Early stopping check
+            if early_stop_triggered:
+                print("Early stopping triggered")
+                # Restore the best weights from memory
+                model.set_weights(best_weights)
+                break
+        self.model = model
+
+        return
+        early_stopping = EarlyStopping(monitor='val_loss', patience=patience, verbose=1, mode='min', restore_best_weights=True)
         divider = int(split/2)
         if add_scaling:
             indices_cache = [information_keys.index(key) for key in indicators_to_scale if key in information_keys]
 
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
-            model.fit(x_total_copy*1.1, y_total_copy*1.1, validation_data=(x_total_copy, y_total_copy), callbacks=[early_stopping], batch_size=64, epochs=epochs)
+            x_train_copy = np.copy(x_train)
+            y_train_copy = np.copy(y_train)
+            model.fit(x_train_copy*1.1, y_train_copy*1.1, validation_data=(x_train_copy, y_train_copy), callbacks=[early_stopping], batch_size=64, epochs=epochs)
 
-            x_total_p1 = np.copy(x_total[:divider])
-            y_total_p1 = np.copy(y_total[:divider])
-            x_total_p1[:, indices_cache] *= 2
-            y_total_p1 *= 2
+            x_train_p1 = np.copy(x_train[:divider])
+            y_train_p1 = np.copy(y_train[:divider])
+            x_train_p1[:, indices_cache] *= 2
+            y_train_p1 *= 2
         if add_noise:
-            x_total_copy = np.copy(x_total)
-            y_total_copy = np.copy(y_total)
+            x_train_copy = np.copy(x_train)
+            y_train_copy = np.copy(y_train)
             # Get the indices of indicators to add noise to
             indices_cache = [information_keys.index(key) for key in indicators_to_add_noise_to if key in information_keys]
 
-            # Create a noise array with the same shape as x_total's selected columns
+            # Create a noise array with the same shape as x_train's selected columns
             noise = np.random.uniform(-0.001, 0.001)
-            # Add noise to the selected columns of x_total
-            x_total_copy[:, indices_cache] += noise
-            y_total_copy += np.random.uniform(-0.001, 0.001, size=y_total.shape[0])
-            model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=64, epochs=epochs)
+            # Add noise to the selected columns of x_train
+            x_train_copy[:, indices_cache] += noise
+            y_train_copy += np.random.uniform(-0.001, 0.001, size=y_train.shape[0])
+            model.fit(x_train, y_train, validation_data=(x_train, y_train), callbacks=[early_stopping], batch_size=64, epochs=epochs)
 
         #Ties it together on the real data
-        model.fit(x_total, y_total, validation_data=(x_total, y_total), callbacks=[early_stopping], batch_size=64, epochs=epochs)
+        model.fit(x_train, y_train, validation_data=(x_val, y_val), callbacks=[early_stopping], batch_size=64, epochs=epochs)
         self.model = model
 
     def save(self, transfer_learning: bool=False, name: Optional[str]=None) -> None:
@@ -228,10 +314,11 @@ class BaseModel:
 
         #_________________Save Model______________________#
         if transfer_learning:
-            self.model.save(f"transfer_learning_model")
+            self.model.save(f"transfer_learning_models/{name}_model")
             return
         self.model.save(f"Stocks/{self.stock_symbol}/{name}_model")
 
+        if not self.scale: return
         if os.path.exists(f'Stocks/{self.stock_symbol}/min_max_data.json'):
             with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
                 temp = json.load(file)
@@ -239,33 +326,6 @@ class BaseModel:
 
         with open(f"Stocks/{self.stock_symbol}/min_max_data.json", "w") as json_file:
             json.dump(self.scaler_data, json_file)
-
-    @staticmethod
-    def plot(data):
-        """Plots any np.array that you give in"""
-        days_train = [i for i in range(data.shape[0])]
-        data = data[:, 0]
-        # Plot the actual and predicted prices
-        plt.figure(figsize=(18, 6))
-
-        predicted_test = plt.plot(days_train, data, label='Predicted Test')
-        plt.title(f'TITLE')
-        plt.xlabel("X")
-        plt.ylabel("Y")
-
-        import matplotlib.ticker as ticker
-        plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
-
-        plt.legend(
-            [predicted_test[0]],#[real_data, actual_test[0], actual_train],
-            ['Data']#['Real Data', 'Actual Test', 'Actual Train']
-        )
-        plt.show()
-
-    @staticmethod
-    def is_homogeneous(arr) -> bool:
-        """Checks if any of the models indicators are missing"""
-        return len(set(arr.dtype for arr in arr.flatten())) == 1
 
     def test(self, time_shift: int=0, show_graph: bool=False,
              title: str="Stock Price Prediction", x_label: str='', y_label: str='Price'
@@ -296,32 +356,28 @@ class BaseModel:
 
         #_________________ GET Data______________________#
         total_data_dict, data, _ = get_relavant_values( # type: ignore[arg-type]
-            stock_symbol, information_keys, self.scaler_data, start_date, end_date
+            stock_symbol, information_keys, scaler_data=self.scaler_data, start_date=start_date, end_date=end_date
         )
-
         #_________________Process Data for LSTM______________________#
         split = int(len(data) * 0.8)
         test_data = data[split-num_days-1:] # minus by `num_days` to get full range of values during the test period 
-
         x_test, y_test = create_sequences(test_data, num_days)
-        if time_shift != 0:
-            x_test = x_test[:-time_shift]
-            y_test = y_test[time_shift:]
         x_test, y_test = self.process_x_y_total(x_test, y_test, num_days, time_shift)
-
         #_________________TEST QUALITY______________________#
         test_predictions = self.model.predict(x_test)
 
         # NOTE: This cuts data at the start to account for `num_days`
         if time_shift > 0:
             test_data = data[:-time_shift]
-        directional_test, spatial_test = calculate_percentage_movement_together(y_test, test_predictions)
+        directional_test, spatial_test, together_test = calculate_percentage_movement_together(y_test, test_predictions)
         print("Directional Test: ", directional_test)
         print("Spatial Test: ", spatial_test)
+        print("Together Test(MOST important): ", together_test)
         print()
 
-
-        # Calculate RMSSE for testing predictions
+        print(len(y_test))
+        print(len(test_predictions))
+        #Calculate RMSSE for testing predictions
         test_rmse = np.sqrt(mean_squared_error(y_test, test_predictions))
         test_abs_diff = np.mean(np.abs(test_data[1:] - test_data[:-1]))
         test_rmsse = test_rmse / test_abs_diff
@@ -331,30 +387,11 @@ class BaseModel:
         print()
     
         print("Homogeneous(Should be True):")
-        homogenous = self.is_homogeneous(data)
+        homogenous = is_homogeneous(data)
         print(homogenous)
 
         if show_graph:
-            # NOTE: +1 Bc data is not stripped in PriceModel
-            days_train = [total_data_dict["Dates"][int(i+split)] for i in range(y_test.shape[0])]
-            # Plot the actual and predicted prices
-            plt.figure(figsize=(18, 6))
-
-            predicted_test = plt.plot(days_train, test_predictions, label='Predicted Test')
-            actual_test = plt.plot(days_train, y_test, label='Actual Test')
-
-            plt.title(f'{stock_symbol} {title}')
-            plt.xlabel(x_label)
-            plt.ylabel(y_label)
-
-            import matplotlib.ticker as ticker
-            plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(7))
-
-            plt.legend(
-                [predicted_test[0], actual_test[0]],#[real_data, actual_test[0], actual_train],
-                ['Predicted Test', 'Actual Data']#['Real Data', 'Actual Test', 'Actual Train']
-            )
-            plt.show()
+            plot(total_data_dict, split, test_predictions, y_test, stock_symbol, title, x_label, y_label)
         return directional_test, spatial_test, test_rmse, test_rmsse, homogenous
 
     def load(self, name: Optional[str]=None):
@@ -369,7 +406,6 @@ class BaseModel:
             return None
         if not name:
             name = self.__class__.__name__
-
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
         try:
             with open(f"Stocks/{self.stock_symbol}/min_max_data.json", 'r') as file:
@@ -380,121 +416,6 @@ class BaseModel:
         # type: ignore[no-any-return]
         return self.model
 
-    def indicators_past_num_days(self, stock_symbol: str, end_date: str,
-                                 information_keys: List[str], scaler_data: Dict[str, int],
-                                 cached_info: pd.DataFrame, num_days: int) -> Dict[str, Union[float, str]]:
-        """
-        This method will return the indicators for the past `num_days` days specified in the
-        information keys. It will use the cached information to calculate the indicators
-        until the `end_date`.
-
-        Args:
-            information_keys (List[str]): tells model the indicators to use
-            scaler_data (Dict[str, int]): used to scale indicators
-            cached_info (pd.DataFrame): The cached information
-            num_days (int): The number of days to calculate the indicators for
-        
-        Returns:
-            dict: A dictionary containing the indicators for the stock data
-                Values will be floats except some expections tht need to be
-                processed during run time
-        """
-        stock_data = {}
-
-        stock_data['Close'] = cached_info['Close'].iloc[-num_days:]
-
-        ema12 = cached_info['Close'].ewm(span=12, adjust=False).mean()
-        ema26 = cached_info['Close'].ewm(span=26, adjust=False).mean()
-        macd = ema12 - ema26
-        span = 9
-        signal_line = macd.rolling(window=span, min_periods=1).mean().iloc[-num_days:]
-
-        change = cached_info['Close'].diff()
-        if '12-day EMA' in information_keys:
-            stock_data['12-day EMA'] = ema12.iloc[-num_days:]
-        if '26-day EMA' in information_keys:
-            stock_data['26-day EMA'] = ema26.iloc[-num_days:]
-        if 'MACD' in information_keys:
-            stock_data['MACD'] = macd.iloc[-num_days:]
-        if 'Signal Line' in information_keys:
-            stock_data['Signal Line'] = signal_line
-        if 'Histogram' in information_keys:
-            histogram = macd - signal_line
-            stock_data['Histogram'] = histogram.iloc[-num_days:]
-        if '200-day EMA' in information_keys:
-            ewm200 = cached_info['Close'].ewm(span=200, adjust=False)
-            ema200 = ewm200.mean().iloc[-num_days:]
-            stock_data['200-day EMA'] = ema200
-        change = cached_info['Close'].diff().iloc[-num_days:]
-        if 'Change' in information_keys:
-            stock_data['Change'] = change.iloc[-num_days:]
-        if 'Momentum' in information_keys:
-            momentum = change.rolling(window=10, min_periods=1).sum().iloc[-num_days:]
-            stock_data['Momentum'] = momentum
-        if 'RSI' in information_keys:
-            gain = change.apply(lambda x: x if x > 0 else 0)
-            loss = change.apply(lambda x: abs(x) if x < 0 else 0)
-            avg_gain = gain.rolling(window=14).mean().iloc[-num_days:]
-            avg_loss = loss.rolling(window=14).mean().iloc[-num_days:]
-            relative_strength = avg_gain / avg_loss
-            stock_data['RSI'] = 100 - (100 / (1 + relative_strength))
-        if 'TRAMA' in information_keys:
-            # TRAMA
-            volatility = cached_info['Close'].diff().abs().iloc[-num_days:]
-            trama = cached_info['Close'].rolling(window=14).mean().iloc[-num_days:]
-            stock_data['TRAMA'] = trama + (volatility * 0.1)
-        if 'gradual-liquidity spike' in information_keys:
-            # Reversal
-            stock_data['gradual-liquidity spike'] = get_liquidity_spikes(
-                cached_info['Volume'], gradual=True
-            ).iloc[-num_days:]
-        if '3-liquidity spike' in information_keys:
-            stock_data['3-liquidity spike'] = get_liquidity_spikes(
-                cached_info['Volume'], z_score_threshold=4
-            ).iloc[-num_days:]
-        if 'momentum_oscillator' in information_keys:
-            stock_data['momentum_oscillator'] = calculate_momentum_oscillator(
-                cached_info['Close']
-            ).iloc[-num_days:]
-        if 'ema_flips' in information_keys:
-            #_________________12 and 26 day Ema flips______________________#
-            stock_data['ema_flips'] = process_flips(ema12[-num_days:], ema26[-num_days:])
-            stock_data['ema_flips'] = pd.Series(stock_data['ema_flips'])
-        if 'signal_flips' in information_keys:
-            stock_data['signal_flips'] = process_flips(macd[-num_days:], signal_line[-num_days:])
-            stock_data['signal_flips'] = pd.Series(stock_data['signal_flips'])
-        if 'earning diffs' in information_keys:
-            #earnings stuffs
-            earnings_dates, earnings_diff = get_earnings_history(stock_symbol)
-            
-            end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
-            date = end_datetime - relativedelta(days=num_days)
-
-            stock_data['earnings dates'] = []
-            stock_data['earning diffs'] = [] # type: ignore[attr]
-            low = scaler_data['earning diffs']['min'] # type: ignore[index]
-            diff = scaler_data['earning diffs']['diff'] # type: ignore[index]
-
-            for i in range(num_days):
-                if not end_date in earnings_dates:
-                    stock_data['earning diffs'].append(0)
-                    continue
-                i = earnings_dates.index(date)
-                scaled = (earnings_diff[i]-low) / diff
-                stock_data['earning diffs'].append(scaled)
-        if self.scaler_data is None:
-            # Scale each column manually
-            for column in information_keys:
-                if column in non_daily:
-                    continue
-                low = scaler_data[column]['min'] # type: ignore[index]
-                diff = scaler_data[column]['diff'] # type: ignore[index]
-                column_values = stock_data[column]
-                scaled_values = (column_values - low) / diff
-                scaled_values = (column_values - low) / diff
-                stock_data[column] = scaled_values
-        return stock_data
-
     def update_cached_info_online(self):
         """
         updates `self.cached_info`
@@ -502,22 +423,22 @@ class BaseModel:
         information_keys is so you can update once to get all the info
         look at `loop_implementation` for reference
         """
+        # NOTE: ticker.history does not include the end date, so we correct it by adding one date to the end date
         end_datetime = datetime.strptime(self.end_date, "%Y-%m-%d")
+        corrected_end_datetime = end_datetime + timedelta(days=1)
+        corrected_end_datetime_str = corrected_end_datetime.strftime('%Y-%m-%d')
 
         #_________________ GET Data______________________#
         ticker = yf.Ticker(self.stock_symbol)
         cached_info = self.cached_info
         #NOTE: optimize bettween
         if cached_info is None:
-            start_datetime = end_datetime - relativedelta(days=self.num_days*4+20)
-            if 'ema_200' in self.information_keys:
-                start_datetime = start_datetime - relativedelta(days=200)
-            cached_info = ticker.history(start=start_datetime, interval="1d")
+            cached_info = ticker.history(start=self.start_date, end=corrected_end_datetime_str, interval="1d")
             if len(cached_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
         else:
             start_datetime = end_datetime - relativedelta(days=1)
-            day_info = ticker.history(start=start_datetime, end=self.end_date, interval="1d")
+            day_info = ticker.history(start=start_datetime, end=corrected_end_datetime_str, interval="1d")
             if len(day_info) == 0: # type: ignore[arg-type]
                 raise ConnectionError("Stock data failed to load. Check your internet")
             cached_info = cached_info.drop(cached_info.index[0])
@@ -528,10 +449,10 @@ class BaseModel:
         """
         This method updates the cached data using the internet.
         """
-        cached = self.indicators_past_num_days(
+        cached = get_indicators_for_date(
             self.stock_symbol, self.end_date,
-            self.information_keys, self.scaler_data,
-            self.cached_info, self.num_days
+            self.information_keys,
+            self.cached_info, self.num_days, scale=self.scale, scaler_data=self.scaler_data
         )
         cached = [cached[key] for key in self.information_keys if is_floats(cached[key])]
         self.cached = np.transpose(cached)
@@ -668,6 +589,14 @@ class BaseModel:
             return self.model.predict(info) # typing: ignore[return]
         raise LookupError("Compile or load model first")
 
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name == "stock_symbol":
+            try:
+                self.start_date, self.end_date = update_dates(value, start_date=self.start_date, end_date=self.end_date)
+            except AttributeError as e:
+                print(e)
+
 class PriceModel(BaseModel):
     """
     This is the base class for all the models. It handles the actual training, saving,
@@ -686,14 +615,15 @@ class PriceModel(BaseModel):
     def __init__(self, start_date: str = None,
                  end_date: Optional[Union[date, str]] = None,
                  stock_symbol: Optional[Union[date, str]] = "AAPL",
-                 num_days: int = None,
+                 num_days: int = None, name: str = "model",
                  information_keys: List[str]=["Close"]) -> None:
         super().__init__(start_date=start_date,
                        end_date=end_date,
                        stock_symbol=stock_symbol,
-                       num_days=num_days,
+                       num_days=num_days, name=name,
                        information_keys=information_keys
                        )
+        self.scale: bool = True
 
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
         # NOTE: Strip last day for test
@@ -706,6 +636,7 @@ class PriceModel(BaseModel):
 
     def profit(self, pred, prev):
         return pred/prev
+
 
 class PercentageModel(BaseModel):
     """
@@ -725,28 +656,27 @@ class PercentageModel(BaseModel):
     def __init__(self, start_date: str = None,
                  end_date: Optional[Union[date, str]] = None,
                  stock_symbol: Optional[Union[date, str]] = "AAPL",
-                 num_days: int = None,
+                 num_days: int = None, name: str = "model",
                  information_keys: List[str]=["Close"]) -> None:
         if num_days is None:
             num_days = 10
         super().__init__(start_date=start_date,
                        end_date=end_date,
                        stock_symbol=stock_symbol,
-                       num_days=num_days,
+                       num_days=num_days, name=name,
                        information_keys=information_keys
                        )
-        self.cached_cached = None#(For stock caching on 4d data)
+        self.cached_cached = None #(For stock caching on 4d data)
 
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
         # NOTE: Strips 1st day becuase -0 is 0. Look at `y_total[:-1]`
-        y_total = y_total[1:] / y_total[:-1]
-        y_total[np.isinf(y_total) | np.isnan(y_total)] = 1.0
-        y_total -= 1.0
-        y_total *= 100 #normal %
-
         if time_shift != 0:
             x_total = x_total[:-time_shift]
-            y_total = y_total[time_shift:]
+            y_total = (y_total[time_shift+1:] / y_total[:-time_shift-1] - 1.0) * 100
+        else:
+            y_total = (y_total[1:] / y_total[:-1] - 1.0) * 100
+        x_total = x_total[1:]
+        return x_total, y_total
         num_windows = x_total.shape[0] - num_days + 1
         # Create a 3D numpy array to store the scaled data
         scaled_data = np.zeros((num_windows, num_days, x_total.shape[1], x_total.shape[2]))
@@ -767,7 +697,8 @@ class PercentageModel(BaseModel):
             scaled_window = (window - low_close) / scale_denominator
             # Store the scaled window in the 3D array
             scaled_data[i] = scaled_window
-        y_total = y_total[:-num_days+2]
+
+        y_total = y_total[:-num_days+1]
 
         return scaled_data, y_total
 
@@ -790,7 +721,7 @@ class PercentageModel(BaseModel):
         scaled_data = np.zeros((1, self.num_days, self.cached.shape[0], self.cached.shape[1]))
 
         # Get the data for the current window using the i-window_size approach
-        window = self.cached#self.cached[-self.num_days:]
+        window = self.cached
 
         # Calculate the high and low close prices for the current window
         high_close = np.max(window, axis=0)
@@ -804,66 +735,51 @@ class PercentageModel(BaseModel):
         scaled_data[0] = scaled_window
         self.cached = scaled_data
 
-        #self.plot(self.cached[0][0])
-
     def profit(self, pred, prev):
         return pred
 
-ImpulseMACD_indicators = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
-Reversal_indicators = ['Close', 'gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
-Earnings_indicators = ['Close', 'earnings dates', 'earning diffs', 'Momentum']
-RSI_indicators = ['Close', 'RSI', 'TRAMA']
-break_out_indicators = ['Close', 'Bollinger Middle',
-    'Above Bollinger', 'Bellow Bollinger', 'Momentum']
-super_trends_indicators = ['Close', 'supertrend1', 'supertrend2',
-    'supertrend3', '200-day EMA', 'kumo_cloud']
-
-
 def update_transfer_learning(model: BaseModel,
-                             companies: List= ["GE", "DIS", "AAPL", "GOOG", "META"]
+                             companies: List= ["KO", "AAPL", "GOOG", "NVDA", "NKE", "AMZN", "MSFT"],
                              ) -> None:
     """Updates Tranfer Learning Model"""
     model.end_date = date.today()-relativedelta(days=30)
-    use = False
     for company in companies:
         model.stock_symbol = company
-        model.update_dates()
+        model.start_date, model.end_date = update_dates(company)
         model.end_date = date.today()-relativedelta(days=30)
-        model.train(use_transfer_learning=use)
-        model.save(transfer_learning=True)
+        model.train(patience=0)
 
-        if not use:
-            use = True
-    model.stock_symbol = "AMZN"
-    model.update_dates()
-    model.end_date = date.today()-relativedelta(days=30)
-    model.train(test=True)
-    model.test(show_graph=True)
+    model.save(name=model.name, transfer_learning=True)
 
-if __name__ == "__main__":
+
+if __name__ == "__main__": # PROBLEM in the model itself during training. Probably the dataer4
     modelclass = PercentageModel
-    indicators = [break_out_indicators]#[ImpulseMACD_indicators, Reversal_indicators, Earnings_indicators, break_out_indicators, super_trends_indicators]
-    #indicators = list(set(chain(*indicators)))
-    #indicators.remove('Close')
-    #print(indicators)
-    #indicators.remove('RSI')
-    #indicators.insert(0, 'Close')
-    #indicators = [indicators]
-    test_models = []
-    for company in ["AAPL", "HD", "DIS", "GOOG"]:
-        model = modelclass(stock_symbol=company, information_keys=ImpulseMACD_indicators)
-        #model.load()
-        #model.stock_symbol = "T"
-        model.start_date = "2006-03-24"
-        model.end_date = "2023-03-24"
-        model.num_days = 10
 
-        model.train(epochs=1000, use_transfer_learning=False, test=True)
-        model.save()
-        #model.stock_symbol = "HD"
-        model.start_date = "2020-04-11"
-        model.end_date = "2023-04-11"
-        test_models.append(model)
+    # for name, indicators in suggested_strategies.items():
+    #    model = PercentageModel(information_keys=indicators, name=name)
+    #    model.num_days = 7
+    #    update_transfer_learning(model)
 
+    model = modelclass(information_keys=all_indicators, name='all_in')
+    for company in suggested_companies:
+        model.stock_symbol = company
+        model.start_date, model.end_date = update_dates(company)
+        model.num_days = 7
+        print(model.stock_symbol, model.start_date, model.end_date)
+        model.train(epochs=10, patience=1, time_shift=0, use_transfer_learning=False, test=True)
+    model.stock_symbol = "BRK-B"
+    model.start_date, model.end_date = update_dates(company)
+    model.test(show_graph=True, time_shift=0)
+
+
+"""     test_models = []
+    for company in suggested_companies:
+        for name, indicators in suggested_strategies.items():
+            model = modelclass(stock_symbol=company, information_keys=indicators, name=name)
+            model.num_days = 7
+            model.train(epochs=10, patience=0, time_shift=0, use_transfer_learning=False, test=True)
+            test_models.append(model)
     for model in test_models:
-        model.test(show_graph=True)
+        model.test(show_graph=True, time_shift=0)
+
+ """

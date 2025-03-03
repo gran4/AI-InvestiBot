@@ -10,197 +10,33 @@ Purpose:
 Author:
     Grant Yul Hur
 
-See also:
-    Other modules that use the getInfo module -> Models.py, trading_funcs.py
 """
-import requests
 import math
 import json
 import os
-import time
 
-from typing import Optional, Union, List, Tuple
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from typing import Optional, List
 
 import yfinance as yf
 import numpy as np
-import pandas as pd
 
 
 from trading_funcs import (
-    company_symbols,
+    suggested_companies,
     find_best_number_of_years,
     process_flips,
     supertrends,
-    kumo_cloud
+    kumo_cloud,
+    get_liquidity_spikes,
+    calculate_momentum_oscillator,
+    get_earnings_history,
 )
 
 
 __all__ = (
-    'get_earnings_history',
-    'time_since_ref',
-    'earnings_since_time',
-    'modify_earnings_dates',
-    'get_liquidity_spikes',
-    'calculate_momentum_oscillator',
     'get_historical_info'
 )
 
-
-def get_earnings_history(company_ticker: str) -> Tuple[List[str], List[float]]:
-    """
-    Gets earning history of a company as a list.
-
-    Args:
-        company_ticker str: company to get info of
-        context Optional[ssl certificate]: ssl certificate to use
-
-    Warning:
-        YOU need to process this data later in runtime
-
-    Returns:
-        Tuple: of 2 lists made of: Date and EPS_difference, respectively
-    """
-    # API key is mine, OK since it is only for data retrieval
-    # and, I do not use it - gran4
-    url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={company_ticker}&apikey=0VZ7ORHBEY9XJGXK"
-    response = requests.get(url)
-    data = response.json()
-    if len(data.keys()) == 1:
-        print('Wait for alpha api to reset(It takes 1min).')
-        time.sleep(60)
-        response = requests.get(url)
-        data = response.json()
-    if len(data.keys()) == 1:
-        raise RuntimeError("You exceded alpha's api limit of 500 calls per day")
-
-    earnings_dates = []
-    earnings_diff = []
-    for quarter in data["quarterlyEarnings"]:
-        date = quarter["fiscalDateEnding"]
-
-        actual_eps = 0.0
-        if quarter["reportedEPS"] != 'None':
-            actual_eps = float(quarter["reportedEPS"])
-
-        estimated_eps = 0.0
-        if quarter["estimatedEPS"] != 'None':
-            estimated_eps = float(quarter["estimatedEPS"])
-        earnings_dates.append(date)
-        earnings_diff.append(actual_eps-estimated_eps)
-
-    return earnings_dates, earnings_diff
-
-
-def time_since_ref(date_object: Union[datetime, relativedelta], reference_date: Union[datetime, relativedelta]) -> int:
-    """
-    Returns the number of days between the given date and the reference date.
-
-    Args:
-        date_object (datetime): Date to calculate the difference from.
-        reference_date (datetime): Reference date to calculate the difference to.
-
-    Returns:
-        int: Number of days between the two dates.
-    """
-    # Calculate the number of days between the date and the reference date
-    return (date_object - reference_date).days
-
-def earnings_since_time(dates: List, start_date: str) -> List[int]:
-    """
-    This function will return a list of earnings since the list of dates
-    and the reference date.
-
-    Args:
-        dates (list): list of dates to calculate the difference from.
-        start_date (str): Reference date to calculate the difference to.
-    
-    Returns:
-        list: list of earnings since the reference date using
-        time_since_ref(date, reference_date)
-    """
-    date_object = datetime.strptime(start_date, "%Y-%m-%d")
-    # Convert the datetime object back to a string in the desired format
-    converted_date = date_object.strftime("%b %d, %Y")
-    reference_date = datetime.strptime(converted_date, "%b %d, %Y")
-    return [time_since_ref(date, reference_date) for date in dates]
-
-
-def modify_earnings_dates(dates: List, start_date: str) -> List[int]:
-    """
-    This function will modify the earning dates using the
-    earnings_since_time function.
-
-    Args:
-        dates (list): list of dates to calculate the difference from.
-        start_date (str): Reference date to calculate the difference to.
-    
-    Returns:
-        list: list of earnings since the reference date using
-        earnings_since_time(dates, start_date)
-    """
-    temp = [datetime.strptime(date_string, "%b %d, %Y") for date_string in dates]
-    return earnings_since_time(temp, start_date)
-
-
-def get_liquidity_spikes(data: pd.DataFrame, z_score_threshold: float=2.0,
-                         gradual: bool=False) -> pd.Series:
-    """
-    This function will get the spikes in liquidity for given stock data.
-
-    Args:
-        data (pd.Series): Stock data to calculate the spikes from.
-        z_score_threshold (float): Threshold to determine if a spike is abnormal.
-        gradual (bool): Whether to gradually increase the z-score or not.
-    
-    Returns:
-        pd.Series: Series of abnormal spikes in liquidity returned
-        as a scale between 0 and 1.
-    """
-    # Convert the data to a pandas Series if it's not already
-    if not isinstance(data, pd.Series):
-        data = pd.Series(data)
-
-    # Calculate the rolling average and standard deviation of bid volume
-    window_size = 20
-    rolling_average = data.rolling(window_size, min_periods=1).mean()
-    rolling_std = data.rolling(window_size, min_periods=1).std()
-
-    # Replace NaN values in rolling_average and rolling_std with zeros
-    rolling_average = rolling_average.fillna(0)
-    rolling_std = rolling_std.fillna(0)
-
-    # Calculate Z-scores to identify abnormal bid volume spikes
-    z_scores = (data - rolling_average) / rolling_std
-
-    if gradual:
-        abnormal_spikes = z_scores
-        abnormal_spikes.fillna(abnormal_spikes.iloc[1], inplace=True)
-    else:
-        # Detect abnormal bid volume spikes
-        abnormal_spikes = pd.Series(np.where(z_scores > z_score_threshold, 1, 0), index=data.index)
-        abnormal_spikes.astype(int)
-
-    return abnormal_spikes
-
-
-def calculate_momentum_oscillator(data: pd.Series, period: int=14) -> pd.Series:
-    """
-    Calculates the momentum oscillator for the given data series.
-
-    Args:
-        data (pd.Series): Input data series.
-        period (int): Number of periods for the oscillator calculation.
-
-    Returns:
-        pd.Series: Momentum oscillator values.
-    """
-    momentum = data.diff(period)  # Calculate the difference between current and n periods ago
-    percent_momentum = (momentum / data.shift(period)) * 100  # Calculate momentum as a percentage
-
-    # type: ignore[no-any-return]
-    return percent_momentum.fillna(method='bfill')
 
 
 def update_dynamic_tuning(company_ticker, stock_data) -> None:
@@ -229,9 +65,6 @@ def update_info(company_ticker, stock_data) -> None:
     macd = ema12 - ema26
     signal_line = macd.ewm(span=9).mean()
     histogram = macd-signal_line
-    macd = ema12 - ema26
-    signal_line = macd.ewm(span=9).mean()
-    histogram = macd-signal_line
     ema200 = stock_data['Close'].ewm(span=200).mean()
 
     #_________________Basically Impulse MACD______________________#
@@ -252,6 +85,7 @@ def update_info(company_ticker, stock_data) -> None:
     relative_strength_index.fillna(relative_strength_index.iloc[1], inplace=True)
 
     volatility = stock_data['Close'].diff().abs()  # Calculate price volatility
+    volatility.iloc[0] = volatility.iloc[1]
     # Calculate the initial TRAMA with the specified period
     trama = stock_data['Close'].rolling(window=14, min_periods=1).mean()
     trama = trama + (volatility * 0.1)  # Adjust the TRAMA by adding 10% of the volatility
@@ -334,7 +168,7 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
     historical data and run models on them.
     """
     if not companys:# NOTE: weird global/local work around
-        companys = company_symbols
+        companys = suggested_companies
     for company_ticker in companys:
         ticker = yf.Ticker(company_ticker)
         #_________________ GET Data______________________#
