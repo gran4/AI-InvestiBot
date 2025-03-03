@@ -47,7 +47,6 @@ from trading_funcs import (
 __all__ = (
     'CustomLoss',
     'CustomLoss2',
-    'CustomLoss2_without_moving_avg_error',
     'BaseModel',
     'PriceModel',
     'PercentageModel',
