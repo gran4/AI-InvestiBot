@@ -192,7 +192,6 @@ class BaseModel:
             model = create_model((num_days, len(processed)))
         else:
             model = create_model((x_total.shape[1], num_days, len(processed)))
-
         if use_transfer_learning:
             transfer_model = load_model(f"transfer_learning_model")
             for layer_idx, layer in enumerate(model.layers):
@@ -363,14 +362,10 @@ class BaseModel:
         This method will load the model using the tensorflow load method.
 
         Returns:
-            None: If no model is loaded
             BaseModel: The saved model if it was successfully saved
         """
-        if self.model:
-            return None
         if not name:
-            name = ''
-        name += self.__class__.__name__
+            name = self.__class__.__name__
 
         self.model = load_model(f"Stocks/{self.stock_symbol}/{name}_model")
         try:
@@ -882,6 +877,31 @@ class PercentageModel(BaseModel):
 
     def profit(self, pred, prev):
         return pred
+
+# for caching for multiple models
+def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str]]=[], names: List[str]=[], company_symbols: List[str]=["AAPL", "GOOG", "AMZN", "META", 'MSFT', 'TSLA', 'V', 'JPM', 'WMT', 'DIS']):
+    """
+    Loads all models
+
+    model_classes tells the program what models to use
+    """
+    if len(names) == 0: # no names given when loading, just use base names
+        names = [None for i in range(len(strategys))]
+
+    models = []
+    total_info_keys = []
+    for info_keys in strategys:
+        total_info_keys += info_keys
+
+    for company in company_symbols:
+        temp = []
+        models.append(temp)
+        for i in range(len(strategys)):
+            model = model_class(stock_symbol=company, information_keys=strategys[i])
+            model.num_days = 14
+            model.load(name=names[i])
+            temp.append(model)
+    return models, total_info_keys
 
 ImpulseMACD_indicators = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
 Reversal_indicators = ['Close', 'gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
