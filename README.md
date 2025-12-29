@@ -1,250 +1,161 @@
 # AI-InvestiBot
 
-## Table of Contents
+An extensible research sandbox for experimenting with indicator-rich LSTM architectures, walk-forward validation, and automated decision making across multiple equities. The repo bundles a data pipeline, a suite of model builders, and utilities for benchmarking and deployment.
 
-- [Introduction](#introduction)
-- [Contact Us](#contact-us)
-- [Features](#features)
-- [Planned Additions](#planned-additions)
-- [How to start](#how-to-start)
-- [How it works](#how-it-works)
-  - [Information Retrieval and Caching](#information-retrieval-and-caching)
-  - [Unique Indicators in Models](#unique-indicators-in-models)
-  - [Stock Bot Functionality](#stock-bot-functionality)
-  - [Bot Selection Process](#bot-selection-process)
-  - [Earnings Processing](#earnings-processing)
-- [Comparing Models](#comparing-models)
-- [Additional Information](#additional-information)
+## Contents
 
+- [Highlights](#highlights)
+- [Roadmap](#roadmap)
+- [Quick Start](#quick-start)
+- [Training Workflow](#training-workflow)
+  - [Data Retrieval & Caching](#data-retrieval--caching)
+  - [Feature Engineering](#feature-engineering)
+  - [Model Zoo](#model-zoo)
+  - [Hold-out Monitoring](#hold-out-monitoring)
+- [Decision Automation](#decision-automation)
+- [Results Snapshot](#results-snapshot)
+- [Support](#support)
 
-# Introduction
+---
 
-This repository is currently under active development. The project aims to be more accurate than other projects by providing innovative features not often found in other stock bots; with cleaner and more modular code.
+## Highlights
 
-# Contact Us
-Discord: https://dsc.gg/ai-investibot/  (Uses a dsc link in order to get a custom link)
+- **Indicator-first mindset**: `get_info.py` builds a consistent JSON cache per ticker with bespoke indicators (earnings deltas, supertrends, kumo clouds, etc.) plus any custom keys you specify.
+- **Flexible model creation**: `PriceModel`, `PercentageModel`, and `DirectionalModel` accept callbacks via `create_model=...`, letting you swap between LSTM variants (`create_lightweight_model`, `create_context_gated_model`, probabilistic heads, etc.) without touching the training loop.
+- **Walk-forward discipline**: `train(test=True)` automatically reserves a hold-out window and captures scaler statistics from the train split only. `model.test()` mirrors those settings to produce realistic directional/spatial/RMSE metrics.
+- **Batch experimentation**: `AI-InvestiBot/holdout_monitor.py` consumes JSON experiment specs and emits JSON/CSV summaries, so you can compare architectures/indicator mixes with one command.
+- **Decision automation**: `decision_maker.py` stitches together multiple trained strategies, tracks cached windows offline, and feeds a `DecisionTreeClassifier` to vote on trades.
+- **Serverless-friendly**: Core loops are decoupled from the UI, with a Lambda-ready implementation for those who want to deploy without a 24/7 workstation.
 
+## Roadmap
 
-# Features
+| Goal | Status |
+| --- | --- |
+| ≥80 % accuracy on unseen data | ✅ |
+| Callback-driven training API | ✅ |
+| Documentation & robustness parity with a production library | 🔄 |
+| Finish PercentageModel refactor follow-ups | 🔄 |
 
-- **Unique Indicators**: The project uses unique indicators.
-- **Non-Daily Indicators**: Unlike most bots, AI-InvestiBot uses indicators that are not limited to daily data, such as earnings.
-- **Flexible**:
-    + **Flexible Model Creation** Users have the freedom to create their own models using the `information_keys` feature.
-    + **Fexible AI**: A callback function can be passed to the `train` function(traning the model) that creates the custom model. This allows you do use any type of model you want
-- **Walk-forward Ready**: Scaling stats are computed from the training split only and `train(test=True)` now reserves the most recent data for hold-out testing so `model.test()` evaluates a truly unseen window.
-- **ResourceManager Class**: The `ResourceManager` class is implemented to manage and direct financial resources effectively.
-- **Predictions for Multiple Companies**: This project offers predictions for multiple companies per day, rather than just one.
-- **Holding Stocks**: The stock bot has the capability to hold stocks.
-- **Lambda Version**: Allows the bot to be run without keeping a laptop open(It is also should be cheap to use).
-- **AI Techniques such as**:
-  + Multiple Models
-  + Data Augmentation
-  + Transfer learning
-  + Early Stopping
-  + Etc
-- **Active Development Planned**: Taking a small break from the project.
+Additional focus areas: richer validation (unit tests already cover label builders + decision maker), more examples, and tightening the real-time trading path once the research foundation is stable.
 
-# Planned Additions
+## Quick Start
 
-The following features are planned to be added in the future:
+> ⚠️ Real-time trading remains experimental. Use the tooling for research/backtesting until further notice.
 
-- [x] Achieving a 80% accuracy rate on previously untrained data.
-- [x] Easy way to add many models using call backs
-- [ ] Reach Library standards such as:
-  - [ ] Bug Fixes
-  - [ ] More Documentation
-  - [ ] More Flexibility
-  - [ ] More verification of the high accuracy rate.
-- [ ] Fix Issues added by PercentageModel Refactor
+1. **Install dependencies**: `pip install -r requirements.txt`
+2. **Configure secrets**: Copy `secrets_example.config` → `secrets.config`, add API keys (trading, AlphaVantage fallback, etc.).
+3. **Cache data**:  
+   ```bash
+   python -m AI-InvestiBot.get_info --symbol AAPL
+   ```
+   The helper fetches Yahoo Finance history (with AlphaVantage/Stooq fallbacks) and writes `Stocks/<SYMBOL>/info.json`.
+4. **Train a model**:
+   ```python
+   from AI-InvestiBot.models import PriceModel
+   from AI-InvestiBot.custom_objects import create_lightweight_model
 
+   model = PriceModel(stock_symbol="AAPL", information_keys=["Close","returns_zscore"])
+   model.train(create_model=create_lightweight_model, epochs=300, patience=10, test=True)
+   model.save("Stocks/AAPL/MyPriceModel")
+   ```
+5. **Evaluate hold-out**: `directional, spatial, rmse, rmsse, homogenous = model.test(show_graph=False)`
+6. **Batch comparisons** (optional):
+   ```bash
+   python -m AI-InvestiBot.holdout_monitor --config configs/experiments.json --output logs/holdout_report.json
+   ```
 
-# How To Start
+Keep `Stocks/` out of version control—models and cached data regenerate locally.
 
-WARNING: The real time trading features need more testing. Do NOT use to make money yet.
- + Little code snippets at the bottom of each file, shows how to run it(in if __name__ == "__main__").
-1) Get data using get_info.py
-2) Train and save the models, look at the end of models.py for an example of how to do this. You have to train and save it yourself since I have removed everything in the Stocks folder.
-3) Look at the current implementations in implementation.py.
-4) Use them if you like them or add more if you want to customize it(lamda version does not work)
+## Training Workflow
 
-P.S: Remember to change the api and secret key in secrets.config. 
+### Data Retrieval & Caching
 
-### Simpler training option
+| Step | Script | Notes |
+| --- | --- | --- |
+| Download historical OHLCV | `trading_funcs.download_stock_history` | Retries Yahoo; falls back to AlphaVantage/Stooq if rate-limited. |
+| Derive indicators & metadata | `get_info.py` | Outputs `info.json`, `dynamic_tuning.json`, plus scaler references for each symbol. |
+| Inspect caches | `validate_inputs.py` | Spot-checks indicator quality, counts samples, and reports missing/invalid entries. |
 
-When you want quicker iterations or a model that is less prone to overfitting, pass the lightweight builder to `train`:
+Each indicator drawer writes to JSON so the training loop can load features with `get_relavant_values()` and feed them into the neural network builders.
 
-```python
-from custom_objects import create_lightweight_model
+### Feature Engineering
 
-model = PriceModel(...)
-model.train(create_model=create_lightweight_model, epochs=300, patience=10)
-```
+Key context-aware indicators you can toggle via `information_keys`:
 
-This architecture keeps just one LSTM layer, a small dense head, and dropout so the network learns the broader movement without getting stuck memorizing noise.
+- `returns_zscore`: Rolling 20-day z-score of daily returns.
+- `volatility_14`: Two-week realized volatility for regime awareness.
+- `trend_strength`: Relative gap between 50/200-day EMAs.
+- `ema_spread_10_40`, `volume_surge`, `atr_14`: Derived in `trading_funcs`.
+- `earnings_flag`: Binary flag spanning a ±3-day window around earnings.
 
-### Hold-out & scaling behavior
+Non-daily series (earnings dates/diffs) are aligned alongside daily bars for richer context.
 
-Calling `model.train(test=True)` now keeps the most recent 20 % of the requested date range completely out of the training split. The scaler statistics are derived from the training window only, so `model.test()` will report metrics on an identically scaled and completely unseen hold-out slice.
+### Model Zoo
 
-### Hold-out monitoring
+- **PriceModel**: Predicts price directly after scaling against historical min/max.
+- **PercentageModel**: Predicts percentage returns over sliding windows.
+- **DirectionalModel**: Optimized for sign accuracy, with curriculum stages, balanced focal loss, and automatic threshold calibration.
+- **Custom builders**:
+  - `create_lightweight_model`: Single LSTM layer for rapid prototyping.
+  - `create_context_gated_model`: Adds a context gate derived from global averages.
+  - `create_probabilistic_model`: Predicts mean + log-variance (heteroscedastic loss).
+  - `create_directional_model` / `create_directional_model_focal`: Sigmoid outputs backed by balanced focal loss.
 
-`AI-InvestiBot/holdout_monitor.py` is a quick CLI that trains each configuration with `test=True`, captures the new unseen-window metrics, and saves a JSON/CSV summary.
+The training loop accepts callbacks, so you can plug in any Keras `Model` factory that matches the expected input shape.
+
+### Hold-out Monitoring
+
+`AI-InvestiBot/holdout_monitor.py` packages the walk-forward pipeline into a CLI:
 
 ```bash
-python -m AI-InvestiBot.holdout_monitor --output logs/holdout_report.json
+python -m AI-InvestiBot.holdout_monitor \
+  --config configs/experiments.json \
+  --output logs/holdout_report.json
 ```
 
-You can pass `--config path/to/config.json` where the JSON contains
+- Reads `{ "experiments": [ { "stock_symbol": "...", "information_keys": [...], "create_model": "gated", ... } ] }`
+- Runs `PriceModel.train(test=True)` per entry and records directional/spatial/RMSE metrics for the hold-out slice.
+- Writes both JSON and CSV summaries for quick spreadsheet analysis.
 
-```json
-{"experiments":[{"stock_symbol":"AAPL","information_keys":["Close","returns_zscore"],"create_model":"lightweight"}]}
-```
+## Decision Automation
 
-The script will use the default lightweight builder unless another key is provided (`default`, `conv2d`, `lightweight`, `gated`, `probabilistic`, `directional`), so you can quickly iterate over different indicator mixes and architectures while aggregating directional/spatial/RMSE outcomes.
+`decision_maker.py` loads multiple trained strategy models (Impulse MACD, breakout, RSI, supertrends, etc.), builds cached indicator windows (online or offline), and feeds predictions into a `DecisionTreeClassifier`.
 
-### Architecture supplements
+Features:
 
-- **Context-gated head**: `custom_objects.create_context_gated_model` adds a simple gating signal derived from a global average of the inputs so the LSTM output can bias itself toward regime-specific features before producing a prediction. Use the `gated` builder key in `holdout_monitor.py` or pass it to `model.train(create_model=...)`.
-- **Probabilistic head**: `custom_objects.create_probabilistic_model` predicts a mean and variance pair. It trains with `HeteroscedasticLoss`, which treats the second output as log-variance, so you get a confidence interval plus point forecast. When evaluating, the existing test helper automatically picks the mean column so the directional/spatial metrics remain unchanged.
+- Offline cache reader for disconnected environments (`Stocks/<SYMBOL>/info.json`).
+- Automatic re-computation of indicators per 14-day step when running forward in time.
+- Optional `TARGET_SYMBOLS` override to focus the evaluation.
+- Designed to slot into the `ResourceManager` flows so you can allocate capital based on aggregated votes rather than a single model.
 
-# How It Works
+## Results Snapshot
 
-## Information Retrieval and Caching
+Directional accuracy pulled from representative hold-out runs (AAPL dataset):
 
-The project retrieves and caches information in the following manner:
+| Model | Directional | Spatial | RMSE | RMSSE |
+| --- | --- | --- | --- | --- |
+| Day Trade | 97.89 % | 95.07 % | 1.34 | 24.99 |
+| Impulse MACD | 96.48 % | 95.07 % | 0.69 | 7.99 |
+| Reversal | 97.18 % | 95.07 % | 1.13 | 24.43 |
+| Earnings | 98.59 % | 96.48 % | 0.87 | 15.58 |
+| RSI | 97.14 % | 95.71 % | 0.58 | 22.23 |
+| Breakout | 97.89 % | 93.66 % | 1.09 | 21.42 |
+| Super Trends | 97.89 % | 92.25 % | 1.69 | 78.60 |
 
-- The `get_info.py` file processes all data obtained from yfinance.
-- The information is stored as a dictionary in a JSON file.
-- The `information_keys` feature retrieves values from each key in the JSON.
+*Numbers vary depending on indicator mix, date window, and architecture. Always re-run experiments with your own configuration before drawing conclusions. `model.test(show_graph=True)` outputs comparison plots to visually inspect alignment.*
 
-## Unique Indicators in Models
+### Interpreting the Metrics
 
-The models in this project incorporate unique indicators as follows:
+- **Directional**: Share of samples where prediction and ground truth moved the same direction (a hit rate).
+- **Spatial**: Ensures predictions stay on the correct side of the target after a move, penalizing phase errors.
+- **RMSE/RMSSE**: Root mean squared error and its scaled counterpart; lower is better. RMSSE weights large misses more heavily.
+- **Confidence**: Hold-out splits guarantee the reported metrics come from unseen data. Early stopping curbs overfitting, and transfer learning is disabled unless you explicitly enable it.
 
-- Models utilize the `information_keys` attribute.
-- These keys correspond to the names of indicators created from `get_info.py`.
-- The model retrieves a dictionary from the JSON file and extracts the list associated with the key.
-- Features in the form of NumPy arrays are then fed into the Sequential model.
-- Use different Features by inputing a list of information_keys into either `PriceModel` or `PercentageModel`
-- Additional context-driven indicators you can add to `information_keys`:
-  - `returns_zscore`: 20-day z-score of daily returns (helps the network detect stretched moves).
-  - `volatility_14`: 14-day rolling standard deviation of returns (captures regime changes).
-  - `trend_strength`: Relative distance between the 50-day and 200-day exponential moving averages.
-  - `earnings_flag`: Binary indicator that is 1 during the 3-day window around earnings announcements.
+## Support
 
-## Stock Bot Functionality
+- **Discord**: https://dsc.gg/ai-investibot/ (custom vanity link)
+- **Issues/PRs**: Please open tickets for bugs, docs gaps, or feature proposals. Contributions should avoid checking in regenerated `Stocks/` assets.
 
-The stock bot operates based on the following principles:
+---
 
-
-- The AI is implemented into the childclasses of `BaseModel`. 
-- Base Model: This is the parent class for all other models and has no data of its own unless specified. Holds functionality for bot NOT AI.
-- Price Model: This is the base child class that uses data scaled btw high and low of company data and outputs the predicted price
-- Percentage Model: This is the base child class that uses data scaled btw high and low of a window of data(the past num days) and outputs the predicted % change in price
-- Directional Model: Trains on the sign of the next move (up/down) and prints training/validation/test accuracy when you run `test()` against the hold-out window.
-- Training, testing, saving, and loading are handled by separate functions(Ensuring quality code).
-- Training can be a test, using only the first 80% of data
-- Information for each day is obtained through two methods:
-  - Method 1: Offline (past data only)
-    - Relies on data from `get_info.py`.
-    - In this case, `model.cached_info` is always a dictionary or None.
-  - Method 2: Online
-    - Utilizes data from yfinance.
-    - Once 280 days of past data are obtained, the oldest day is removed, and a new day is added at the end.
-    - In this case, `model.cached_info` is always a pandas DataFrame or None.
-
-## How the Bot Runs
-
-- The bot identifies the most promising stocks.
-- It utilizes your available funds, following the rules set by the `ResourceManager` class.
-- Stocks are held if their performance exceeds a certain threshold (`MAX_HOLD_INDEX`).
-- Stocks are bought if specific conditions are met, including:
-  - All models' profit ratios are above `PREDICTION_THRESHOLD`.
-  - The average profit ratio exceeds the `RISK_REWARD_RATIO`.
-- The lambda and loop implemenations use the same base functions.
-  - Therefore, more implementations can easily be added
-
-## Earnings Processing
-
-The project processes earnings in the following manner:
-
-- All earnings are obtained and separated into two lists: dates and the difference between actual and estimated values.
-- During runtime, earnings outside of a specific range are removed.
-- The processed earnings are transformed into a continuous list:
-  - Earnings are represented as 0 if no earnings occurred on a specific day.
-  - The difference between the expected and actual values is used when earnings occur.
-- Certain limitations prevent the stock bot from detecting earnings in some cases, which is an issue currently being addressed.
-
-
-
-
-# RESULTS(FOR Price Model only)
-
-This project offers various models to choose from, including:
-
-- Base Model: This is the parent class for all other models and has no data of its own unless specified.
-- Price Model: This is the base class that uses data scaled btw high and low of company data and outputs the predicted price
-- Percentage Model: This is the base class that uses data scaled btw high and low of the window data and outputs the predicted % change in price
-
-- Day Trade Model:
-  - Directional Test:  97.88732394366197
-  - Spatial Test:  95.07042253521126
-
-  - Test RMSE: 1.3360315740699096
-  - Test RMSSE: 24.995202143966043
-- Impulse MACD Model:
-  - Directional Test:  96.47887323943662
-  - Spatial Test:  95.07042253521126
-  - Test RMSE: 0.6948929238336506
-  - Test RMSSE: 7.995023009594582
-- Reversal Model:
-  - Directional Test:  97.1830985915493
-  - Spatial Test:  95.07042253521126
-  - Test RMSE: 1.1254591884267255
-  - Test RMSSE: 24.42872924716995
-- Earnings Model:
-  - Directional Test:  98.59154929577466
-  - Spatial Test:  96.47887323943662
-  - Test RMSE: 0.8682655262847199
-  - Test RMSSE: 15.578685178744083
-- RSI Model:
-  - Directional Test:  97.14285714285714
-  - Spatial Test:  95.71428571428572
-  - Test RMSE: 0.5837482545772584
-  - Test RMSSE: 22.226485198086568
-- Breakout Model:
-  - Directional Test:  97.88732394366197
-  - Spatial Test:  93.66197183098592
-  - Test RMSE: 1.0865094554480963
-  - Test RMSSE: 21.424078134818295
-- Super Trends Model:
-  - Directional Test:  97.88732394366197
-  - Spatial Test:  92.25352112676056
-  - Test RMSE: 1.6947722097944153
-  - Test RMSSE: 78.60191098762428
-
-model.test(show_graph=True)
-![Figure_1](https://github.com/gran4/AI-InvestiBot/assets/80655391/0c205922-e6f4-4113-9d9c-1f3c890d1f81)
-
-
-
-# How to interpret
-
-- You can have have confidence becuase:
-  + The model has never seen the data
-  + Not over fitted becuase Model used Early stopping
-  + NO Transfer learning applied. Once transfer is applied, it will become even more accuracte(hopefully).
-  + It has been tested on other similar stocks(on `PercentageModel` only) and has shown equally promising results
-
-  * The only thing that may be wrong is that the model may accedently get future data.
-
-
-- Directional Test is how often the predicted and test moved together.
-  + Directional Test:  93.26530612244898
-  + Means 93% accuracy
-
-- Spatial is what sees if the predicted is correctly positioned in relation to the real data. So if it goes up, the predicted should be over, but if it goes down, the predicted should go down
-  + Spatial Test:  94.26530612244898
-  + Means 94% accuracy(in the space)
-- RMSE and RMSSE shows how incorrect the bot is. RMSSE is more impacted by larger differences. Remember that the lower the value of these metrics, the better the performance.
+Thanks for exploring AI-InvestiBot. The repo remains under active development—expect frequent refactors as the research backlog turns into production-ready components. If you build something on top of the framework, let us know! We’re keen to highlight community workflows in future docs.
