@@ -23,7 +23,6 @@ from typing import Optional, Union, List, Tuple
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-import yfinance as yf
 import numpy as np
 import pandas as pd
 
@@ -33,7 +32,9 @@ from trading_funcs import (
     find_best_number_of_years,
     process_flips,
     supertrends,
-    kumo_cloud
+    kumo_cloud,
+    non_daily,
+    download_stock_history,
 )
 
 
@@ -294,13 +295,11 @@ def update_info(company_ticker, stock_data) -> None:
     dates = stock_data.index.strftime('%Y-%m-%d').tolist()
 
 
-    futures_data = yf.download(company_ticker)
     #_________________Process to json______________________#
     converted_data = {
         'Dates': dates,
         'Volume': stock_data['Volume'].values.tolist(),
         'Close': stock_data['Close'].values.tolist(),
-        'Future Close': futures_data['Close'].tolist(),
         '12-day EMA': ema12.values.tolist(),
         '26-day EMA': ema26.values.tolist(),
         'MACD': signal_line.values.tolist(),
@@ -327,6 +326,17 @@ def update_info(company_ticker, stock_data) -> None:
         'earnings dates': earnings_dates,
         'earning diffs': earnings_diff
     }
+
+    trim_length = len(converted_data['Dates']) - 1
+    if trim_length <= 0:
+        raise RuntimeError("Not enough historical data to compute future close feature.")
+    converted_data['Dates'] = converted_data['Dates'][:trim_length]
+    for key, value in list(converted_data.items()):
+        if key in non_daily:
+            continue
+        if isinstance(value, list):
+            converted_data[key] = value[:trim_length]
+
     with open(f'Stocks/{company_ticker}/info.json', 'w') as json_file:
         json.dump(converted_data, json_file)
 
@@ -340,14 +350,19 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
     """
     if not companys:# NOTE: weird global/local work around
         companys = company_symbols
-    companys = ["AAPL", "GOOG", "AMZN", "META", 'MSFT', 'TSLA', 'V', 'JPM', 'WMT', 'DIS', 'INTC', 'GE']
     for company_ticker in companys:
-        ticker = yf.Ticker(company_ticker)
         #_________________ GET Data______________________#
         # Retrieve historical data for the ticker using the `history()` method
-        stock_data = ticker.history(interval="1d", period='max')
+        try:
+            stock_data = download_stock_history(company_ticker, interval="1d", period='max')
+        except ConnectionError as exc:
+            raise ConnectionError(
+                f"Failed to download stock data for {company_ticker}. "
+                "This is usually caused by Yahoo Finance rate limiting. "
+                "Try again in a few minutes."
+            ) from exc
         if len(stock_data) == 0:
-            raise ConnectionError("Failed to get stock data. Check your internet")
+            raise ConnectionError(f"Failed to get stock data for {company_ticker}. Check your internet/Wi-Fi.")
         if not os.path.exists(f'Stocks/{company_ticker}'):
             os.makedirs(f'Stocks/{company_ticker}')
 

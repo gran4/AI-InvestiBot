@@ -32,6 +32,7 @@ Discord: https://dsc.gg/ai-investibot/  (Uses a dsc link in order to get a custo
 - **Flexible**:
     + **Flexible Model Creation** Users have the freedom to create their own models using the `information_keys` feature.
     + **Fexible AI**: A callback function can be passed to the `train` function(traning the model) that creates the custom model. This allows you do use any type of model you want
+- **Walk-forward Ready**: Scaling stats are computed from the training split only and `train(test=True)` now reserves the most recent data for hold-out testing so `model.test()` evaluates a truly unseen window.
 - **ResourceManager Class**: The `ResourceManager` class is implemented to manage and direct financial resources effectively.
 - **Predictions for Multiple Companies**: This project offers predictions for multiple companies per day, rather than just one.
 - **Holding Stocks**: The stock bot has the capability to hold stocks.
@@ -69,6 +70,44 @@ WARNING: The real time trading features need more testing. Do NOT use to make mo
 
 P.S: Remember to change the api and secret key in secrets.config. 
 
+### Simpler training option
+
+When you want quicker iterations or a model that is less prone to overfitting, pass the lightweight builder to `train`:
+
+```python
+from custom_objects import create_lightweight_model
+
+model = PriceModel(...)
+model.train(create_model=create_lightweight_model, epochs=300, patience=10)
+```
+
+This architecture keeps just one LSTM layer, a small dense head, and dropout so the network learns the broader movement without getting stuck memorizing noise.
+
+### Hold-out & scaling behavior
+
+Calling `model.train(test=True)` now keeps the most recent 20 % of the requested date range completely out of the training split. The scaler statistics are derived from the training window only, so `model.test()` will report metrics on an identically scaled and completely unseen hold-out slice.
+
+### Hold-out monitoring
+
+`AI-InvestiBot/holdout_monitor.py` is a quick CLI that trains each configuration with `test=True`, captures the new unseen-window metrics, and saves a JSON/CSV summary.
+
+```bash
+python -m AI-InvestiBot.holdout_monitor --output logs/holdout_report.json
+```
+
+You can pass `--config path/to/config.json` where the JSON contains
+
+```json
+{"experiments":[{"stock_symbol":"AAPL","information_keys":["Close","returns_zscore"],"create_model":"lightweight"}]}
+```
+
+The script will use the default lightweight builder unless another key is provided (`default`, `conv2d`, `lightweight`, `gated`, `probabilistic`, `directional`), so you can quickly iterate over different indicator mixes and architectures while aggregating directional/spatial/RMSE outcomes.
+
+### Architecture supplements
+
+- **Context-gated head**: `custom_objects.create_context_gated_model` adds a simple gating signal derived from a global average of the inputs so the LSTM output can bias itself toward regime-specific features before producing a prediction. Use the `gated` builder key in `holdout_monitor.py` or pass it to `model.train(create_model=...)`.
+- **Probabilistic head**: `custom_objects.create_probabilistic_model` predicts a mean and variance pair. It trains with `HeteroscedasticLoss`, which treats the second output as log-variance, so you get a confidence interval plus point forecast. When evaluating, the existing test helper automatically picks the mean column so the directional/spatial metrics remain unchanged.
+
 # How It Works
 
 ## Information Retrieval and Caching
@@ -88,6 +127,11 @@ The models in this project incorporate unique indicators as follows:
 - The model retrieves a dictionary from the JSON file and extracts the list associated with the key.
 - Features in the form of NumPy arrays are then fed into the Sequential model.
 - Use different Features by inputing a list of information_keys into either `PriceModel` or `PercentageModel`
+- Additional context-driven indicators you can add to `information_keys`:
+  - `returns_zscore`: 20-day z-score of daily returns (helps the network detect stretched moves).
+  - `volatility_14`: 14-day rolling standard deviation of returns (captures regime changes).
+  - `trend_strength`: Relative distance between the 50-day and 200-day exponential moving averages.
+  - `earnings_flag`: Binary indicator that is 1 during the 3-day window around earnings announcements.
 
 ## Stock Bot Functionality
 
@@ -98,6 +142,7 @@ The stock bot operates based on the following principles:
 - Base Model: This is the parent class for all other models and has no data of its own unless specified. Holds functionality for bot NOT AI.
 - Price Model: This is the base child class that uses data scaled btw high and low of company data and outputs the predicted price
 - Percentage Model: This is the base child class that uses data scaled btw high and low of a window of data(the past num days) and outputs the predicted % change in price
+- Directional Model: Trains on the sign of the next move (up/down) and prints training/validation/test accuracy when you run `test()` against the hold-out window.
 - Training, testing, saving, and loading are handled by separate functions(Ensuring quality code).
 - Training can be a test, using only the first 80% of data
 - Information for each day is obtained through two methods:

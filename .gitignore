@@ -12,6 +12,7 @@ Stocks/*
 !Stocks/AAPL/
 
 .DS_Store
+logs/
 
 # C extensions
 *.so

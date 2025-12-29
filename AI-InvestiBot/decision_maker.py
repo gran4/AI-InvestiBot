@@ -1,6 +1,16 @@
 import json
+from pathlib import Path
+from typing import Dict, List, Optional
+
 from pandas_market_calendars import get_calendar
-from models import load_models, break_out_indicators, ImpulseMACD_indicators, Reversal_indicators, RSI_indicators, super_trends_indicators
+from models import (
+    load_models,
+    break_out_indicators,
+    ImpulseMACD_indicators,
+    Reversal_indicators,
+    RSI_indicators,
+    super_trends_indicators,
+)
 import pandas as pd
 
 
@@ -10,36 +20,108 @@ from sklearn.model_selection import train_test_split
 
 
 trading_calendar = get_calendar('XNYS')
+_OFFLINE_INFO_CACHE: Dict[str, pd.DataFrame] = {}
+_ONLINE_DATA_AVAILABLE = True
+TARGET_SYMBOLS: Optional[List[str]] = None  # Provide a list like ["AAPL","MSFT"] to limit output
+
+
+def _load_offline_info(stock_symbol: str) -> pd.DataFrame:
+    cache = _OFFLINE_INFO_CACHE.get(stock_symbol)
+    if cache is not None:
+        return cache
+    info_path = Path("Stocks") / stock_symbol / "info.json"
+    if not info_path.exists():
+        raise FileNotFoundError(f"Offline cache not found for {stock_symbol}")
+    with info_path.open() as f:
+        raw = json.load(f)
+    if 'Dates' not in raw:
+        raise ValueError(f"info.json for {stock_symbol} missing 'Dates'")
+    index = pd.to_datetime(raw['Dates'])
+    df = pd.DataFrame(index=index)
+    length = len(index)
+    for key, values in raw.items():
+        if key == 'Dates':
+            continue
+        series = pd.Series(values)
+        if series.size < length:
+            series = series.reindex(range(length))
+        elif series.size > length:
+            series = series.iloc[:length]
+        df[key] = series.to_numpy()
+    _OFFLINE_INFO_CACHE[stock_symbol] = df
+    return df
 
 
 def save_data_for_predictions(company_models, start_date, total_info_keys):
-    predictions = []
-    for model in company_models:
-        predictions.append([])
-    initial_date = pd.Timestamp(start_date, tz='America/Los_Angeles')
-    initial_date = initial_date.tz_convert('UTC')
-    new_date = trading_calendar.valid_days(start_date=initial_date, end_date=initial_date + pd.DateOffset(days=14))[-1]
-    # Define the comparison date (2023-10-11 in this case)
-    comparison_date = pd.Timestamp("2023-10-11", tz='America/Los_Angeles')
-    # Check if the new date is past the comparison date
+    predictions = [[] for _ in company_models]
+    initial_date = pd.Timestamp(start_date, tz='America/Los_Angeles').tz_convert('UTC')
+    new_date = trading_calendar.valid_days(
+        start_date=initial_date,
+        end_date=initial_date + pd.DateOffset(days=14)
+    )[-1]
+    comparison_date = pd.Timestamp("2023-10-11", tz='America/Los_Angeles').tz_convert('UTC')
     assert new_date.tzinfo == initial_date.tzinfo
-    
+
     first_model = company_models[0]
-    cached_info = first_model.update_cached_info_online()
-    cached = first_model.indicators_past_num_days(
-        first_model.stock_symbol, start_date,
-        total_info_keys, first_model.scaler_data,
-        cached_info, first_model.num_days
-    )
+
+    def _offline_slice(end_date_str: str) -> pd.DataFrame:
+        offline_df = _load_offline_info(first_model.stock_symbol)
+        sliced = offline_df.loc[:end_date_str]
+        if sliced.empty:
+            raise RuntimeError(
+                f"Offline cache for {first_model.stock_symbol} has no data up to {end_date_str}."
+            )
+        return sliced
+
+    def build_cached_window(end_date: pd.Timestamp):
+        """Refresh indicator cache for the provided window end date."""
+        # Use the model helpers to gather a fresh batch of indicators for
+        # `end_date` without mutating the long-lived model state. Falls back
+        # to the recorded info.json data when yfinance is unreachable.
+        end_date_str = end_date.tz_convert('America/Los_Angeles').strftime("%Y-%m-%d")
+        original_end_date = first_model.end_date
+        original_cached_info = first_model.cached_info
+        cached_info = None
+        try:
+            first_model.end_date = end_date_str
+            first_model.cached_info = None
+            global _ONLINE_DATA_AVAILABLE
+            if _ONLINE_DATA_AVAILABLE:
+                try:
+                    cached_info = first_model.update_cached_info_online()
+                except ConnectionError:
+                    print("[decision_maker] Failed to reach Yahoo Finance. Falling back to cached data only.")
+                    _ONLINE_DATA_AVAILABLE = False
+            if cached_info is None:
+                cached_info = _offline_slice(end_date_str)
+        finally:
+            first_model.end_date = original_end_date
+            first_model.cached_info = original_cached_info
+        if cached_info is None:
+            raise RuntimeError("Unable to build cached window")
+        cached = first_model.indicators_past_num_days(
+            first_model.stock_symbol,
+            end_date_str,
+            total_info_keys,
+            first_model.scaler_data,
+            cached_info,
+            first_model.num_days
+        )
+        return cached
+
     while new_date < comparison_date:
-        i = 0
-        for model in company_models:
+        cached = build_cached_window(new_date)
+        for i, model in enumerate(company_models):
             processed_data = model.process_cached(cached)
+            if processed_data.size == 0:
+                continue
             temp = model.predict(info=processed_data).flatten()
             temp = temp[::-1].tolist()
             predictions[i] += temp
-            i += 1
-        new_date = trading_calendar.valid_days(start_date=new_date, end_date=new_date + pd.DateOffset(days=14))[-1]
+        new_date = trading_calendar.valid_days(
+            start_date=new_date,
+            end_date=new_date + pd.DateOffset(days=14)
+        )[-1]
     return predictions
 
 
@@ -69,8 +151,30 @@ def predict_company(decision_tree, feature_vector):
     return prediction
 
 
-def train_decision_maker():
-    models, total_info_keys = load_models(strategys=[break_out_indicators, ImpulseMACD_indicators, Reversal_indicators, RSI_indicators, super_trends_indicators], names=['breakout', 'ImpulseMACD', 'Reversal', 'RSI', 'supertrends'])
+def train_decision_maker(symbols=None):
+    # Stored model files include the concrete class name in their prefix
+    # (e.g. breakoutPercentageModel_model), so we pass matching identifiers
+    # here to ensure load_models picks up the trained weights.
+    strategys = [
+        break_out_indicators,
+        ImpulseMACD_indicators,
+        Reversal_indicators,
+        RSI_indicators,
+    ]
+    names = [
+        'breakoutPercentageModel',
+        'ImpulseMACDPercentageModel',
+        'ReversalPercentageModel',
+        'RSIPercentageModel',
+    ]
+    load_kwargs = {
+        "strategys": strategys,
+        "names": names,
+    }
+    active_symbols = symbols or TARGET_SYMBOLS
+    if active_symbols:
+        load_kwargs["company_symbols"] = active_symbols
+    models, total_info_keys = load_models(**load_kwargs)
     data = {}
     for company_models in models:
         print(type(company_models[0]))
@@ -81,4 +185,3 @@ def train_decision_maker():
 
 if __name__ == "__main__":
     train_decision_maker()
-

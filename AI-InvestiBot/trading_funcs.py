@@ -16,6 +16,8 @@ See also:
 """
 
 import json
+import os
+import time
 
 from typing import Optional, List, Tuple, Dict, Iterable
 from numbers import Number
@@ -27,12 +29,17 @@ from pandas_market_calendars import get_calendar
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import yfinance as yf
+import requests
 
 __all__ = (
     'non_daily',
     'non_daily_no_use',
     'indicators_to_add_noise_to',
     'company_symbols',
+    'download_stock_history',
+    'download_stock_history_alphavantage',
+    'download_stock_history_stooq',
     'create_sequences',
     'find_best_number_of_years',
     'process_earnings',
@@ -165,32 +172,189 @@ def calculate_average_true_range(stock_data):
     average_true_range = stock_data['TrueRange'].mean()
     return average_true_range
 
+
+def compute_ema_spread(data: pd.Series, fast: int = 10, slow: int = 40) -> pd.Series:
+    fast_ema = data.ewm(span=fast, adjust=False).mean()
+    slow_ema = data.ewm(span=slow, adjust=False).mean()
+    return fast_ema - slow_ema
+
+
+def compute_volume_surge(data: pd.Series, window: int = 20, factor: float = 2.0) -> pd.Series:
+    rolling_mean = data.rolling(window=window, min_periods=1).mean()
+    surge = data / rolling_mean
+    return surge.fillna(1.0).clip(0.0, factor)
+
+
+def compute_atr_series(df: pd.DataFrame, window: int = 14) -> pd.Series:
+    high_low = df['High'] - df['Low']
+    high_close = (df['High'] - df['Close'].shift()).abs()
+    low_close = (df['Low'] - df['Close'].shift()).abs()
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    return tr.rolling(window=window, min_periods=1).mean().fillna(0.0)
+
+
+def download_stock_history(symbol: str,
+                           interval: str = "1d",
+                           period: str = "max",
+                           max_retries: int = 5,
+                           base_retry_delay: float = 5.0,
+                           alphavantage_api_key: Optional[str] = None) -> pd.DataFrame:
+    """
+    Download historical data for a ticker with basic retry logic to reduce
+    the number of transient Yahoo Finance failures that surface as
+    JSONDecodeError/No timezone found errors.
+    """
+    last_error: Optional[Exception] = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            history = yf.download(
+                symbol,
+                interval=interval,
+                period=period,
+                auto_adjust=False,
+                threads=False,
+                progress=False,
+                group_by='column',
+            )
+            if not history.empty:
+                return history
+            last_error = RuntimeError("Empty response received from Yahoo Finance.")
+        except Exception as exc:  # pragma: no cover - network stack specific
+            last_error = exc
+
+        if attempt < max_retries:
+            wait_time = base_retry_delay * attempt
+            print(f"[download_stock_history] Retrying {symbol} in {wait_time:.1f}s "
+                  f"(attempt {attempt}/{max_retries}) due to: {last_error}")
+            time.sleep(wait_time)
+    print(f"[download_stock_history] Falling back to AlphaVantage for {symbol} after "
+          f"{max_retries} failed Yahoo attempts.")
+    fallback_key = alphavantage_api_key or os.getenv("ALPHAVANTAGE_API_KEY")
+    alpha_data = download_stock_history_alphavantage(symbol, api_key=fallback_key)
+    if not alpha_data.empty:
+        return alpha_data
+
+    print(f"[download_stock_history] AlphaVantage unavailable for {symbol}. "
+          "Using Stooq daily history as a last resort.")
+    stooq_data = download_stock_history_stooq(symbol)
+    if stooq_data.empty:
+        raise ConnectionError(f"Failed to retrieve historical data for {symbol} "
+                              f"after Yahoo, AlphaVantage, and Stooq fallbacks.") from last_error
+    return stooq_data
+
+
+def download_stock_history_alphavantage(symbol: str, api_key: Optional[str]) -> pd.DataFrame:
+    """
+    Fallback data download that uses the TIME_SERIES_DAILY_ADJUSTED endpoint.
+    AlphaVantage enforces strict limits (5 calls/minute, 500/day) so this should
+    only run when Yahoo Finance repeatedly fails.
+    """
+    if not api_key:
+        print("[download_stock_history] No AlphaVantage API key supplied; skipping fallback.")
+        return pd.DataFrame()
+    url = "https://www.alphavantage.co/query"
+    params = {
+        "function": "TIME_SERIES_DAILY_ADJUSTED",
+        "symbol": symbol,
+        "outputsize": "full",
+        "apikey": api_key,
+    }
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+    except Exception as exc:  # pragma: no cover - external service
+        print(f"[download_stock_history] AlphaVantage request failed for {symbol}: {exc}")
+        return pd.DataFrame()
+
+    if "Time Series (Daily)" not in data:
+        print(f"[download_stock_history] AlphaVantage returned no data for {symbol}: {data}")
+        return pd.DataFrame()
+
+    daily_series = data["Time Series (Daily)"]
+    records = []
+    for date_str, values in daily_series.items():
+        try:
+            records.append({
+                "Date": pd.to_datetime(date_str),
+                "Open": float(values["1. open"]),
+                "High": float(values["2. high"]),
+                "Low": float(values["3. low"]),
+                "Close": float(values["4. close"]),
+                "Adj Close": float(values["5. adjusted close"]),
+                "Volume": int(float(values["6. volume"])),
+            })
+        except (KeyError, ValueError) as exc:
+            print(f"[download_stock_history] Skipping invalid AlphaVantage row for {symbol} "
+                  f"on {date_str}: {exc}")
+            continue
+
+    if not records:
+        return pd.DataFrame()
+
+    df = pd.DataFrame.from_records(records).sort_values("Date")
+    df.set_index("Date", inplace=True)
+    return df
+
+
+def download_stock_history_stooq(symbol: str) -> pd.DataFrame:
+    """
+    Download daily history from Stooq (https://stooq.com/). This endpoint does
+    not require an API key but only provides end-of-day data.
+    """
+    # Stooq symbols are lowercase and suffixed by market, e.g., aapl.us
+    stooq_symbol = symbol.lower()
+    if "." not in stooq_symbol:
+        stooq_symbol = f"{stooq_symbol}.us"
+    url = f"https://stooq.com/q/d/l/?s={stooq_symbol}&i=d"
+    try:
+        df = pd.read_csv(url)
+    except Exception as exc:  # pragma: no cover - network I/O
+        print(f"[download_stock_history] Stooq request failed for {symbol}: {exc}")
+        return pd.DataFrame()
+
+    if df.empty or 'Date' not in df:
+        print(f"[download_stock_history] Stooq returned no data for {symbol}.")
+        return pd.DataFrame()
+
+    df['Date'] = pd.to_datetime(df['Date'])
+    df.set_index('Date', inplace=True)
+    df.rename(columns=str.title, inplace=True)  # ensure columns like 'Open', 'Close'
+    return df.sort_index()
+
 def find_best_number_of_years(symbol: str, stock_data: Optional[pd.DataFrame]=None, max_years_back: Optional[int]=None):
     """
     NOTE: NOT PERFECT on leap years,
         Small fix may not be worth the time
     """
     best_years = 3
-    import yfinance as yf
-    ticker = yf.Ticker(symbol)
     if stock_data is None:
-        stock_data = ticker.history(interval="1d", period='max')
+        stock_data = download_stock_history(symbol)
 
     today = date.today().strftime('%Y-%m-%d')
     today_datetime = datetime.strptime(today, '%Y-%m-%d')
 
-    iso_date = stock_data.index[0].strftime('%Y-%m-%d')
-    iso_date = datetime.strptime(iso_date, '%Y-%m-%d')
+    history = stock_data.copy()
+    history.index = pd.to_datetime(history.index)
+    if getattr(history.index, "tz", None) is not None:
+        history.index = history.index.tz_localize(None)
+
+    if history.empty:
+        raise RuntimeError(f"No historical data to evaluate ATR for {symbol}.")
+
+    iso_date_dt = history.index[0].to_pydatetime()
     if max_years_back is None:
-        max_years_back = today_datetime - iso_date
+        max_years_back = today_datetime - iso_date_dt
         max_years_back = max_years_back.days // 365
 
     best_atr = -float('inf')
     for years in range(4, max_years_back): #ignores 1st year of ipo
         start_date = today_datetime-relativedelta(years=years)
 
-        stock_data = ticker.history(interval="1d", start=start_date, end=today)
-        atr = calculate_average_true_range(stock_data)#stock_data[iso_date >= start_date])
+        sliced_history = history[history.index >= start_date]
+        if sliced_history.empty:
+            continue
+        atr = calculate_average_true_range(sliced_history.copy())
 
         atr += piecewise_parabolic_weight(years, max_years_back/4)/10 + piecewise_parabolic_weight(years, max_years_back/6)/30
 
@@ -328,6 +492,12 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
         Tuple[dict, np.ndarray, str, str]: The relevant indicators in the
         form of a dict, np.ndarray, and a list
     """
+    leak_prone = {'Future Close'}
+    overlap = leak_prone.intersection(information_keys)
+    if overlap:
+        raise ValueError(f"{overlap.pop()} is a future-looking feature and cannot be used "
+                         "as an input. Remove it from information_keys to avoid data leakage.")
+
     #_________________Load info______________________#
     with open(f'Stocks/{stock_symbol}/info.json', 'r') as file:
         other_vals: Dict = json.load(file)
@@ -343,6 +513,16 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
     elif type(end_date) is int:
         end_date = other_vals['Dates'][end_date]
 
+    max_available_date = other_vals['Dates'][-1]
+    if end_date > max_available_date:
+        print(f"[get_relavant_values] Clamping end_date from {end_date} to latest available {max_available_date}.")
+        end_date = max_available_date
+
+    min_available_date = other_vals['Dates'][0]
+    if start_date < min_available_date:
+        print(f"[get_relavant_values] Clamping start_date from {start_date} to earliest available {min_available_date}.")
+        start_date = min_available_date
+
     start_date, end_date = check_for_holidays(start_date, end_date)
     if start_date in other_vals['Dates']:
         i = other_vals['Dates'].index(start_date)
@@ -350,7 +530,8 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
         for key in information_keys:
             if key in non_daily:
                 continue
-            other_vals[key] = other_vals[key][i:]
+            if key in other_vals:
+                other_vals[key] = other_vals[key][i:]
     else:
         raise ValueError(f"start date is not in data\nRun getInfo.py with start date before {start_date} and {end_date}")
 
@@ -360,7 +541,8 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
         for key in information_keys:
             if key in non_daily:
                 continue
-            other_vals[key] = other_vals[key][:i]
+            if key in other_vals:
+                other_vals[key] = other_vals[key][:i]
     else:
         raise ValueError(f"end date is not in data\nRun getInfo.py with end date after {start_date} and {end_date}")
     #_________________Process earnings______________________#
@@ -371,37 +553,106 @@ def get_relavant_values(stock_symbol: str, information_keys: List[str],
         dates, diffs = process_earnings(dates, diffs, start_date, end_date, len(other_vals['Close']))
         other_vals['earnings dates'] = dates
         other_vals['earning diffs'] = diffs
-        print("EDNJEJNDEJNE")
-    scaler_data = {}
+
+    close_series = pd.Series(other_vals.get('Close', []))
+    if not close_series.empty:
+        if "returns_zscore" in information_keys and "returns_zscore" not in other_vals:
+            returns = close_series.pct_change().fillna(0)
+            rolling_mean = returns.rolling(window=20, min_periods=5).mean()
+            rolling_std = returns.rolling(window=20, min_periods=5).std().replace(0, np.nan)
+            zscore = ((returns - rolling_mean) / rolling_std).fillna(0)
+            other_vals["returns_zscore"] = zscore.tolist()
+
+        if "volatility_14" in information_keys and "volatility_14" not in other_vals:
+            returns = close_series.pct_change().fillna(0)
+            volatility = returns.rolling(window=14, min_periods=5).std().fillna(0)
+            other_vals["volatility_14"] = volatility.tolist()
+
+        if "trend_strength" in information_keys and "trend_strength" not in other_vals:
+            fast = close_series.ewm(span=50, adjust=False).mean()
+            slow = close_series.ewm(span=200, adjust=False).mean()
+            baseline = close_series.replace(0, np.nan)
+            strength = ((fast - slow) / baseline).replace([np.inf, -np.inf], 0).fillna(0)
+            other_vals["trend_strength"] = strength.tolist()
+
+        if "ema_spread_10_40" in information_keys and "ema_spread_10_40" not in other_vals:
+            spread = compute_ema_spread(close_series, fast=10, slow=40)
+            other_vals["ema_spread_10_40"] = spread.fillna(0).tolist()
+
+        if "atr_14" in information_keys and "atr_14" not in other_vals:
+            high = other_vals.get('High', [])
+            low = other_vals.get('Low', [])
+            close_vals = other_vals.get('Close', [])
+            if high and low and close_vals:
+                df = pd.DataFrame({'High': high, 'Low': low, 'Close': close_vals})
+                atr_series = compute_atr_series(df, window=14)
+                other_vals["atr_14"] = atr_series.tolist()
+            else:
+                other_vals["atr_14"] = [0.0] * len(close_series)
+
+        if "volume_surge" in information_keys and "volume_surge" not in other_vals:
+            volume = pd.Series(other_vals.get('Volume', [0] * len(close_series)))
+            surge = compute_volume_surge(volume)
+            other_vals["volume_surge"] = surge.tolist()
+
+    if "earnings_flag" in information_keys and "earnings_flag" not in other_vals:
+        earnings_dates = other_vals.get("earnings dates", [])
+        parsed_earnings = [datetime.strptime(date, "%Y-%m-%d") for date in earnings_dates]
+        earnings_set = []
+        for e_date in parsed_earnings:
+            for offset in range(-3, 4):
+                earnings_set.append((e_date + relativedelta(days=offset)).strftime("%Y-%m-%d"))
+        earnings_lookup = set(earnings_set)
+        earnings_flag = [1 if date in earnings_lookup else 0 for date in other_vals['Dates']]
+        other_vals["earnings_flag"] = earnings_flag
+    stats_reference = scaler_data
     if scale:
-        #_________________Scale Data______________________#
-        temp = {}
+        new_stats: Dict[str, Dict[str, float]] = {}
         for key in information_keys:
-            if len(other_vals[key]) == 0:
+            if key in non_daily_no_use:
                 continue
-            if type(other_vals[key][0]) not in (float, int):
+            values = other_vals.get(key, [])
+            if not values or not isinstance(values[0], (float, int)):
                 continue
 
-            if scaler_data is None:
-                min_val = min(other_vals[key])
-                diff = max(other_vals[key])-min_val
-                temp[key] = {'min': min_val, 'diff': diff}
+            stats_source = stats_reference.get(key) if stats_reference else None
+            if stats_source is None:
+                min_val = min(values)
+                diff = max(values) - min_val
+                new_stats[key] = {'min': min_val, 'diff': diff}
             else:
-                min_val = scaler_data[key]['min']
-                diff = scaler_data[key]['diff']
-            if diff != 0: # Ignore rare, extreme cases
-                other_vals[key] = [(x - min_val) / diff for x in other_vals[key]]
+                min_val = stats_source['min']
+                diff = stats_source['diff']
+
+            if diff != 0:
+                scale_fn = lambda x, mn=min_val, df=diff: (x - mn) / df
+                other_vals[key] = [scale_fn(x) for x in values]
             if key in scale_indicators:
                 scaler = scale_indicators[key]
-                other_vals[key] = [x*scaler for x in other_vals[key]]
-        scaler_data = temp # change it if value is `None`
+                other_vals[key] = [x * scaler for x in other_vals[key]]
 
-    for i in other_vals.items():
-        print(len(i))
+        if stats_reference is None:
+            stats_reference = new_stats
+
     # Convert the dictionary of lists to a NumPy array
-    filtered = [other_vals[key] for key in information_keys if key not in non_daily_no_use]
-    filtered = np.transpose(filtered) # type: ignore[assignment]
-    return other_vals, filtered, scaler_data# type: ignore[return-value]
+    filtered_arrays = []
+    lengths: List[int] = []
+    for key in information_keys:
+        if key in non_daily_no_use:
+            continue
+        values = other_vals.get(key, [])
+        if not values:
+            continue
+        arr = np.asarray(values, dtype=float)
+        lengths.append(arr.shape[0])
+        filtered_arrays.append(arr)
+    if not filtered_arrays:
+        raise ValueError("No numeric features available for filtering.")
+    min_length = min(lengths)
+    if min_length == 0:
+        raise ValueError("Numeric features contain empty arrays.")
+    filtered = np.stack([arr[:min_length] for arr in filtered_arrays], axis=1)
+    return other_vals, filtered, stats_reference # type: ignore[return-value]
 
 
 def get_scaler(num: float, data: List) -> float:
