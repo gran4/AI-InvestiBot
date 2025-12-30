@@ -25,56 +25,53 @@ import keras.backend as K
 
 
 @tf.keras.saving.register_keras_serializable()
-class CustomLoss(Loss):
+class DirectionalConsistencyLoss(Loss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.huber_loss = Huber()
-        self.mse_loss = MeanSquaredError()
+        self.base_loss = Huber()
 
     def call(self, y_true, y_pred):
-        huber_loss = self.huber_loss(y_true, y_pred)
-        mse_loss = self.mse_loss(y_true, y_pred)
+        huber_loss = self.base_loss(y_true, y_pred)
 
-        # Calculate the directional penalty
         direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
         space_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_true[:-1])))
-        direction_penalty -= .12
-        space_penalty -= .12
-        if direction_penalty < 0:
-            return mse_loss-direction_penalty
-        if space_penalty < 0:
-            return mse_loss-space_penalty
 
-        # Combine the losses with different weights
-        combined_loss = direction_penalty*.1+mse_loss+space_penalty*.1#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
-
+        combined_loss = huber_loss + 0.2 * direction_penalty + 0.2 * space_penalty
         return combined_loss
 
 
 @tf.keras.saving.register_keras_serializable()
-class CustomLoss2(Loss):
-    def __init__(self, **kwargs):
+class ReversalHuberLoss(Loss):
+    def __init__(self, threshold: float = 30.0, huber_delta: float = 2.0, amplitude_weight: float = 0.18, variance_weight: float = 0.12, **kwargs):
         super().__init__(**kwargs)
-        self.mae_loss = MeanAbsoluteError()
-        self.threshold = 10
+        self.threshold = threshold
+        self.huber = Huber(delta=huber_delta)
+        self.amplitude_weight = amplitude_weight
+        self.variance_weight = variance_weight
 
     def call(self, y_true, y_pred):
-        mae_loss = self.mae_loss(y_true, y_pred)
+        huber_loss = self.huber(y_true, y_pred)
 
-        penalty = K.abs(K.maximum(K.abs(y_pred) - self.threshold, 0))
-        #see if they go the same direction
+        magnitude_penalty = K.mean(K.abs(K.abs(y_true) - K.abs(y_pred)))
+        true_std = tf.math.reduce_std(y_true)
+        pred_std = tf.math.reduce_std(y_pred)
+        variance_penalty = tf.abs(true_std - pred_std)
         direction_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_pred[:-1])))
-        #see if the pred going in the more extreme space in directions
         space_penalty = reduce_mean(abs(sign(y_true[1:] - y_true[:-1]) - sign(y_pred[1:] - y_true[:-1])))
-        
+
         both_over_zero = tf.cast(tf.logical_and(tf.greater(y_true, 0), tf.greater(y_pred, 0)), tf.float32)
         both_under_zero = tf.cast(tf.logical_and(tf.less(y_true, 0), tf.less(y_pred, 0)), tf.float32)
         both_equal_zero = tf.cast(tf.logical_and(tf.equal(y_true, 0), tf.equal(y_pred, 0)), tf.float32)
-        #Sees if they are positive of negitive together
-        together_loss = both_over_zero + both_under_zero + both_equal_zero
+        together_loss = 1.0 - reduce_mean(both_over_zero + both_under_zero + both_equal_zero)
 
-        # Combine the losses with different weights
-        combined_loss = together_loss*.1+direction_penalty*.1+mae_loss*.4+space_penalty*.05#0.7 * huber_loss + 0.3 * mse_loss + 0.5 * direction_penalty
+        combined_loss = (
+            huber_loss * 0.4
+            + self.amplitude_weight * magnitude_penalty
+            + self.variance_weight * variance_penalty
+            + direction_penalty * 0.18
+            + space_penalty * 0.1
+            + together_loss * 0.04
+        )
 
         return combined_loss
 
@@ -116,14 +113,16 @@ def create_LSTM_model2(shape: Tuple) -> Sequential:
     model.add(LSTM(units=64, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
     model.add(BatchNormalization())
     model.add(PReLU())
+    model.add(Dropout(0.3))
     model.add(LSTM(units=64, kernel_regularizer=tf.keras.regularizers.l2(0.01), kernel_initializer='he_normal'))
     model.add(BatchNormalization())
     model.add(PReLU())
+    model.add(Dropout(0.3))
     # Add the final output layer
     model.add(Dense(units=1, activation='linear'))  # Assuming regression problem
 
-    # Compile the model
-    model.compile(optimizer=Adam(learning_rate=.0005, clipvalue=0.1), loss=CustomLoss2())
+    # Compile the model with the reversal-aware custom loss for richer signals
+    model.compile(optimizer=Adam(learning_rate=.0005, clipvalue=0.1), loss=ReversalHuberLoss())
     return model
 
 

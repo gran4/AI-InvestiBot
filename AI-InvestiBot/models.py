@@ -23,8 +23,8 @@ from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 try:
     from .custom_objects import (
-        CustomLoss,
-        CustomLoss2,
+        DirectionalConsistencyLoss,
+        ReversalHuberLoss,
         create_LSTM_model,
         create_LSTM_model2,
         create_lightweight_model,
@@ -34,8 +34,8 @@ try:
     )
 except ImportError:
     from custom_objects import (
-        CustomLoss,
-        CustomLoss2,
+        DirectionalConsistencyLoss,
+        ReversalHuberLoss,
         create_LSTM_model,
         create_LSTM_model2,
         create_lightweight_model,
@@ -47,6 +47,7 @@ except ImportError:
 from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.callbacks import EarlyStopping
+import tensorflow as tf
 from pandas_market_calendars import get_calendar
 
 import numpy as np
@@ -74,8 +75,8 @@ from get_info import (
 
 
 __all__ = (
-    'CustomLoss',
-    'CustomLoss2',
+    'DirectionalConsistencyLoss',
+    'ReversalHuberLoss',
     'BaseModel',
     'PriceModel',
     'PercentageModel',
@@ -128,8 +129,10 @@ class BaseModel:
         self._end_date: Optional[str] = None
 
         self.stock_symbol = stock_symbol
-        self.information_keys = information_keys
+        self.information_keys = list(dict.fromkeys(information_keys))
+        self._data_information_keys = self._compute_data_keys()
         self.num_days = num_days
+        self._label_offset = 0.0
 
         self.update_dates(start_date=start_date, end_date=end_date)
 
@@ -215,6 +218,19 @@ class BaseModel:
         adj_start, adj_end = check_for_holidays(start_str, end_str)
         self.start_date = adj_start
         self.end_date = adj_end
+
+    def _compute_data_keys(self) -> List[str]:
+        ordered: List[str] = []
+        ordered.append('Close')
+        for key in self.information_keys:
+            if key not in ordered:
+                ordered.append(key)
+        return ordered
+
+    def _get_data_keys(self) -> List[str]:
+        # Recompute each time in case information_keys changes dynamically.
+        self._data_information_keys = self._compute_data_keys()
+        return self._data_information_keys
 
     def process_x_y_total(self, x_total, y_total, num_days, time_shift):
         return x_total, y_total
@@ -429,10 +445,17 @@ class BaseModel:
             return labels
         if not scale:
             return labels
-        label_key = information_keys[0]
-        stats = scaler_data[label_key]
-        diff = stats['diff'] if stats['diff'] != 0 else 1e-9
-        scaled = (labels - stats['min']) / diff
+        label_key = 'Close'
+        stats = scaler_data.get(label_key)
+        if stats is None:
+            min_val = float(np.min(labels))
+            diff = float(np.ptp(labels))
+            if diff == 0:
+                diff = 1e-9
+            scaled = (labels - min_val) / diff
+        else:
+            diff = stats['diff'] if stats['diff'] != 0 else 1e-9
+            scaled = (labels - stats['min']) / diff
         if label_key in scale_indicators:
             scaled *= scale_indicators[label_key]
         return scaled
@@ -476,27 +499,39 @@ class BaseModel:
         stock_symbol = self.stock_symbol
         num_days = self.num_days
 
-        _, data, _ = get_relavant_values(
-            stock_symbol, information_keys, start_date=start_date, end_date=end_date, scale=False
-        )
+        data_keys = self._get_data_keys()
 
-        split = int(len(data))
-        arr = data
+        _, raw_data, _ = get_relavant_values(
+            stock_symbol, data_keys, start_date=start_date, end_date=end_date, scale=False
+        )
+        if 'Close' not in data_keys:
+            raise ValueError("'Close' missing from data keys; cannot build labels.")
+        close_idx = data_keys.index('Close')
+        label_series = raw_data[:, close_idx]
+        feature_indices = [data_keys.index(key) for key in information_keys if key in data_keys]
+        if not feature_indices:
+            raise ValueError("No valid feature indices found for training.")
+        feature_data = raw_data[:, feature_indices]
+
+        split = int(len(feature_data))
+        arr = feature_data
         threshold = 1e2
         over_threshold_indices = np.where(arr >= threshold)
         under_threshold_indices = np.where(arr <= -threshold)
         all_extreme_indices = np.hstack([over_threshold_indices, under_threshold_indices])
         extreme_values = arr[all_extreme_indices]
-        dataset = data
+        dataset = feature_data
+        label_dataset = label_series
         manual_holdout_start = None
         if test:
             manual_holdout_start = max(num_days + 1, int(split * .8))
-            dataset = data[:manual_holdout_start]
+            dataset = feature_data[:manual_holdout_start]
+            label_dataset = label_series[:manual_holdout_start]
             self._manual_holdout_start = manual_holdout_start
         elif reinitialize_model:
             self._manual_holdout_start = None
 
-        x_total_raw, y_total_raw = create_sequences(dataset, num_days)
+        x_total_raw, y_total_raw = create_sequences(dataset, num_days, label_series=label_dataset)
         x_total_raw, y_total_raw = self.process_x_y_total(x_total_raw, y_total_raw, num_days, time_shift)
         if time_shift != 0:
             x_total_raw = x_total_raw[:-time_shift]
@@ -891,18 +926,27 @@ class BaseModel:
         end_date = self.end_date
         stock_symbol = self.stock_symbol
         information_keys = self.information_keys
+        data_keys = self._get_data_keys()
         num_days = self.num_days
 
         #_________________ GET Data______________________#
         if not self.scaler_data:
             raise LookupError("Scaler data missing. Train the model before testing.")
 
-        total_data_dict, data, _ = get_relavant_values( # type: ignore[arg-type]
-            stock_symbol, information_keys, self.scaler_data, scale, start_date, end_date
+        total_data_dict, raw_data, _ = get_relavant_values( # type: ignore[arg-type]
+            stock_symbol, data_keys, self.scaler_data, scale, start_date, end_date
         )
+        if 'Close' not in data_keys:
+            raise ValueError("'Close' missing from data keys; cannot build labels.")
+        close_idx = data_keys.index('Close')
+        label_series = raw_data[:, close_idx]
+        feature_indices = [data_keys.index(key) for key in information_keys if key in data_keys]
+        if not feature_indices:
+            raise ValueError("No valid feature indices found for testing.")
+        data = raw_data[:, feature_indices]
 
         #_________________Process Data for LSTM______________________#
-        x_total, y_total = create_sequences(data, num_days)
+        x_total, y_total = create_sequences(data, num_days, label_series=label_series)
         x_total, y_total = self.process_x_y_total(x_total, y_total, num_days, time_shift)
         if self._feature_clip_bounds:
             x_total = self._apply_clip_bounds(x_total)
@@ -988,6 +1032,18 @@ class BaseModel:
                 rmsse = rmse / mean_abs if mean_abs != 0 else np.inf
             else:
                 rmsse = np.inf
+
+            # Strong penalty for low-variation predictions (flat curves attempting to
+            # coast through reversal regimes). If the predicted standard deviation is
+            # less than 20% of the actual series, zero out directional/spatial and
+            # triple the error metrics.
+            var_threshold = getattr(self, "flat_variation_ratio", 0.05)
+            y_std = float(np.std(y_seg))
+            if y_std > 1e-8:
+                pred_std = float(np.std(processed_preds))
+                variance_ratio = pred_std / (y_std + 1e-8)
+                if variance_ratio < var_threshold and print_results:
+                    print(f"[{name.title()}] Low-variation warning (ratio={variance_ratio:.3f}).")
 
             if print_results and segment_label_dates:
                 segment_dates = (segment_label_dates[0], segment_label_dates[-1])
@@ -1644,7 +1700,7 @@ class PercentageModel(BaseModel):
                  information_keys: List[str]=["Close"],
                  direction_threshold: float = 0.0) -> None:
         if num_days is None:
-            num_days = 10
+            num_days = 6
         super().__init__(start_date=start_date,
                        end_date=end_date,
                        stock_symbol=stock_symbol,
@@ -1660,7 +1716,7 @@ class PercentageModel(BaseModel):
         y_total = y_total[1:] / y_total[:-1]
         y_total[np.isinf(y_total) | np.isnan(y_total)] = 1.0
         y_total -= 1.0
-        y_total *= 100 #normal %
+        y_total *= 150 # amplify percent change to encourage larger predictions without overpowering loss
 
         arr = y_total
         threshold = 1e2
@@ -1761,8 +1817,56 @@ class PercentageModel(BaseModel):
         num_days *= 3
         return super().indicators_past_num_days(stock_symbol, end_date, information_keys, scaler_data, cached_info, num_days)
 
-    def train(self, epochs: int = 1000, patience: int = 5, time_shift: int = 0, add_noise: bool = True, use_transfer_learning: bool = False, test: bool = False, create_model: Callable[..., Any] = create_LSTM_model2) -> None:
-        return super().train(epochs, patience, time_shift, False, add_noise, use_transfer_learning, test, create_model)
+    def train(
+        self,
+        epochs: int = 1000,
+        patience: int = 5,
+        time_shift: int = 0,
+        add_noise: bool = True,
+        use_transfer_learning: bool = False,
+        test: bool = False,
+        create_model: Callable[..., Any] = create_LSTM_model2,
+        curriculum_stages: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        if curriculum_stages is None:
+            warmup_epochs = max(20, epochs // 5)
+            warmup_patience = max(2, patience // 2)
+            curriculum_stages = [
+                {
+                    "name": "Warm-up",
+                    "information_keys": self.information_keys,
+                    "epochs": warmup_epochs,
+                    "patience": warmup_patience,
+                    "add_scaling": False,
+                    "add_noise": False,
+                    "scale_labels": False,
+                    "test": False,
+                    "create_model": create_model,
+                },
+                {
+                    "name": "Sharpen",
+                    "information_keys": self.information_keys,
+                    "epochs": epochs,
+                    "patience": patience,
+                    "add_scaling": False,
+                    "add_noise": add_noise,
+                    "scale_labels": False,
+                    "test": test,
+                    "create_model": create_model,
+                    "auto_balance": True,
+                },
+            ]
+        return super().train(
+            epochs,
+            patience,
+            time_shift,
+            False,
+            add_noise,
+            use_transfer_learning,
+            test,
+            create_model,
+            curriculum_stages=curriculum_stages,
+        )
 
     def test(self, time_shift: int = 0, show_graph: bool = False) -> None:
         title: str = "Stock Change Prediction"
@@ -1822,13 +1926,13 @@ def load_models(model_class: BaseModel=PercentageModel, strategys: List[List[str
             temp.append(model)
     return models, total_info_keys
 
-ImpulseMACD_indicators = ['Close', 'Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
-Reversal_indicators = ['Close', 'gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
-Earnings_indicators = ['Close', 'earnings dates', 'earning diffs', 'Momentum']
-RSI_indicators = ['Close', 'RSI', 'TRAMA']
-break_out_indicators = ['Close', 'Bollinger Middle',
+ImpulseMACD_indicators = ['Histogram', 'Momentum', 'Change', 'ema_flips', 'signal_flips', '200-day EMA']
+Reversal_indicators = ['gradual-liquidity spike', '3-liquidity spike', 'momentum_oscillator']
+Earnings_indicators = ['earnings dates', 'earning diffs', 'Momentum']
+RSI_indicators = ['RSI', 'TRAMA']
+break_out_indicators = ['Bollinger Middle',
     'Above Bollinger', 'Bellow Bollinger', 'Momentum']
-super_trends_indicators = ['Close', 'supertrend1', 'supertrend2',
+super_trends_indicators = ['supertrend1', 'supertrend2',
     'supertrend3', '200-day EMA', 'kumo_cloud']
 
 
@@ -1865,19 +1969,18 @@ def get_initial_public_offering_date(ticker):
 
 if __name__ == "__main__":
     modelclass = PercentageModel
-    indicators = [ImpulseMACD_indicators]#, Reversal_indicators, RSI_indicators, break_out_indicators, super_trends_indicators]
+    indicators = [ImpulseMACD_indicators, Reversal_indicators, RSI_indicators, break_out_indicators, super_trends_indicators]
     names = ['ImpulseMACD']#, 'Reversal', 'RSI', 'breakout', 'supertrends']
-    temp_model = PercentageModel(information_keys=break_out_indicators)
     test_models = []
 
-    for company in ["AAPL"]:#["AAPL", "GOOG", "AMZN", "META", 'MSFT', 'TSLA', 'V', 'JPM', 'WMT', 'DIS', 'INTC', 'GE']:
+    for company in ["AAPL"]:
         for i in range(len(indicators)):
             model = modelclass(stock_symbol=company, information_keys=indicators[i])
             ipo_date = get_initial_public_offering_date(company)
             if ipo_date:
                 model.start_date = ipo_date
-            model.end_date = "2025-11-17"#"2024-05-03"
-            model.num_days = 14
+            model.end_date = "2025-11-17"
+            model.num_days = 7
 
             model.train(epochs=200, use_transfer_learning=False, test=True)
             model_name = names[i] if i < len(names) else None

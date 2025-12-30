@@ -134,7 +134,7 @@ scale_indicators = {
 }
 
 
-def create_sequences(data: np.ndarray, num_days: int) -> Tuple[np.ndarray, np.ndarray]:
+def create_sequences(data: np.ndarray, num_days: int, label_series: Optional[np.ndarray]=None) -> Tuple[np.ndarray, np.ndarray]:
     """
     The purpose of this function is to create sequences and labels which are implemented
     into the model during fitting. This is done by iterating through the data and appending
@@ -151,9 +151,14 @@ def create_sequences(data: np.ndarray, num_days: int) -> Tuple[np.ndarray, np.nd
     """
     sequences = [] # What inputs look like
     labels = [] # What output looks like
+    if label_series is not None and label_series.shape[0] != len(data):
+        raise ValueError("Label series must align with data length.")
     for i in range(num_days, len(data)):
         sequences.append(data[i-num_days:i])
-        labels.append(data[i, 0])
+        if label_series is not None:
+            labels.append(label_series[i])
+        else:
+            labels.append(data[i, 0])
     return np.array(sequences), np.array(labels)
 
 
