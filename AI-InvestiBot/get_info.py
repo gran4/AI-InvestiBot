@@ -13,6 +13,7 @@ Author:
 See also:
     Other modules that use the getInfo module -> Models.py, trading_funcs.py
 """
+import argparse
 import requests
 import math
 import json
@@ -373,4 +374,31 @@ def get_historical_info(companys: Optional[List[str]]=None) -> None:
         update_info(company_ticker, stock_data)
 
 if __name__ == '__main__':
-    get_historical_info()
+    parser = argparse.ArgumentParser(
+        description="Fetch and cache historical indicator data for specified tickers."
+    )
+    parser.add_argument(
+        "--symbol",
+        "-s",
+        dest="symbols",
+        action="append",
+        help="Ticker symbol to download. Repeat flag to specify multiple symbols.",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Download data for every ticker in trading_funcs.company_symbols.",
+    )
+    args = parser.parse_args()
+
+    if args.symbols and args.all:
+        parser.error("Use either --symbol or --all, not both.")
+
+    if args.symbols:
+        targets = [symbol.upper() for symbol in args.symbols]
+    elif args.all:
+        targets = list(company_symbols)
+    else:
+        targets = list(company_symbols)
+
+    get_historical_info(targets)
