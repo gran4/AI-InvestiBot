@@ -3,8 +3,9 @@ matplotlib==3.7.1
 pandas==2.0.1
 pandas_market_calendars==4.1.4
 yfinance==0.2.18
+multitasking>=0.0.10,<0.0.12  # pin below 0.0.12 to avoid typing features unsupported on py3.8
 tensorflow==2.13.0
-scikit-learn==1.2.2
+scikit-learn>=1.5.0
 bs4==0.0.1
 boto3==1.26.152
 alpaca_trade_api==3.0.2
