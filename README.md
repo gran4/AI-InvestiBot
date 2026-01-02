@@ -8,14 +8,13 @@ AI-InvestiBot provides scripts and utilities for experimenting with indicator-he
 - [Roadmap](#roadmap)
 - [Quick Start](#quick-start)
 - [Training Workflow](#training-workflow)
-  - [Data Retrieval & Caching](#data-retrieval--caching)
-  - [Feature Engineering](#feature-engineering)
-  - [Model Zoo](#model-zoo)
-  - [Hold-out Monitoring](#hold-out-monitoring)
+  - [Data Retrieval and Caching](#data-retrieval-and-caching)
+- [Feature Engineering](#feature-engineering)
+- [Model Zoo](#model-zoo)
+- [Hold-out Monitoring](#hold-out-monitoring)
 - [Decision Automation](#decision-automation)
 - [Support](#support)
-
----
+***
 
 ## Highlights
 
@@ -27,13 +26,10 @@ AI-InvestiBot provides scripts and utilities for experimenting with indicator-he
 - **Serverless skeleton**: `implementation.py` includes a Lambda-ready loop for anyone who wants to run lightweight decision logic without a dedicated workstation.
 
 ## Roadmap
-
-| Item | Status |
-| --- | --- |
-| Hold-out driven accuracy targets | ✅ |
-| Callback-based training API | ✅ |
-| More validation/tests | 🔄 |
-| PercentageModel follow-ups | 🔄 |
+- Hold-out driven accuracy targets — ✅
+- Callback-based training API — ✅
+- More validation/tests — 🔄
+- PercentageModel follow-ups — 🔄
 
 ## Quick Start
 
@@ -41,11 +37,7 @@ AI-InvestiBot provides scripts and utilities for experimenting with indicator-he
 
 1. **Install dependencies**: `pip install -r requirements.txt`
 2. **Configure secrets**: Copy `secrets_example.config` → `secrets.config`, add API keys (trading, AlphaVantage fallback, etc.).
-3. **Cache data**:  
-   ```bash
-   python -m AI-InvestiBot.get_info --symbol AAPL
-   ```
-   The helper fetches Yahoo Finance history (with AlphaVantage/Stooq fallbacks) and writes `Stocks/<SYMBOL>/info.json`.
+3. **Cache data**: run `python -m AI-InvestiBot.get_info` with the symbol flag set to `AAPL`. The helper fetches Yahoo Finance history (with AlphaVantage or Stooq fallbacks) and writes `Stocks/<SYMBOL>/info.json`.
 4. **Train a model**:
    ```python
    from AI-InvestiBot.models import PriceModel
@@ -59,22 +51,17 @@ AI-InvestiBot provides scripts and utilities for experimenting with indicator-he
    ```python
    directional, spatial, rmse, rmsse, homogenous = model.test(show_graph=False)
    ```
-6. **Batch comparisons** (optional):
-   ```bash
-   python -m AI-InvestiBot.holdout_monitor --config configs/experiments.json --output logs/holdout_report.json
-   ```
+6. **Batch comparisons** (optional): run `python -m AI-InvestiBot.holdout_monitor` with your experiment config path and desired output location to produce JSON and CSV summaries.
 
 Keep `Stocks/` out of version control—models and cached data regenerate locally.
 
 ## Training Workflow
 
-### Data Retrieval & Caching
+### Data Retrieval and Caching
 
-| Step | Script | Notes |
-| --- | --- | --- |
-| Download historical OHLCV | `trading_funcs.download_stock_history` | Retries Yahoo and falls back to AlphaVantage/Stooq when rate-limited. |
-| Derive indicators & metadata | `get_info.py` | Outputs `info.json`, `dynamic_tuning.json`, plus scaler references for each symbol. |
-| Inspect caches | `validate_inputs.py` | Spot-checks indicator quality, counts samples, and reports missing/invalid entries. |
+- **Download historical OHLCV** — `trading_funcs.download_stock_history`. Retries Yahoo and falls back to AlphaVantage or Stooq when rate-limited.
+- **Derive indicators and metadata** — `get_info.py`. Produces `info.json`, `dynamic_tuning.json`, plus scaler references per symbol.
+- **Inspect caches** — `validate_inputs.py`. Spot-checks indicator quality, counts samples, and flags missing or invalid entries.
 
 Each indicator drawer writes to JSON so the training loop can load features with `get_relavant_values()` and feed them into the neural network builders.
 
@@ -107,11 +94,7 @@ The training loop accepts callbacks, so you can plug in any Keras `Model` factor
 
 `AI-InvestiBot/holdout_monitor.py` packages the walk-forward pipeline into a CLI:
 
-```bash
-python -m AI-InvestiBot.holdout_monitor \
-  --config configs/experiments.json \
-  --output logs/holdout_report.json
-```
+Run `python -m AI-InvestiBot.holdout_monitor` with `configs/experiments.json` and an output file path. The command reads experiments, executes each training run, and writes its findings to JSON and CSV.
 
 - Reads `{ "experiments": [ { "stock_symbol": "...", "information_keys": [...], "create_model": "gated", ... } ] }`
 - Runs `PriceModel.train(test=True)` per entry and records directional/spatial/RMSE metrics for the hold-out slice.
@@ -133,7 +116,6 @@ Features:
 
 - **Discord**: https://dsc.gg/ai-investibot/ (custom vanity link)
 - **Issues/PRs**: Please open tickets for bugs, docs gaps, or feature proposals. Contributions should avoid checking in regenerated `Stocks/` assets.
+***
 
----
-
-Thanks for exploring AI-InvestiBot. The repo remains under active development—expect frequent refactors as the research backlog turns into production-ready components. If you build something on top of the framework, let us know! We’re keen to highlight community workflows in future docs.
+Thanks for taking a look at AI-InvestiBot. If you build something useful on top of the framework, feel free to share it through an issue or pull request so others can benefit as well.
