@@ -1,6 +1,6 @@
 # AI-InvestiBot
 
-An extensible research sandbox for experimenting with indicator-rich LSTM architectures, walk-forward validation, and automated decision making across multiple equities. The repo bundles a data pipeline, a suite of model builders, and utilities for benchmarking and deployment.
+AI-InvestiBot provides scripts and utilities for experimenting with indicator-heavy LSTM models, walk-forward validation, and automated decision logic across equities. The repository includes helper modules for gathering data, crafting indicators, training models, and connecting them to decision tooling.
 
 ## Contents
 
@@ -13,30 +13,27 @@ An extensible research sandbox for experimenting with indicator-rich LSTM archit
   - [Model Zoo](#model-zoo)
   - [Hold-out Monitoring](#hold-out-monitoring)
 - [Decision Automation](#decision-automation)
-- [Results Snapshot](#results-snapshot)
 - [Support](#support)
 
 ---
 
 ## Highlights
 
-- **Indicator-first mindset**: `get_info.py` builds a consistent JSON cache per ticker with bespoke indicators (earnings deltas, supertrends, kumo clouds, etc.) plus any custom keys you specify.
-- **Flexible model creation**: `PriceModel`, `PercentageModel`, and `DirectionalModel` accept callbacks via `create_model=...`, letting you swap between LSTM variants (`create_lightweight_model`, `create_context_gated_model`, probabilistic heads, etc.) without touching the training loop.
-- **Walk-forward discipline**: `train(test=True)` automatically reserves a hold-out window and captures scaler statistics from the train split only. `model.test()` mirrors those settings to produce realistic directional/spatial/RMSE metrics.
-- **Batch experimentation**: `AI-InvestiBot/holdout_monitor.py` consumes JSON experiment specs and emits JSON/CSV summaries, so you can compare architectures/indicator mixes with one command.
-- **Decision automation**: `decision_maker.py` stitches together multiple trained strategies, tracks cached windows offline, and feeds a `DecisionTreeClassifier` to vote on trades.
-- **Serverless-friendly**: Core loops are decoupled from the UI, with a Lambda-ready implementation for those who want to deploy without a 24/7 workstation.
+- **Indicator-centric cache**: `get_info.py` produces `Stocks/<TICKER>/info.json` with earnings diffs, kumo clouds, supertrends, and other custom indicators used by the LSTM pipelines.
+- **Pluggable model builders**: `PriceModel`, `PercentageModel`, and `DirectionalModel` accept `create_model=...` callbacks, so you can prototype new architectures without rewriting the training loop.
+- **Walk-forward workflow**: `train(test=True)` hides the boilerplate for hold-out splits and scaler tracking. `model.test()` reuses the configuration for a fast sanity check.
+- **Batch experimentation helpers**: `holdout_monitor.py` accepts a JSON sample describing experiments and emits JSON or CSV summaries to compare indicator mixes or model families.
+- **Prototype decision stack**: `decision_maker.py` loads multiple saved strategies, refreshes their cached indicators, and feeds a `DecisionTreeClassifier` for a trade vote.
+- **Serverless skeleton**: `implementation.py` includes a Lambda-ready loop for anyone who wants to run lightweight decision logic without a dedicated workstation.
 
 ## Roadmap
 
-| Goal | Status |
+| Item | Status |
 | --- | --- |
-| ≥80 % accuracy on unseen data | ✅ |
-| Callback-driven training API | ✅ |
-| Documentation & robustness parity with a production library | 🔄 |
-| Finish PercentageModel refactor follow-ups | 🔄 |
-
-Additional focus areas: richer validation (unit tests already cover label builders + decision maker), more examples, and tightening the real-time trading path once the research foundation is stable.
+| Hold-out driven accuracy targets | ✅ |
+| Callback-based training API | ✅ |
+| More validation/tests | 🔄 |
+| PercentageModel follow-ups | 🔄 |
 
 ## Quick Start
 
@@ -58,7 +55,10 @@ Additional focus areas: richer validation (unit tests already cover label builde
    model.train(create_model=create_lightweight_model, epochs=300, patience=10, test=True)
    model.save("Stocks/AAPL/MyPriceModel")
    ```
-5. **Evaluate hold-out**: `directional, spatial, rmse, rmsse, homogenous = model.test(show_graph=False)`
+5. **Evaluate hold-out**: 
+   ```python
+   directional, spatial, rmse, rmsse, homogenous = model.test(show_graph=False)
+   ```
 6. **Batch comparisons** (optional):
    ```bash
    python -m AI-InvestiBot.holdout_monitor --config configs/experiments.json --output logs/holdout_report.json
@@ -72,7 +72,7 @@ Keep `Stocks/` out of version control—models and cached data regenerate locall
 
 | Step | Script | Notes |
 | --- | --- | --- |
-| Download historical OHLCV | `trading_funcs.download_stock_history` | Retries Yahoo; falls back to AlphaVantage/Stooq if rate-limited. |
+| Download historical OHLCV | `trading_funcs.download_stock_history` | Retries Yahoo and falls back to AlphaVantage/Stooq when rate-limited. |
 | Derive indicators & metadata | `get_info.py` | Outputs `info.json`, `dynamic_tuning.json`, plus scaler references for each symbol. |
 | Inspect caches | `validate_inputs.py` | Spot-checks indicator quality, counts samples, and reports missing/invalid entries. |
 
@@ -128,28 +128,6 @@ Features:
 - Optional `TARGET_SYMBOLS` override to focus the evaluation.
 - Designed to slot into the `ResourceManager` flows so you can allocate capital based on aggregated votes rather than a single model.
 
-## Results Snapshot
-
-Directional accuracy pulled from representative hold-out runs (AAPL dataset):
-
-| Model | Directional | Spatial | RMSE | RMSSE |
-| --- | --- | --- | --- | --- |
-| Day Trade | 97.89 % | 95.07 % | 1.34 | 24.99 |
-| Impulse MACD | 96.48 % | 95.07 % | 0.69 | 7.99 |
-| Reversal | 97.18 % | 95.07 % | 1.13 | 24.43 |
-| Earnings | 98.59 % | 96.48 % | 0.87 | 15.58 |
-| RSI | 97.14 % | 95.71 % | 0.58 | 22.23 |
-| Breakout | 97.89 % | 93.66 % | 1.09 | 21.42 |
-| Super Trends | 97.89 % | 92.25 % | 1.69 | 78.60 |
-
-*Numbers vary depending on indicator mix, date window, and architecture. Always re-run experiments with your own configuration before drawing conclusions. `model.test(show_graph=True)` outputs comparison plots to visually inspect alignment.*
-
-### Interpreting the Metrics
-
-- **Directional**: Share of samples where prediction and ground truth moved the same direction (a hit rate).
-- **Spatial**: Ensures predictions stay on the correct side of the target after a move, penalizing phase errors.
-- **RMSE/RMSSE**: Root mean squared error and its scaled counterpart; lower is better. RMSSE weights large misses more heavily.
-- **Confidence**: Hold-out splits guarantee the reported metrics come from unseen data. Early stopping curbs overfitting, and transfer learning is disabled unless you explicitly enable it.
 
 ## Support
 
